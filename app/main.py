@@ -101,14 +101,16 @@ def create_app(deps: AppDeps | None = None) -> FastAPI:
             raise HTTPException(status_code=404, detail="Subscriber not found")
         events = db.eligible_events(d.conn, d.clock())
         try:
-            picks = choose_picks(subscriber, events, d.ai, sent_ids=db.sent_event_ids(d.conn, subscriber_id))
+            picks = choose_picks(
+                subscriber, events, d.ai, now=d.clock(), sent_ids=db.sent_event_ids(d.conn, subscriber_id)
+            )
         except AIUnavailable:
             return _page("view.html", subscriber=subscriber, error=AI_BUSY, body=None, event_ids=[])
         return _page(
             "view.html",
             subscriber=subscriber,
             error=None,
-            body=render_newsletter(picks),
+            body=render_newsletter(picks, now=d.clock()),
             event_ids=[pick.event.id for pick in picks],
         )
 
