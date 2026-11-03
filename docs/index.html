@@ -129,7 +129,14 @@
         <h3>Build 1 · Intent.md & Throwaway Prototype (Due Nov 9)</h3>
         <ul>
           <li><strong>What shipped:</strong> A local prototype: automatic collection from Ticketmaster and web pages, event checks, backend scoring, AI picks from checked events, and a paste box for social finds. The database holds 34 eligible events from four sources: Ticketmaster 24, The Skint 5, doNYC 3, and Eventbrite 2. Secret NYC and Luma added none. One issue is shown above. Most eligible events are big ticketed Ticketmaster shows, because the other sources added few events. That skew is the main known weakness.</li>
-          <li><strong>Things learned with AI:</strong> [What you learned from AI practice and Terminus Episodes 1 and 2.]</li>
+          <li><strong>Things learned with AI:</strong>
+            <ul>
+              <li>AI won't find the idea for you. When I asked what to build, it gave generic answers. I had to come up with the idea myself and then challenge it.</li>
+              <li>AI plays it safe. It tends to be strict about laws and rules, so I have to decide for myself how to handle those limits.</li>
+              <li>Getting data is hard. Collecting events from social media is a legal gray area, and there is too much data out there to collect it all, so I had to research first where the AI should crawl.</li>
+              <li>AI can overdo it. It guesses what other tasks should be done and starts doing them. That would be great for real production work, but since this project is for learning, I need to instruct the AI to tell me what it suggests instead of just doing it.</li>
+            </ul>
+          </li>
           <li><strong>What broke / changed in PRD:</strong> Secret NYC, doNYC, and Eventbrite have terms that ban automated collection, and Luma's terms are unclear. I chose to include them for this class project, and they must be reviewed before any commercial use. TikTok, Instagram, and RedNote stay as pasted links, because reaching them automatically would take login bots or block workarounds. Testing on real data caught paid ads being treated as events, Ticketmaster returning only the next two days, and pasted posts never being confirmed. All three are fixed.</li>
           <li><strong>Cost & time this week:</strong> $16.16 of Claude Code usage as reported by /cost before the final steps, plus $0.00 on APIs and hosting (free tiers) · about 2.1 hours of measured session activity, not counting Terminus or time outside the session</li>
         </ul>
