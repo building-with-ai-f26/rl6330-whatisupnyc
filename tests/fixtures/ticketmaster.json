@@ -1,0 +1,15 @@
+{"_embedded": {"events": [
+  {"name": "Show", "url": "https://www.ticketmaster.com/event/1",
+   "dates": {"start": {"dateTime": "2026-11-08T01:00:00Z"}},
+   "promoter": {"name": "Live Nation"},
+   "classifications": [{"segment": {"name": "Music"}}],
+   "_embedded": {"venues": [{"name": "Beacon Theatre", "city": {"name": "New York"}}]}},
+  {"name": "No Venue", "url": "https://www.ticketmaster.com/event/2",
+   "dates": {"start": {"dateTime": "2026-11-08T01:00:00Z"}}},
+  {"name": "Date To Be Announced", "url": "https://www.ticketmaster.com/event/3",
+   "dates": {"start": {"localDate": "2026-11-08", "noSpecificTime": true}},
+   "_embedded": {"venues": [{"name": "Beacon Theatre", "city": {"name": "New York"}}]}},
+  {"name": "Jersey Show", "url": "https://www.ticketmaster.com/event/4",
+   "dates": {"start": {"dateTime": "2026-11-08T01:00:00Z"}},
+   "_embedded": {"venues": [{"name": "Prudential Center", "city": {"name": "Newark"}}]}}
+]}}
