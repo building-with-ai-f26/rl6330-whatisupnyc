@@ -1,0 +1,28 @@
+def test_prohibited_site_not_allowed(sites):
+    assert not sites.is_allowed("https://blocked.example/e/1")
+
+
+def test_unclear_site_not_allowed(sites):
+    assert not sites.is_allowed("https://unclear.example/e/1")
+
+
+def test_unknown_site_not_allowed(sites):
+    assert not sites.is_allowed("https://never-reviewed.example/")
+
+
+def test_listing_site_allowed_but_not_reliable(sites):
+    assert sites.is_allowed("https://listing.example/x")
+    assert not sites.is_reliable("https://listing.example/x")
+
+
+def test_subdomain_uses_parent_rule(sites):
+    assert sites.is_allowed("https://www.reliable.example/e/1")
+    assert not sites.is_allowed("https://www.blocked.example/e/1")
+
+
+def test_lookalike_domain_not_allowed(sites):
+    assert not sites.is_allowed("https://notreliable.example/e/1")
+
+
+def test_allowed_domains_lists_only_allowed(sites):
+    assert sorted(sites.allowed_domains()) == ["listing.example", "reliable.example"]

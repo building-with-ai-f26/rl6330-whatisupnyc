@@ -1,0 +1,51 @@
+from datetime import datetime, timedelta
+
+import pytest
+
+from app import db
+from app.models import CandidateEvent, Score
+from tests.conftest import NY, make_event
+
+NOW = datetime(2026, 11, 2, 12, tzinfo=NY)
+
+
+def test_naive_datetime_rejected():
+    with pytest.raises(ValueError):
+        make_event(start=datetime(2026, 11, 7))
+
+
+def test_eligible_events_excludes_ineligible_and_past(conn):
+    db.save_event(conn, make_event(name="Good"), Score(40, True, None))
+    db.save_event(conn, make_event(name="Weak"), Score(0, False, "no credibility"))
+    db.save_event(conn, make_event(name="Old", start=NOW - timedelta(days=1)), Score(40, True, None))
+    assert [e.event.name for e in db.eligible_events(conn, NOW)] == ["Good"]
+
+
+def test_eligible_events_keep_time_zone_and_highest_score_first(conn):
+    db.save_event(conn, make_event(name="Low"), Score(10, True, None))
+    db.save_event(conn, make_event(name="High"), Score(40, True, None))
+    events = db.eligible_events(conn, NOW)
+    assert [e.event.name for e in events] == ["High", "Low"]
+    assert events[0].event.start == datetime(2026, 11, 7, 20, tzinfo=NY)
+
+
+def test_subscriber_round_trip(conn):
+    new_id = db.save_subscriber(conn, "Ana", "ana@x.test", "jazz", "short", ["Mon", "Fri"])
+    saved = db.get_subscriber(conn, new_id)
+    assert (saved.name, saved.days) == ("Ana", ["Mon", "Fri"])
+
+
+def test_sent_ids_round_trip(conn):
+    db.mark_sent(conn, 1, [2, 3])
+    assert db.sent_event_ids(conn, 1) == {2, 3}
+
+
+def test_ai_requests_counted_for_today_only(conn):
+    db.record_ai_request(conn, NOW - timedelta(days=2))
+    db.record_ai_request(conn, NOW)
+    assert db.count_ai_requests_today(conn, NOW) == 1
+
+
+def test_dropped_event_logged_with_reason(conn):
+    db.log_dropped(conn, make_event(name="Bad"), "page did not open")
+    assert db.dropped_reasons(conn) == {"page did not open": 1}

@@ -1,0 +1,25 @@
+[project]
+name = "whatisupnyc"
+version = "0.1.0"
+description = "A personalized NYC events newsletter."
+requires-python = ">=3.12"
+dependencies = [
+    "beautifulsoup4",
+    "fastapi",
+    "httpx",
+    "jinja2",
+    "python-dotenv",
+    "python-multipart",
+    "tzdata",
+    "uvicorn",
+]
+
+[dependency-groups]
+dev = ["pytest"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
+
+[tool.uv]
+package = false
