@@ -145,3 +145,14 @@ def test_unsafe_link_is_not_rendered():
 
 def test_invites_reply_by_email():
     assert "reply" in render_newsletter([pick()]).lower()
+
+
+def test_issue_carries_the_wordmark_as_text_for_email():
+    html = render_newsletter([pick()])
+    assert "whatisupnyc" in html
+    assert "What's up, NYC" not in html
+    assert "<svg" not in html
+
+
+def test_pick_reads_date_at_venue():
+    assert "Sat, Nov 7, 8:00 PM at Beacon Theatre" in render_newsletter([pick()])

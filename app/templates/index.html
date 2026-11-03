@@ -1,81 +1,110 @@
 <!doctype html>
 <html lang="en">
 <head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
+  {% include "partials/head.html" %}
   <title>whatisupnyc</title>
   <style>
-    body { font-family: Georgia, serif; background: #fafafa; color: #1f2937; margin: 0; }
-    main { max-width: 620px; margin: 0 auto; padding: 40px 16px 80px; }
-    h1 { font-size: 34px; margin: 0 0 8px; }
-    h2 { font-size: 18px; margin: 36px 0 10px; }
-    label { display: block; font-size: 14px; margin: 14px 0 4px; color: #4b5563; }
-    input[type=text], input[type=email], input[type=url], textarea { width: 100%; box-sizing: border-box; padding: 10px; border: 1px solid #d1d5db; border-radius: 8px; font: inherit; }
-    #interests { font-size: 19px; padding: 14px; }
-    button { font: inherit; padding: 10px 16px; border-radius: 8px; border: 1px solid #1d63dc; background: #1d63dc; color: #fff; cursor: pointer; margin-top: 16px; }
-    button.template { background: #fff; color: #1d63dc; margin: 8px 8px 0 0; padding: 6px 12px; font-size: 14px; }
-    .days label { display: inline-block; margin: 4px 12px 4px 0; color: inherit; }
-    .message { background: #eff6ff; border: 1px solid #bfdbfe; padding: 10px 14px; border-radius: 8px; }
+    {% include "partials/base.css" %}
+    .sign { padding-bottom: clamp(36px, 6vw, 72px); }
+    .big { display: block; margin: clamp(44px, 8vw, 96px) 0 clamp(18px, 3vw, 28px); font-weight: 500; font-size: clamp(46px, 9.2vw, 112px); line-height: 0.98; letter-spacing: -0.035em; }
+    #interests { width: 100%; background: var(--white); color: var(--black); border: 0; border-radius: 4px; padding: 18px 20px; font: 400 clamp(18px, 2.2vw, 24px)/1.3 Archivo, Helvetica, Arial, sans-serif; }
+    #interests::placeholder { color: var(--steel); }
+    .starts { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+    .starts button { background: transparent; color: var(--white); border: 1px solid var(--white); border-radius: 999px; padding: 8px 14px; font-size: 15px; font-weight: 400; transition: background-color 120ms, color 120ms, transform 120ms var(--press); }
+    .starts button:hover { background: var(--white); color: var(--black); }
+    main { padding: clamp(32px, 5vw, 56px) var(--gutter) 72px; }
+    .grid { display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr); gap: clamp(32px, 6vw, 80px); }
+    p { margin: 0 0 18px; color: var(--ink); max-width: 44ch; }
+    .field { display: block; font-weight: 500; font-size: 15px; margin: 16px 0 6px; }
+    input[type=text], input[type=email], input[type=url], textarea { width: 100%; border: 1px solid var(--black); border-radius: 4px; padding: 11px 12px; font: inherit; background: var(--white); }
+    fieldset { border: 0; padding: 0; margin: 0; }
+    legend { font-weight: 500; font-size: 15px; padding: 0; margin-bottom: 8px; }
+    .days { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; }
+    .days label { position: relative; }
+    .days input { position: absolute; opacity: 0; width: 100%; height: 100%; margin: 0; cursor: pointer; }
+    .days span { display: block; text-align: center; border: 1px solid var(--black); border-radius: 4px; padding: 12px 0; font-weight: 500; font-size: 15px; transition: background-color 120ms; }
+    .days input:checked + span { background: var(--taxi); }
+    .days input:focus-visible + span { outline: 3px solid var(--black); outline-offset: 2px; }
+    form > button { margin-top: 22px; }
+    .ruled { border-top: 4px solid var(--black); padding-top: 12px; }
+    .message { max-width: none; background: var(--taxi); color: var(--black); border-radius: 4px; padding: 12px 16px; margin-bottom: 32px; }
+    .people { margin-top: 56px; }
+    .people ul { list-style: none; margin: 12px 0 0; padding: 0; }
+    .people li { padding: 8px 0; }
+    .people span { color: var(--steel); }
+    @media (max-width: 760px) { .grid { grid-template-columns: 1fr; } }
   </style>
 </head>
 <body>
-<main>
-  <h1>whatisupnyc</h1>
-  <p>NYC events picked for one person, on the days they choose.</p>
-  {% if message %}<p class="message" role="status">{{ message }}</p>{% endif %}
-
-  <form method="post" action="/subscribers">
-    <label for="interests">What kind of event?</label>
-    <input id="interests" name="interests" type="text" placeholder="Jazz, free museum nights, weird comedy...">
-    <div>
-      {% for label, text in templates.items() %}
-      <button class="template" type="button" data-text="{{ text }}">{{ label }}</button>
-      {% endfor %}
+  <header class="sign">
+    <div class="inner">
+      <div class="logo">{% include "partials/logo.svg" %}</div>
+      <label class="big" for="interests">What kind of event?</label>
+      <input id="interests" name="interests" form="make" type="text" required placeholder="Late jazz, free museum nights, weird comedy">
+      <div class="starts">
+        {% for label, text in templates.items() %}
+        <button type="button" data-text="{{ text }}">{{ label }}</button>
+        {% endfor %}
+      </div>
     </div>
-
-    <label>Which days?</label>
-    <div class="days">
-      {% for day in days %}
-      <label><input type="checkbox" name="days" value="{{ day }}"> {{ day }}</label>
-      {% endfor %}
+  </header>
+  <main>
+    <div class="inner">
+      {% if message %}<p class="message" role="status">{{ message }}</p>{% endif %}
+      <div class="grid">
+        <section>
+          <h2>Your list, on your days</h2>
+          <p>Checked NYC events picked for what you like, each with a date, a venue, and a link.</p>
+          <form id="make" method="post" action="/subscribers">
+            <fieldset>
+              <legend>Which days?</legend>
+              <div class="days">
+                {% for day in days %}
+                <label><input type="checkbox" name="days" value="{{ day }}" aria-label="{{ day }}"><span aria-hidden="true">{{ day[:3] }}</span></label>
+                {% endfor %}
+              </div>
+            </fieldset>
+            <label class="field" for="look_prompt">How should it read? (optional)</label>
+            <input id="look_prompt" name="look_prompt" type="text" placeholder="Keep it short and casual">
+            <label class="field" for="name">Name</label>
+            <input id="name" name="name" type="text" required autocomplete="off">
+            <label class="field" for="email">Email</label>
+            <input id="email" name="email" type="email" required autocomplete="off">
+            <button type="submit">Make my list</button>
+          </form>
+        </section>
+        <section class="ruled">
+          <h2>Saw something good on social media?</h2>
+          <p>Paste the post, and we'll look for the event on a page we can check.</p>
+          <form method="post" action="/paste">
+            <label class="field" for="link">Link to the post</label>
+            <input id="link" name="link" type="url" required>
+            <label class="field" for="caption">Caption, or the event's name, date, and venue</label>
+            <textarea id="caption" name="caption" rows="3" required></textarea>
+            <button class="dark" type="submit">Add this event</button>
+          </form>
+        </section>
+      </div>
+      {% if subscribers %}
+      <section class="people ruled">
+        <h2>Saved lists</h2>
+        <ul>
+          {% for person in subscribers %}
+          <li><a href="/newsletter/{{ person.id }}">{{ person.name }}</a> <span>{{ person.days|join(", ") }}</span></li>
+          {% endfor %}
+        </ul>
+      </section>
+      {% endif %}
     </div>
-
-    <label for="look_prompt">How should it read? (optional)</label>
-    <input id="look_prompt" name="look_prompt" type="text" placeholder="Keep it short and casual">
-
-    <label for="name">Name</label>
-    <input id="name" name="name" type="text" autocomplete="off">
-    <label for="email">Email</label>
-    <input id="email" name="email" type="email" autocomplete="off">
-    <button type="submit">Make the newsletter</button>
-  </form>
-
-  {% if subscribers %}
-  <h2>People</h2>
-  <ul>
-    {% for person in subscribers %}
-    <li><a href="/newsletter/{{ person.id }}">{{ person.name }}</a> · {{ person.days|join(", ") }}</li>
-    {% endfor %}
-  </ul>
-  {% endif %}
-
-  <h2>Found something on social media?</h2>
-  <form method="post" action="/paste">
-    <label for="link">Link to the post</label>
-    <input id="link" name="link" type="url">
-    <label for="caption">Its caption, or the event's name, date, and venue</label>
-    <textarea id="caption" name="caption" rows="3"></textarea>
-    <button type="submit">Add this event</button>
-  </form>
-</main>
-<script>
-  document.querySelectorAll("button.template").forEach(function (button) {
-    button.addEventListener("click", function () {
-      var box = document.getElementById("interests");
-      box.value = button.dataset.text;
-      box.focus();
+  </main>
+  <script>
+    document.querySelectorAll(".starts button").forEach(function (button) {
+      button.addEventListener("click", function () {
+        var box = document.getElementById("interests");
+        box.value = button.dataset.text;
+        box.focus();
+      });
     });
-  });
-</script>
+  </script>
 </body>
 </html>

@@ -81,3 +81,27 @@ def test_paste_shows_message(conn, sites):
 def test_start_page_keeps_user_text_escaped(conn, sites):
     db.save_subscriber(conn, "<script>x</script>", "a@x.test", "jazz", "", ["Friday"])
     assert "<script>x" not in client_for(conn, sites).get("/").text
+
+
+def test_start_page_shows_the_logo_and_tab_icon(conn, sites):
+    html = client_for(conn, sites).get("/").text
+    assert 'aria-label="whatisupnyc"' in html
+    assert 'rel="icon"' in html
+
+
+def test_day_buttons_keep_full_day_names_for_screen_readers(conn, sites):
+    html = client_for(conn, sites).get("/").text
+    assert 'value="Monday"' in html
+    assert ">Mon<" in html
+
+
+def test_people_list_comes_after_the_forms(conn, sites):
+    db.save_subscriber(conn, "Ana", "a@x.test", "jazz", "", ["Friday"])
+    html = client_for(conn, sites).get("/").text
+    assert html.index("Make my list") < html.index("Ana") 
+    assert html.index("Add this event") < html.index("Ana")
+
+
+def test_newsletter_page_shows_the_logo(conn, sites):
+    db.save_subscriber(conn, "Ana", "a@x.test", "jazz", "", ["Friday"])
+    assert 'aria-label="whatisupnyc"' in client_for(conn, sites).get("/newsletter/1").text
