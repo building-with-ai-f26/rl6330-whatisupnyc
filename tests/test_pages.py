@@ -58,3 +58,53 @@ def test_403_counts_as_blocked(sites):
         {"robots.txt": httpx.Response(404), "/e/1": httpx.Response(403)}
     )
     assert fetch_page(client, "https://reliable.example/e/1", sites).blocked
+
+
+def redirecting_client(location):
+    requested = []
+
+    def handler(request):
+        requested.append(str(request.url))
+        if request.url.path == "/robots.txt":
+            return httpx.Response(404)
+        if request.url.path == "/start":
+            return httpx.Response(302, headers={"Location": location})
+        return httpx.Response(200, text="<p>final page</p>")
+
+    return httpx.Client(transport=httpx.MockTransport(handler)), requested
+
+
+def test_redirect_to_prohibited_site_is_blocked_without_fetching(sites):
+    client, requested = redirecting_client("https://blocked.example/secret")
+    page = fetch_page(client, "https://reliable.example/start", sites)
+    assert page.blocked
+    assert not any("blocked.example" in url for url in requested)
+
+
+def test_redirect_to_internal_address_is_blocked_without_fetching(sites):
+    client, requested = redirecting_client("http://169.254.169.254/latest/meta-data")
+    assert fetch_page(client, "https://reliable.example/start", sites).blocked
+    assert not any("169.254" in url for url in requested)
+
+
+def test_redirect_to_non_web_scheme_is_blocked(sites):
+    client, _ = redirecting_client("file:///etc/passwd")
+    assert fetch_page(client, "https://reliable.example/start", sites).blocked
+
+
+def test_redirect_within_allowed_site_is_followed(sites):
+    client, _ = redirecting_client("/final")
+    page = fetch_page(client, "https://reliable.example/start", sites)
+    assert page.status == 200
+    assert "final page" in page.text
+
+
+def test_redirect_loop_stops(sites):
+    client, _ = redirecting_client("/start")
+    assert fetch_page(client, "https://reliable.example/start", sites).status is None
+
+
+def test_non_web_url_is_blocked(sites):
+    client, requested = recording_client({})
+    assert fetch_page(client, "ftp://reliable.example/e/1", sites).blocked
+    assert requested == []

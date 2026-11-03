@@ -6,6 +6,7 @@
 - **What this repo builds:** [1–2 sentence summary]
 - **Primary user & core workflow:** [See the living PRD in `docs/index.html`]
 - **Tech stack:** [e.g., Python 3.12 / FastAPI / Next.js / SQLite / OpenRouter API]
+- **AI model:** `nvidia/nemotron-3.5-super-vl:free` through OpenRouter, set by `OPENROUTER_MODEL`. Chosen on 2026-11-02: it returned valid JSON and ignored an injected instruction, while `google/gemma-4-26b-a4b-it:free` returned HTTP 429 and `thinkingmachines/inkling:free` returned HTTP 403. It is slow, about 40 seconds for one extraction.
 
 ## 2. Commands
 - **Install dependencies:** `[e.g., npm install / uv sync]`
