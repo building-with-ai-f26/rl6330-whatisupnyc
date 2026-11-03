@@ -128,10 +128,10 @@
       <div class="log-entry">
         <h3>Build 1 · Intent.md & Throwaway Prototype (Due Nov 9)</h3>
         <ul>
-          <li><strong>What shipped:</strong> A local prototype: automatic collection from Ticketmaster and The Skint, event checks, backend scoring, AI picks from checked events, and a paste box for social finds. The latest real run produced eligible events from two sources, with one issue generated end to end, shown above. Most eligible events are big ticketed Ticketmaster shows, because few sources allow automated collection. That skew is the main known weakness.</li>
+          <li><strong>What shipped:</strong> A local prototype: automatic collection from Ticketmaster and web pages, event checks, backend scoring, AI picks from checked events, and a paste box for social finds. The database holds 34 eligible events from four sources: Ticketmaster 24, The Skint 5, doNYC 3, and Eventbrite 2. Secret NYC and Luma added none. One issue is shown above. Most eligible events are big ticketed Ticketmaster shows, because the other sources added few events. That skew is the main known weakness.</li>
           <li><strong>Things learned with AI:</strong> [What you learned from AI practice and Terminus Episodes 1 and 2.]</li>
           <li><strong>What broke / changed in PRD:</strong> Secret NYC, doNYC, and Eventbrite have terms that ban automated collection, and Luma's terms are unclear. I chose to include them for this class project, and they must be reviewed before any commercial use. TikTok, Instagram, and RedNote stay as pasted links, because reaching them automatically would take login bots or block workarounds. Testing on real data caught paid ads being treated as events, Ticketmaster returning only the next two days, and pasted posts never being confirmed. All three are fixed.</li>
-          <li><strong>Cost & time this week:</strong> $16.16 of Claude Code usage as reported by /cost, plus $0.00 on APIs and hosting (free tiers) · about 2.1 hours of measured session activity, not counting Terminus or time outside the session</li>
+          <li><strong>Cost & time this week:</strong> $16.16 of Claude Code usage as reported by /cost before the final steps, plus $0.00 on APIs and hosting (free tiers) · about 2.1 hours of measured session activity, not counting Terminus or time outside the session</li>
         </ul>
       </div>
 
