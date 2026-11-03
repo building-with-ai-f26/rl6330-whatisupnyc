@@ -40,3 +40,16 @@ def test_network_failure_returns_empty_list():
 
 def test_no_events_returns_empty_list():
     assert fetch_events(client_returning(200, {"page": {"totalElements": 0}}), "k", NOW) == []
+
+
+def test_search_covers_three_weeks_by_relevance():
+    seen = []
+
+    def handler(request):
+        seen.append(request.url.params)
+        return httpx.Response(200, json=FIXTURE)
+
+    fetch_events(httpx.Client(transport=httpx.MockTransport(handler)), "k", NOW)
+    assert seen[0]["sort"] == "relevance,desc"
+    assert seen[0]["startDateTime"] == "2026-11-02T17:00:00Z"
+    assert seen[0]["endDateTime"] == "2026-11-23T17:00:00Z"

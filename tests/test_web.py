@@ -189,3 +189,14 @@ def test_ai_non_text_optional_fields_become_none():
 def test_very_long_text_is_capped():
     event = extract_with_ai([("https://a.test", "t")], FakeAI({"events": [ai_event(name="x" * 5000)]}))[0]
     assert len(event.name) <= 200
+
+
+def test_sponsored_item_is_discarded():
+    ai = FakeAI({"events": [ai_event(sponsored=True), ai_event(name="Real Show", sponsored=False)]})
+    assert [e.name for e in extract_with_ai([("https://a.test", "t")], ai)] == ["Real Show"]
+
+
+def test_extraction_prompt_asks_for_sponsored_flag():
+    from app.sources.web import EXTRACT_SYSTEM
+
+    assert '"sponsored"' in EXTRACT_SYSTEM

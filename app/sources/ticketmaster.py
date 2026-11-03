@@ -1,5 +1,5 @@
 import logging
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 import httpx
 
@@ -8,6 +8,8 @@ from app.models import CandidateEvent
 log = logging.getLogger(__name__)
 
 API_URL = "https://app.ticketmaster.com/discovery/v2/events.json"
+SEARCH_WINDOW = timedelta(days=21)
+TIME_FORMAT = "%Y-%m-%dT%H:%M:%SZ"
 
 NYC_CITIES = {
     "new york",
@@ -31,8 +33,10 @@ def fetch_events(client: httpx.Client, api_key: str, now: datetime, size: int = 
     params = {
         "apikey": api_key,
         "stateCode": "NY",
-        "startDateTime": now.astimezone(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
-        "sort": "date,asc",
+        "startDateTime": now.astimezone(timezone.utc).strftime(TIME_FORMAT),
+        "endDateTime": (now + SEARCH_WINDOW).astimezone(timezone.utc).strftime(TIME_FORMAT),
+        # Sorting by date fills the page with the next day or two, so sort by relevance.
+        "sort": "relevance,desc",
         "size": size,
     }
     try:
