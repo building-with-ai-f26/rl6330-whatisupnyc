@@ -59,14 +59,14 @@ If there are too few good new events for a chosen day, the issue is shorter or s
 |---|---|---|
 | Ticketmaster Discovery API | Official API, free key | Automatic. Must follow Ticketmaster's branding and linking terms. |
 | NYC Open Data, permitted events (dataset `tvpp-9vvx`) | Official city data | Automatic. May lack event pages, so each event needs a link found for it. |
-| Public web pages via Tavily search: Luma, Secret NYC, Time Out, doNYC, The Skint, NYC Parks, Eventbrite, and museum, library, and venue calendars | Search and fetching public pages | Automatic. Check each site's terms first and drop any that do not allow this. |
+| Public web pages via Tavily search: Luma, Secret NYC, Time Out, doNYC, The Skint, NYC Parks, Eventbrite, and museum, library, and venue calendars | Search and fetching public pages | Automatic. All allowed by the builder for this class project, as noted below. |
 | Instagram | Official Hashtag Search API (30 hashtags per rolling 7 days) | Automatic once Meta approves it. Needs a Business or Creator account and app review. Approval may be slow or denied. |
 | TikTok and RedNote | Pasted links | The builder or a subscriber pastes in a post. |
 | Meetup | Official API | Later, only if free access is enough. |
 
 **Not allowed:** logging in with bot accounts, proxies, getting around anti-bot blocks, or scraping tools that use a platform's internal API. Build 1 must not depend on Instagram approval, and the product must work without any social source.
 
-**Site terms [my call]:** a site is dropped if its terms prohibit automated access or if its robots rules disallow the pages we need. Terms that say nothing about it count as allowed. Getting a page through Tavily does not change this. If this leaves mostly Ticketmaster and city data, the plan stops and reports it to the builder, because the product would skew toward big ticketed shows.
+**Site terms:** the builder decided on 2026-11-02 to allow every listed site for this class project, including sites whose terms ban automated collection (Secret NYC, doNYC, and Eventbrite) and sites with unclear terms (Luma). `data/sites.json` records each original finding. Robots rules and blocks are still respected. Review this list before any commercial use or wider launch.
 
 **Social finds:** the person pastes the post's link and its caption or a short description **[my call]**, because a plain fetch of a post may return little. AI reads that text and pulls out the event name, date, and venue. Screenshots and video-only posts are out of scope for Build 1 unless the person types the details. The app then looks for a reliable page for that event and checks the details there. The newsletter shows and links only that page. If no reliable page is found, the event is dropped. The product does not misrepresent how it works in class write-ups or the sponsor memo.
 
