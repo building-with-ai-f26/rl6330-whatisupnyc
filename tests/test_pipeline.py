@@ -133,3 +133,25 @@ def test_sentiment_negative_excludes_shortlisted_event(conn, sites):
     tavily.hits[1] = SearchHit("https://second.example/r", "t", "Awful night")
     run_pipeline(conn, deps(sites, tavily=tavily, ai=ai, ticketmaster=tm), NOW)
     assert db.eligible_events(conn, NOW) == []
+
+
+def test_pasted_captions_cannot_meet_the_two_source_rule(conn, sites):
+    tm = {"_embedded": {"events": [FIXTURE["_embedded"]["events"][0]]}}
+    event = make_event(url="https://reliable.example/p", source_type="pasted")
+    db.save_paste(conn, "https://www.tiktok.com/@a/1", "Truly a dreadful mess", event)
+    db.save_paste(conn, "https://www.instagram.com/p/2", "Truly a dreadful mess", event)
+    ai = FakeAI({"rating": "negative", "quote": "Truly a dreadful mess"})
+    d = deps(sites, {"https://reliable.example/p": "<p>Show on Sat, Nov 7 at Beacon Theatre</p>"}, tm, ai=ai)
+    run_pipeline(conn, d, NOW)
+    assert ai.calls == 0
+    assert len(db.eligible_events(conn, NOW)) == 1
+
+
+def test_same_post_pasted_twice_counts_once(conn, sites):
+    tm = {"_embedded": {"events": [FIXTURE["_embedded"]["events"][0]]}}
+    event = make_event(url="https://reliable.example/p", source_type="pasted")
+    for _ in range(3):
+        db.save_paste(conn, "https://www.tiktok.com/@a/1", "loved it", event)
+    d = deps(sites, {"https://reliable.example/p": "<p>Show on Sat, Nov 7 at Beacon Theatre</p>"}, tm)
+    run_pipeline(conn, d, NOW)
+    assert db.eligible_events(conn, NOW)[0].score.total == 55

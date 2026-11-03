@@ -21,6 +21,8 @@ log = logging.getLogger(__name__)
 
 MAX_COVERAGE_SEARCHES = 8
 MAX_SENTIMENT_EVENTS = 6
+# All pasted posts count as one source, so they can't meet the two-source rule alone.
+PASTED_POSTS_SOURCE = "pasted posts"
 
 
 @dataclass
@@ -144,7 +146,7 @@ def _check_group(conn, group: Group, deps: PipelineDeps, now: datetime):
     event = _best(good, deps.sites)
     signals = Signals(
         coverage_domains=reliable_domains([m.url for m in good if m.source_type != "api"], deps.sites),
-        pasted_post_count=len(group.captions),
+        pasted_post_count=len({link for link, _ in group.captions}),
     )
     entry = deps.reputable.match(event)
     if entry:
@@ -177,7 +179,7 @@ def _add_sentiment(scored_now: list, deps: PipelineDeps) -> None:
         except Exception:
             log.exception("Opinion search failed")
             opinions = []
-        opinions += [Opinion(domain_of(link), caption) for link, caption in group.captions]
+        opinions += [Opinion(PASTED_POSTS_SOURCE, caption) for _, caption in group.captions]
         signals.sentiment = rate_sentiment(opinions, deps.ai)
 
 

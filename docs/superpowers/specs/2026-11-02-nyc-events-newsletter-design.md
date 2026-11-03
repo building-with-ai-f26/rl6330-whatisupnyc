@@ -149,6 +149,7 @@ All of these are **[my call]**, because the builder asked for simple defaults.
 
 **Constraints:**
 
+- **Before any online launch:** the Build 1 pages are a builder's tool with no login, safe only on `127.0.0.1`. They list subscribers' names and emails and let anyone change data. Vercel needs a builder login, protected forms, unguessable subscriber links, rate limits on `/paste`, and a search budget that resets per day.
 - Free limits fit a small class group, not a large subscriber list. Plain code does the checks to save AI requests.
 - Do not send names or email addresses to free AI models, because how they handle data is unconfirmed.
 - Secrets stay in `.env`. Add new variables to `.env.example`. `OPENROUTER_API_KEY` is already set in `.env`, but has not been tested.
