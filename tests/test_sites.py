@@ -26,3 +26,17 @@ def test_lookalike_domain_not_allowed(sites):
 
 def test_allowed_domains_lists_only_allowed(sites):
     assert sorted(sites.allowed_domains()) == ["listing.example", "reliable.example"]
+
+
+def test_calendar_pages_lists_only_allowed_sites(tmp_path):
+    import json
+
+    from app.sites import load
+
+    path = tmp_path / "s.json"
+    path.write_text(json.dumps([
+        {"domain": "a.example", "automated_access": "allowed", "reliable": True, "calendar_url": "https://a.example/today"},
+        {"domain": "b.example", "automated_access": "prohibited", "reliable": True, "calendar_url": "https://b.example/today"},
+        {"domain": "c.example", "automated_access": "allowed", "reliable": True},
+    ]))
+    assert load(str(path)).calendar_pages() == ["https://a.example/today"]

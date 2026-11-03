@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>[Your Product Name] · Building with AI (Fall 2026)</title>
+  <title>whatisupnyc · Building with AI (Fall 2026)</title>
 
   <!-- Week 1: create your PostHog account only.
        Build 2: paste your project's current PostHog web snippet here,
@@ -144,8 +144,8 @@
     <!-- HERO / PRODUCT PITCH -->
     <header>
       <span class="eyebrow">NYU Stern · Building with AI · Fall 2026</span>
-      <h1>[Your Product Name]</h1>
-      <p class="tagline">[One clear sentence: Who is this for, and what painful job does it do for them?]</p>
+      <h1>whatisupnyc</h1>
+      <p class="tagline">For people new to New York: a short, personal list of NYC events worth going to, on the days they choose, instead of checking a dozen sites.</p>
       <div class="cta-row">
         <a class="btn" href="#live-demo" onclick="window.posthog && posthog.capture('clicked_try_product')">See the Product →</a>
         <a class="btn btn-secondary" href="#prd">Read the Living PRD</a>
@@ -157,12 +157,14 @@
     <section id="live-demo">
       <h2>Product Showcase (Prototype / Live App / 2-Min Video)</h2>
       <p>
-        <strong>Current Status:</strong> [Build 1: local prototype / Builds 2–4: local app / Build 5: cloud app]<br />
-        <strong>Demo:</strong> [Add a screenshot or GIF now; add the live cloud app URL in Build 5.]
+        <strong>Current Status:</strong> Build 1 local prototype. It runs on real event data on the builder's computer.<br />
+        <strong>Demo:</strong> A personalized issue generated from a test profile, and the start page.
       </p>
       <p class="meta">
-        Ask your coding agent to embed a screenshot or GIF of your local prototype for Build 1. Keep this evidence current, then add your cloud app link and two-minute video in Build 5.
+        The cloud app link and two-minute video come in Build 5.
       </p>
+      <img src="assets/prototype.png" alt="A generated newsletter with five NYC event picks, each with a date, venue, link, and reason" style="max-width: 100%; border: 1px solid var(--border); border-radius: 8px; margin-bottom: 12px;" />
+      <img src="assets/start-page.png" alt="The start page with a what kind of event bar, four templates, a day picker, and a box for social media finds" style="max-width: 100%; border: 1px solid var(--border); border-radius: 8px;" />
     </section>
 
     <!-- LIVING PRD (Updated every week!) -->
@@ -171,21 +173,21 @@
       <p class="meta">Updated every week as we test with real users and learn what works.</p>
 
       <h3>1. Target User & The Job to Be Done</h3>
-      <p><strong>Who is this for?</strong> [Name a specific, reachable person or role you have direct access to.]</p>
-      <p><strong>The painful "Before" workflow:</strong> [How do they do this today, and why is it slow, manual, or broken?]</p>
-      <p><strong>The "After" workflow with this product:</strong> [What does your tool do for them in one sitting?]</p>
+      <p><strong>Who is this for?</strong> NYU classmates and friends around the city. Most are not from New York, so it is a new city to explore. (Still to confirm by asking 5 classmates how they found the last event they went to.)</p>
+      <p><strong>The painful "Before" workflow:</strong> The information is scattered across many sites and apps. Even on platforms like Secret NYC and Luma, many events are not right for a given person, so they spend time checking and still miss things.</p>
+      <p><strong>The "After" workflow with this product:</strong> They say what they like in one bar or pick a template, then choose their days. They get a short list of checked events, each with a date, venue, link, and one line on why it fits.</p>
 
       <h3>2. Scope & Explicit Non-Goals</h3>
       <ul>
-        <li><strong>In Scope (Core Workflow):</strong> [The 1 main workflow this product does reliably]</li>
-        <li><strong>Out of Scope #1:</strong> [Feature you are deliberately NOT building in 6 weeks]</li>
-        <li><strong>Out of Scope #2:</strong> [Feature you are deliberately NOT building in 6 weeks]</li>
-        <li><strong>Out of Scope #3:</strong> [Feature you are deliberately NOT building in 6 weeks]</li>
+        <li><strong>In Scope (Core Workflow):</strong> Describe what you like, pick your days, and get a newsletter of checked NYC events.</li>
+        <li><strong>Out of Scope #1:</strong> Other cities. NYC only.</li>
+        <li><strong>Out of Scope #2:</strong> Full design control. Prompts change simple things like tone and categories, not layout.</li>
+        <li><strong>Out of Scope #3:</strong> Selling tickets or social features. The newsletter links out to each event's page.</li>
       </ul>
 
       <h3>3. How It Works Under the Hood & Riskiest Assumption (Week 2+)</h3>
-      <p><strong>Riskiest Assumption:</strong> [What is the #1 technical or user risk that could sink this product?]</p>
-      <p><strong>Simple Architecture:</strong> [User Input] → [Your App / Server] → [AI Model / Tool] → [Output]</p>
+      <p><strong>Riskiest Assumption:</strong> That people act on it. Friends may already be the best filter, so the real test is whether readers actually go to an event they would not otherwise have found. On the technical side, few event sources allow automated collection, which limits variety.</p>
+      <p><strong>Simple Architecture:</strong> Ticketmaster, allowed web pages, and pasted posts → plain-code checks → credibility scoring → AI picks from checked events only → code confirms each pick → newsletter</p>
 
       <h3>4. Unit Economics & Analytics Snapshot (Updated Weekly)</h3>
       <div class="grid-2">
@@ -216,9 +218,9 @@
       <div class="log-entry">
         <h3>Build 1 · Intent.md & Throwaway Prototype (Due Nov 9)</h3>
         <ul>
-          <li><strong>What shipped:</strong> [What you actually built; link your local prototype screenshot or GIF above.]</li>
+          <li><strong>What shipped:</strong> A local prototype: automatic collection from Ticketmaster and The Skint, event checks, backend scoring, AI picks from checked events, and a paste box for social finds. The first real run produced 30 eligible events and one issue generated end to end, shown above.</li>
           <li><strong>Things learned with AI:</strong> [What you learned from AI practice and Terminus Episodes 1 and 2.]</li>
-          <li><strong>What broke / changed in PRD:</strong> [Fill in]</li>
+          <li><strong>What broke / changed in PRD:</strong> Secret NYC, doNYC, and Eventbrite were dropped because their terms ban automated collection, and Luma is on hold because its terms are unclear. Testing on real data caught paid ads being treated as events, Ticketmaster returning only the next two days, and pasted posts never being confirmed. All three are fixed. [Builder: add anything else.]</li>
           <li><strong>Cost & time this week:</strong> $[0.00] · [0] hours</li>
         </ul>
       </div>

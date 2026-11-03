@@ -26,6 +26,13 @@ class Sites:
     def allowed_domains(self) -> list[str]:
         return [d for d, e in self._entries.items() if e["automated_access"] == "allowed"]
 
+    def calendar_pages(self) -> list[str]:
+        return [
+            e["calendar_url"]
+            for e in self._entries.values()
+            if e["automated_access"] == "allowed" and e.get("calendar_url")
+        ]
+
 
 def load(path: str = "data/sites.json") -> Sites:
     with open(path) as f:

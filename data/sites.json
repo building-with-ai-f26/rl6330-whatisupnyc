@@ -1,6 +1,6 @@
 [
   {"domain": "timeout.com", "automated_access": "allowed", "reliable": true, "terms_url": "https://www.timeout.com/terms-of-use", "checked_on": "2026-11-02", "note": "Terms do not mention automated access; robots allows our pages. Section 3.2.9 bars business or commercial use, so this source must be reviewed before any revenue."},
-  {"domain": "theskint.com", "automated_access": "allowed", "reliable": true, "terms_url": "https://www.theskint.com/privacy/", "checked_on": "2026-11-02", "note": "No terms page; policy does not mention automated access; robots allows our pages."},
+  {"domain": "theskint.com", "automated_access": "allowed", "reliable": true, "calendar_url": "https://www.theskint.com/", "terms_url": "https://www.theskint.com/privacy/", "checked_on": "2026-11-02", "note": "No terms page; policy does not mention automated access; robots allows our pages."},
   {"domain": "nyc.gov", "automated_access": "allowed", "reliable": true, "terms_url": "https://www.nyc.gov/main/terms-of-use", "checked_on": "2026-11-02", "note": "Terms do not ban automated access, only disruption."},
   {"domain": "luma.com", "automated_access": "unclear", "reliable": false, "terms_url": "https://luma.com/terms", "checked_on": "2026-11-02", "note": "Terms limit access to 'publicly supported interfaces'. Builder decision needed."},
   {"domain": "lu.ma", "automated_access": "unclear", "reliable": false, "terms_url": "https://luma.com/terms", "checked_on": "2026-11-02", "note": "Same as luma.com."},

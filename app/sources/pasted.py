@@ -50,20 +50,21 @@ def process_paste(
     if not name or not venue:
         return PasteResult(None, "We couldn't find the event name or venue. Please add them and paste it again.")
 
-    hits = [hit for hit in tavily.search(f"{name} {venue}", sites.allowed_domains()) if sites.is_allowed(hit.url)]
-    hits.sort(key=lambda hit: not sites.is_reliable(hit.url))
-    for hit in hits:
+    hits = [hit.url for hit in tavily.search(f"{name} {venue}", sites.allowed_domains()) if sites.is_allowed(hit.url)]
+    hits.sort(key=lambda url: not sites.is_reliable(url))
+    # Search favors older, well-known pages, so also try calendars that change daily.
+    for url in dict.fromkeys(hits + sites.calendar_pages()):
         event = CandidateEvent(
             name=name,
             start=start,
             venue=venue,
             city=clean_text(details.get("city")) or "",
-            url=hit.url,
-            source=urlparse(hit.url).hostname or "",
+            url=url,
+            source=urlparse(url).hostname or "",
             source_type="pasted",
             organizer=clean_text(details.get("organizer")),
         )
-        page = fetch_page(http, hit.url, sites)
+        page = fetch_page(http, url, sites)
         if check_event(event, page, now).passed and _page_names_event(page.text, name):
             return PasteResult(event, f"Added: {name}. It will be considered the next time events are collected.")
     return PasteResult(None, "We couldn't confirm this event on a reliable page, so we left it out.")

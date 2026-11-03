@@ -97,3 +97,14 @@ def test_ai_down_gives_clear_message(sites):
     result, _ = paste(sites, ai=FakeAI(error=AIUnavailable("busy")))
     assert result.event is None
     assert "try again" in result.message
+
+
+def test_event_confirmed_on_calendar_page_search_missed(sites):
+    sites._entries["reliable.example"]["calendar_url"] = "https://reliable.example/today"
+    result, hosts = paste(sites, hits=[])
+    assert result.event.url == "https://reliable.example/today"
+
+
+def test_search_hits_are_tried_before_calendar_pages(sites):
+    sites._entries["reliable.example"]["calendar_url"] = "https://reliable.example/today"
+    assert paste(sites)[0].event.url == "https://reliable.example/jazz"
