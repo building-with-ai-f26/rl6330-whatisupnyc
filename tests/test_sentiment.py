@@ -78,5 +78,18 @@ def test_ai_unavailable_is_unknown():
 
 
 def test_classify_skips_the_two_source_rule_for_evaluation():
-    ai = FakeAI({"rating": "mixed", "quote": "good"})
+    ai = FakeAI({"rating": "mixed", "quote": "good and bad"})
     assert classify_opinions([Opinion("a.test", "good and bad")], ai) == "mixed"
+
+
+def test_punctuation_only_quote_is_unknown():
+    assert rate_sentiment(TWO_OPS, FakeAI({"rating": "negative", "quote": "!!!"})) == "unknown"
+
+
+def test_quote_under_three_words_is_unknown():
+    assert rate_sentiment(TWO_OPS, FakeAI({"rating": "negative", "quote": "it"})) == "unknown"
+
+
+def test_quote_spanning_two_opinions_is_unknown():
+    ai = FakeAI({"rating": "positive", "quote": "joyful night. Loved every"})
+    assert rate_sentiment(TWO_OPS, ai) == "unknown"

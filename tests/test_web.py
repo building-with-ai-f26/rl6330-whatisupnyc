@@ -155,3 +155,37 @@ def test_tavily_budget_stops_searches():
 def test_tavily_error_returns_empty():
     client = TavilyClient(httpx.Client(transport=httpx.MockTransport(lambda r: httpx.Response(432))), "k")
     assert client.search("q", []) == []
+
+
+def test_schema_event_with_non_text_fields_is_skipped():
+    html = '<script type="application/ld+json">{"@type":"Event","name":{"x":1},"startDate":"2026-11-07","location":{"name":"V"}}</script>'
+    assert read_schema_events(html, "https://x.test", "x") == []
+
+
+def test_schema_non_text_city_and_organizer_are_ignored():
+    html = HTML_WITH_JSONLD.replace('"addressLocality": "New York"', '"addressLocality": 5').replace(
+        '"name": "Live Nation"', '"name": ["x"]'
+    )
+    event = read_schema_events(html, "https://x.test", "x")[0]
+    assert (event.city, event.organizer) == ("", None)
+
+
+def test_ai_event_with_non_text_fields_discarded():
+    ai = FakeAI({"events": [ai_event(venue={"x": 1}), ai_event(name=5), "junk"]})
+    assert extract_with_ai([("https://a.test", "t")], ai) == []
+
+
+def test_ai_events_not_a_list_is_ignored():
+    assert extract_with_ai([("https://a.test", "t")], FakeAI({"events": "none"})) == []
+
+
+def test_ai_non_text_optional_fields_become_none():
+    event = extract_with_ai(
+        [("https://a.test", "t")], FakeAI({"events": [ai_event(organizer=["x"], category=9, city=4)]})
+    )[0]
+    assert (event.organizer, event.category, event.city) == (None, None, "")
+
+
+def test_very_long_text_is_capped():
+    event = extract_with_ai([("https://a.test", "t")], FakeAI({"events": [ai_event(name="x" * 5000)]}))[0]
+    assert len(event.name) <= 200

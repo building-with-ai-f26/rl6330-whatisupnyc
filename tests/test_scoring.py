@@ -131,3 +131,19 @@ def test_reliable_page_naming_brand_and_event_confirms():
 def test_reliable_page_naming_only_the_brand_does_not_confirm():
     event = make_event(name="Winter Bash", url="https://listing.example/e", organizer="Acme")
     assert not brand_confirmed(event, BRAND, [page("Acme opens a new store")])
+
+
+def test_one_word_event_name_cannot_confirm_a_brand():
+    event = make_event(name="Show", url="https://listing.example/e", organizer="Acme")
+    assert not brand_confirmed(event, BRAND, [page("Acme news. A show opened nearby.")])
+
+
+def test_empty_page_cannot_confirm_a_brand():
+    event = make_event(name="Winter Bash", url="https://listing.example/e", organizer="Acme")
+    assert not brand_confirmed(event, BRAND, [page("")])
+
+
+def test_brand_far_from_event_name_does_not_confirm():
+    event = make_event(name="Winter Bash", url="https://listing.example/e", organizer="Acme")
+    filler = "unrelated words " * 100
+    assert not brand_confirmed(event, BRAND, [page(f"Acme opened a store. {filler} Winter Bash is on.")])

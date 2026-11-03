@@ -21,6 +21,7 @@ PAGES_PER_REQUEST = 10
 MAX_PAGE_CHARS = 4000
 # Marks an event whose page gave a date but no time, so it stays upcoming all day.
 NO_TIME = time(23, 59)
+MAX_TEXT_CHARS = 200
 
 SEARCH_QUERIES = [
     "events in New York City this week",
@@ -33,6 +34,13 @@ Return JSON: {"events": [{"page": <page number>, "name": str, "date": "YYYY-MM-D
 "venue": str, "city": str, "organizer": str or null, "category": str or null}]}.
 Only include events explicitly stated on the page. Never guess. Leave a field null if the page does not state it.
 For city, use the borough or "New York". Return {"events": []} if there are none."""
+
+
+def clean_text(value, limit: int = MAX_TEXT_CHARS) -> str | None:
+    """Pages and AI output are untrusted, so only accept real, non-empty text."""
+    if not isinstance(value, str) or not value.strip():
+        return None
+    return value.strip()[:limit]
 
 
 @dataclass
@@ -101,24 +109,25 @@ def _schema_to_event(item: dict, url: str, source: str) -> CandidateEvent | None
         return None
     location = item.get("location")
     location = location[0] if isinstance(location, list) and location else location
-    if not isinstance(location, dict) or not location.get("name") or not item.get("name"):
+    if not isinstance(location, dict):
         return None
+    name, venue = clean_text(item.get("name")), clean_text(location.get("name"))
     start = _parse_start(item.get("startDate"))
-    if start is None:
+    if not name or not venue or start is None:
         return None
     address = location.get("address")
-    city = address.get("addressLocality", "") if isinstance(address, dict) else ""
+    city = clean_text(address.get("addressLocality")) if isinstance(address, dict) else None
     organizer = item.get("organizer")
     organizer = organizer[0] if isinstance(organizer, list) and organizer else organizer
     return CandidateEvent(
-        name=item["name"],
+        name=name,
         start=start,
-        venue=location["name"],
-        city=city,
+        venue=venue,
+        city=city or "",
         url=url,
         source=source,
         source_type="web",
-        organizer=organizer.get("name") if isinstance(organizer, dict) else None,
+        organizer=clean_text(organizer.get("name")) if isinstance(organizer, dict) else None,
     )
 
 
@@ -140,33 +149,35 @@ def extract_with_ai(pages: list[tuple[str, str]], ai: AIClient) -> list[Candidat
         batch = pages[offset : offset + PAGES_PER_REQUEST]
         user = "\n\n".join(f"PAGE {i}:\n{text[:MAX_PAGE_CHARS]}" for i, (_, text) in enumerate(batch))
         result = ai.complete_json(EXTRACT_SYSTEM, user)
-        for raw in result.get("events", []):
+        raw_events = result.get("events")
+        for raw in raw_events if isinstance(raw_events, list) else []:
             event = _ai_to_event(raw, batch)
             if event:
                 events.append(event)
     return events
 
 
-def _ai_to_event(raw: dict, batch: list[tuple[str, str]]) -> CandidateEvent | None:
+def _ai_to_event(raw, batch: list[tuple[str, str]]) -> CandidateEvent | None:
+    if not isinstance(raw, dict):
+        return None
     page = raw.get("page")
     if not isinstance(page, int) or not 0 <= page < len(batch):
         return None
-    if not raw.get("name") or not raw.get("venue") or not raw.get("date"):
-        return None
-    start = parse_ai_datetime(raw["date"], raw.get("time"))
-    if start is None:
+    name, venue = clean_text(raw.get("name")), clean_text(raw.get("venue"))
+    start = parse_ai_datetime(raw.get("date"), raw.get("time"))
+    if not name or not venue or start is None:
         return None
     url = batch[page][0]
     return CandidateEvent(
-        name=raw["name"],
+        name=name,
         start=start,
-        venue=raw["venue"],
-        city=raw.get("city") or "",
+        venue=venue,
+        city=clean_text(raw.get("city")) or "",
         url=url,
         source=_domain(url),
         source_type="web",
-        organizer=raw.get("organizer"),
-        category=raw.get("category"),
+        organizer=clean_text(raw.get("organizer")),
+        category=clean_text(raw.get("category")),
     )
 
 

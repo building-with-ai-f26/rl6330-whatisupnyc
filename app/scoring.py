@@ -14,6 +14,8 @@ POINTS_PER_COVERAGE_DOMAIN = 10
 MAX_COVERAGE_POINTS = 30
 POINTS_PER_PASTED_POST = 5
 MAX_INTEREST_POINTS = 20
+MIN_CONFIRMING_NAME_WORDS = 2
+BRAND_NEAR_EVENT_CHARS = 300
 SENTIMENT_POINTS = {"positive": 10, "mixed": 5, "unknown": 0, "negative": 0}
 
 
@@ -81,8 +83,14 @@ def brand_confirmed(event: CandidateEvent, entry: Entry, coverage_pages: list[Pa
     if domain == entry.official_domain or domain.endswith(f".{entry.official_domain}"):
         return True
     event_name = normalize(event.name)
+    if len(event_name.split()) < MIN_CONFIRMING_NAME_WORDS:
+        return False
     for page in coverage_pages:
         text = normalize(page.text)
-        if event_name in text and any(normalize(name) in text for name in entry.names()):
+        position = text.find(event_name)
+        if position == -1:
+            continue
+        nearby = text[max(0, position - BRAND_NEAR_EVENT_CHARS) : position + len(event_name) + BRAND_NEAR_EVENT_CHARS]
+        if any(normalize(name) in nearby for name in entry.names()):
             return True
     return False
