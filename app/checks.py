@@ -7,6 +7,20 @@ from app.pages import PageResult
 from app.sources.ticketmaster import NYC_CITIES
 
 NY = ZoneInfo("America/New_York")
+NAME_SPAN_CHARS = 200
+CHARS_BEFORE_NAME = 200
+CHARS_AFTER_NAME = 500
+WEEKDAY_PREFIX_CHARS = 40
+WEEKDAY_MAX_DAYS_AWAY = 7
+WEEKDAYS = [
+    r"mon|monday",
+    r"tue|tues|tuesday",
+    r"wed|weds|wednesday",
+    r"thu|thur|thurs|thursday",
+    r"fri|friday",
+    r"sat|saturday",
+    r"sun|sunday",
+]
 STOP_WORDS = {"vs", "v", "versus", "the", "at", "a", "an", "and", "of", "in", "with", "live", "presents"}
 
 
@@ -53,11 +67,52 @@ def check_event(event: CandidateEvent, page: PageResult, now: datetime) -> Check
         return CheckResult(False, "page could not be read")
     if page.status != 200:
         return CheckResult(False, "page did not open")
-    if not date_appears(page.text, event.start):
+    return _confirm_on_page(event, page.text, now)
+
+
+def _confirm_on_page(event: CandidateEvent, text: str, now: datetime) -> CheckResult:
+    """A listing page holds many events, so details must sit near this event's name."""
+    cleaned = re.sub(r"[’']", "", text.lower())
+    spans = _name_spans(cleaned, event.name)
+    if not spans:
+        return CheckResult(False, "event name not found on page")
+    venue = normalize_text(event.venue)
+    date_found = venue_found = False
+    for start, end in spans:
+        nearby = cleaned[max(0, start - CHARS_BEFORE_NAME) : end + CHARS_AFTER_NAME]
+        has_date = date_appears(nearby, event.start) or _weekday_before(cleaned, start, event.start, now)
+        has_venue = venue in normalize_text(nearby)
+        if has_date and has_venue:
+            return CheckResult(True)
+        date_found = date_found or has_date
+        venue_found = venue_found or has_venue
+    if not date_found:
         return CheckResult(False, "date not confirmed on page")
-    if normalize_text(event.venue) not in normalize_text(page.text):
+    if not venue_found:
         return CheckResult(False, "venue not confirmed on page")
-    return CheckResult(True)
+    return CheckResult(False, "date and venue not confirmed together")
+
+
+def _name_spans(cleaned: str, name: str) -> list[tuple[int, int]]:
+    words = [word for word in normalize_text(name).split() if word not in STOP_WORDS]
+    if not words:
+        return []
+    spans = []
+    for match in re.finditer(rf"\b{re.escape(words[0])}\b", cleaned):
+        chunk = cleaned[match.start() : match.start() + NAME_SPAN_CHARS]
+        ends = [re.search(rf"\b{re.escape(word)}\b", chunk) for word in words]
+        if all(ends):
+            spans.append((match.start(), match.start() + max(found.end() for found in ends)))
+    return spans
+
+
+def _weekday_before(cleaned: str, position: int, start: datetime, now: datetime) -> bool:
+    # Daily listings often write only "tues 11am: event name".
+    local = start.astimezone(NY)
+    if (local.date() - now.astimezone(NY).date()).days > WEEKDAY_MAX_DAYS_AWAY:
+        return False
+    prefix = cleaned[max(0, position - WEEKDAY_PREFIX_CHARS) : position]
+    return re.search(rf"\b(?:{WEEKDAYS[local.weekday()]})\b", prefix) is not None
 
 
 def normalize_text(text: str) -> str:

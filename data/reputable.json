@@ -1,7 +1,7 @@
 [
-  {"name": "Madison Square Garden", "aliases": ["MSG", "The Garden"], "official_domain": "msg.com"},
+  {"name": "Madison Square Garden", "aliases": ["MSG"], "official_domain": "msg.com"},
   {"name": "Radio City Music Hall", "aliases": ["Radio City"], "official_domain": "msg.com"},
-  {"name": "Beacon Theatre", "aliases": ["The Beacon"], "official_domain": "msg.com"},
+  {"name": "Beacon Theatre", "aliases": [], "official_domain": "msg.com"},
   {"name": "Barclays Center", "aliases": [], "official_domain": "barclayscenter.com"},
   {"name": "Carnegie Hall", "aliases": [], "official_domain": "carnegiehall.org"},
   {"name": "Lincoln Center", "aliases": ["Jazz at Lincoln Center"], "official_domain": "lincolncenter.org"},
@@ -29,6 +29,6 @@
   {"name": "Smorgasburg", "aliases": [], "official_domain": "smorgasburg.com"},
   {"name": "Brooklyn Flea", "aliases": [], "official_domain": "brooklynflea.com"},
   {"name": "New York Knicks", "aliases": ["Knicks"], "official_domain": "nba.com"},
-  {"name": "Brooklyn Nets", "aliases": ["Nets"], "official_domain": "nba.com"},
+  {"name": "Brooklyn Nets", "aliases": [], "official_domain": "nba.com"},
   {"name": "Governors Ball", "aliases": ["Gov Ball"], "official_domain": "govball.com"}
 ]

@@ -33,7 +33,6 @@ class CheckResult:
 class Signals:
     reputable_match: bool = False
     brand_confirmed: bool = False
-    past_coverage_count: int = 0
     coverage_domains: set[str] = field(default_factory=set)
     pasted_post_count: int = 0
     sentiment: Sentiment = "unknown"

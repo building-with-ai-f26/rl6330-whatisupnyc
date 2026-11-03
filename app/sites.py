@@ -30,7 +30,7 @@ class Sites:
         return [
             e["calendar_url"]
             for e in self._entries.values()
-            if e["automated_access"] == "allowed" and e.get("calendar_url")
+            if e["automated_access"] == "allowed" and e["reliable"] and e.get("calendar_url")
         ]
 
 

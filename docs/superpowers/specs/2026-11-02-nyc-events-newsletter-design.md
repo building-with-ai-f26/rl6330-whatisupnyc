@@ -95,7 +95,7 @@ Events are not weighted equally. Events from popular brands, known organizers, a
 
 | Signal | Points | How it is measured |
 |---|---|---|
-| Organizer or brand reputation | up to 40 | Organizer or venue is on a reputable list, or has several past events covered by reliable sources |
+| Organizer or brand reputation | up to 40 | Organizer, venue, or brand is on the reputable list. Counting an organizer's past covered events is deferred past Build 1. |
 | Independent coverage | up to 30 | Number of separate reliable sources mentioning this event |
 | Interest | up to 20 | Available signs of demand, such as Instagram engagement once approved, or the number of pasted posts about it |
 | Social sentiment | up to 10 | AI rates available posts or coverage as positive, mixed, or negative |

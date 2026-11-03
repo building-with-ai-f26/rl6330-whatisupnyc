@@ -38,5 +38,6 @@ def test_calendar_pages_lists_only_allowed_sites(tmp_path):
         {"domain": "a.example", "automated_access": "allowed", "reliable": True, "calendar_url": "https://a.example/today"},
         {"domain": "b.example", "automated_access": "prohibited", "reliable": True, "calendar_url": "https://b.example/today"},
         {"domain": "c.example", "automated_access": "allowed", "reliable": True},
+        {"domain": "d.example", "automated_access": "allowed", "reliable": False, "calendar_url": "https://d.example/today"},
     ]))
     assert load(str(path)).calendar_pages() == ["https://a.example/today"]

@@ -8,8 +8,6 @@ from app.pages import PageResult
 from app.sites import Sites
 
 REPUTABLE_POINTS = 40
-PAST_COVERAGE_POINTS = 25
-PAST_COVERAGE_NEEDED = 3
 POINTS_PER_COVERAGE_DOMAIN = 10
 MAX_COVERAGE_POINTS = 30
 POINTS_PER_PASTED_POST = 5
@@ -20,12 +18,7 @@ SENTIMENT_POINTS = {"positive": 10, "mixed": 5, "unknown": 0, "negative": 0}
 
 
 def score(signals: Signals) -> Score:
-    if signals.reputable_match and signals.brand_confirmed:
-        reputation = REPUTABLE_POINTS
-    elif signals.past_coverage_count >= PAST_COVERAGE_NEEDED:
-        reputation = PAST_COVERAGE_POINTS
-    else:
-        reputation = 0
+    reputation = REPUTABLE_POINTS if signals.reputable_match and signals.brand_confirmed else 0
     coverage = min(MAX_COVERAGE_POINTS, POINTS_PER_COVERAGE_DOMAIN * len(signals.coverage_domains))
     interest = min(MAX_INTEREST_POINTS, POINTS_PER_PASTED_POST * signals.pasted_post_count)
     total = reputation + coverage + interest + SENTIMENT_POINTS[signals.sentiment]
@@ -64,9 +57,11 @@ class Reputable:
         self.entries = entries
 
     def match(self, event: CandidateEvent) -> Entry | None:
-        fields = normalize(f"{event.organizer or ''} | {event.venue} | {event.name}")
+        # Aliases like "The Garden" are too generic to trust inside an event's own name.
+        fields = normalize(f"{event.organizer or ''} | {event.venue}")
+        name = normalize(event.name)
         for entry in self.entries:
-            if any(normalize(name) in fields for name in entry.names()):
+            if normalize(entry.name) in name or any(normalize(n) in fields for n in entry.names()):
                 return entry
         return None
 
@@ -90,7 +85,10 @@ def brand_confirmed(event: CandidateEvent, entry: Entry, coverage_pages: list[Pa
         position = text.find(event_name)
         if position == -1:
             continue
-        nearby = text[max(0, position - BRAND_NEAR_EVENT_CHARS) : position + len(event_name) + BRAND_NEAR_EVENT_CHARS]
+        # Leave out the event's own name, so a brand in its title can't confirm itself.
+        before = text[max(0, position - BRAND_NEAR_EVENT_CHARS) : position]
+        after = text[position + len(event_name) : position + len(event_name) + BRAND_NEAR_EVENT_CHARS]
+        nearby = f"{before} | {after}"
         if any(normalize(name) in nearby for name in entry.names()):
             return True
     return False

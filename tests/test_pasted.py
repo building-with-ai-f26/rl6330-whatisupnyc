@@ -108,3 +108,26 @@ def test_event_confirmed_on_calendar_page_search_missed(sites):
 def test_search_hits_are_tried_before_calendar_pages(sites):
     sites._entries["reliable.example"]["calendar_url"] = "https://reliable.example/today"
     assert paste(sites)[0].event.url == "https://reliable.example/jazz"
+
+
+def test_today_in_prompt_uses_new_york_date(sites):
+    captured = []
+
+    class RecordingAI(FakeAI):
+        def complete_json(self, system, user):
+            captured.append(system)
+            return super().complete_json(system, user)
+
+    late_utc = datetime.fromisoformat("2026-11-03T01:30:00+00:00")
+    http, _ = http_with_log()
+    process_paste(TIKTOK, "tonight!", FakeTavily([]), http, sites, RecordingAI(dict(EXTRACTED)), late_utc)
+    assert "2026-11-02" in captured[0]
+
+
+def test_caption_without_a_city_is_assumed_to_be_nyc(sites):
+    result, _ = paste(sites, ai=FakeAI({**EXTRACTED, "city": None}))
+    assert result.event.city == "New York"
+
+
+def test_caption_naming_another_city_is_rejected(sites):
+    assert paste(sites, ai=FakeAI({**EXTRACTED, "city": "Boston"}))[0].event is None

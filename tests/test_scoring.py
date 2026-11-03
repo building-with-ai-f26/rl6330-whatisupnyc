@@ -17,14 +17,6 @@ def test_reputable_event_scores_40():
     assert score(sig(reputable_match=True, brand_confirmed=True)).total == 40
 
 
-def test_past_coverage_earns_25():
-    assert score(sig(past_coverage_count=3)).total == 25
-
-
-def test_two_past_events_earn_nothing():
-    assert not score(sig(past_coverage_count=2)).eligible
-
-
 def test_no_credibility_is_excluded():
     assert not score(sig()).eligible
 
@@ -147,3 +139,22 @@ def test_brand_far_from_event_name_does_not_confirm():
     event = make_event(name="Winter Bash", url="https://listing.example/e", organizer="Acme")
     filler = "unrelated words " * 100
     assert not brand_confirmed(event, BRAND, [page(f"Acme opened a store. {filler} Winter Bash is on.")])
+
+
+def test_alias_inside_an_event_name_is_not_a_match():
+    gardens = Reputable([Entry("Madison Square Garden", ["The Garden"], "msg.example")])
+    assert gardens.match(make_event(name="The Garden Party", venue="Brooklyn Botanic")) is None
+
+
+def test_full_brand_name_in_event_name_is_a_match():
+    assert reputable().match(make_event(name="Acme Winter Bash")).name == "Acme"
+
+
+def test_brand_inside_the_event_name_cannot_confirm_itself():
+    event = make_event(name="Acme Winter Bash", url="https://listing.example/e")
+    assert not brand_confirmed(event, BRAND, [page("Acme Winter Bash is on Friday")])
+
+
+def test_shipped_list_has_no_generic_aliases():
+    names = [name for entry in load_reputable().entries for name in entry.aliases]
+    assert not {"The Garden", "The Beacon", "Nets"} & set(names)

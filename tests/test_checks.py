@@ -13,7 +13,7 @@ def page(text):
     return PageResult(200, text, f"<p>{text}</p>", False)
 
 
-GOOD_PAGE = page("Sat, Nov 7 at Beacon Theatre")
+GOOD_PAGE = page("Show on Sat, Nov 7 at Beacon Theatre")
 
 
 def api_event(**overrides):
@@ -43,16 +43,16 @@ def test_good_web_event_passes():
 
 
 def test_wrong_date_fails():
-    assert not check_event(make_event(), page("Nov 9 at Beacon Theatre"), NOW).passed
+    assert not check_event(make_event(), page("Show on Nov 9 at Beacon Theatre"), NOW).passed
 
 
 def test_wrong_venue_fails():
-    assert not check_event(make_event(), page("Nov 7 at Other Hall"), NOW).passed
+    assert not check_event(make_event(), page("Show on Nov 7 at Other Hall"), NOW).passed
 
 
 def test_venue_match_ignores_case_and_punctuation():
     event = make_event(venue="St. Ann's Warehouse")
-    assert check_event(event, page("Nov 7 at ST ANNS WAREHOUSE"), NOW).passed
+    assert check_event(event, page("SHOW on Nov 7 at ST ANNS WAREHOUSE"), NOW).passed
 
 
 def test_dead_link_fails():
@@ -115,3 +115,37 @@ def test_venue_spelling_variation_still_same():
 
 def test_same_month_day_in_another_year_does_not_match():
     assert not date_appears("November 7, 2025", datetime(2026, 11, 7, 20, tzinfo=NY))
+
+
+FILLER = "other listing details " * 40
+
+
+def test_date_and_venue_far_from_the_event_name_fail():
+    text = f"Fri Nov 6: Show at Smalls. {FILLER} Sat Nov 7: Comedy at Beacon Theatre"
+    assert not check_event(make_event(), page(text), NOW).passed
+
+
+def test_right_date_for_a_different_event_fails_when_name_is_absent():
+    text = "Fri Nov 6: Jazz at Smalls. Sat Nov 7: Comedy at Beacon Theatre"
+    result = check_event(make_event(name="Jazz Night"), page(text), NOW)
+    assert result.reason == "event name not found on page"
+
+
+def test_name_found_elsewhere_can_still_match_a_nearby_listing():
+    text = f"Show is great. {FILLER} Sat, Nov 7: Show at Beacon Theatre"
+    assert check_event(make_event(), page(text), NOW).passed
+
+
+def test_weekday_just_before_the_name_confirms_a_soon_date():
+    event = make_event(name="Flea Market", start=datetime(2026, 11, 3, 11, tzinfo=NY), venue="Westbeth")
+    assert check_event(event, page("tues 11am: flea market at westbeth"), NOW).passed
+
+
+def test_wrong_weekday_just_before_the_name_fails():
+    event = make_event(name="Flea Market", start=datetime(2026, 11, 4, 11, tzinfo=NY), venue="Westbeth")
+    assert not check_event(event, page("tues 11am: flea market at westbeth"), NOW).passed
+
+
+def test_weekday_cannot_confirm_a_date_weeks_away():
+    event = make_event(name="Flea Market", start=datetime(2026, 11, 24, 11, tzinfo=NY), venue="Westbeth")
+    assert not check_event(event, page("tues 11am: flea market at westbeth"), NOW).passed
