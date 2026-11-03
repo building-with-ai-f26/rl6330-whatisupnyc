@@ -1,0 +1,91 @@
+[
+  {
+    "domain": "timeout.com",
+    "automated_access": "allowed",
+    "reliable": true,
+    "terms_url": "https://www.timeout.com/terms-of-use",
+    "checked_on": "2026-11-02",
+    "note": "Terms do not mention automated access; robots allows our pages. Section 3.2.9 bars business or commercial use, so this source must be reviewed before any revenue."
+  },
+  {
+    "domain": "theskint.com",
+    "automated_access": "allowed",
+    "reliable": true,
+    "calendar_url": "https://www.theskint.com/",
+    "terms_url": "https://www.theskint.com/privacy/",
+    "checked_on": "2026-11-02",
+    "note": "No terms page; policy does not mention automated access; robots allows our pages."
+  },
+  {
+    "domain": "nyc.gov",
+    "automated_access": "allowed",
+    "reliable": true,
+    "terms_url": "https://www.nyc.gov/main/terms-of-use",
+    "checked_on": "2026-11-02",
+    "note": "Terms do not ban automated access, only disruption."
+  },
+  {
+    "domain": "luma.com",
+    "automated_access": "allowed",
+    "reliable": false,
+    "terms_url": "https://luma.com/terms",
+    "checked_on": "2026-11-02",
+    "note": "Builder allowed this on 2026-11-02 for a class project, overriding the terms review. Original finding: Terms limit access to 'publicly supported interfaces'. Builder decision needed."
+  },
+  {
+    "domain": "lu.ma",
+    "automated_access": "allowed",
+    "reliable": false,
+    "terms_url": "https://luma.com/terms",
+    "checked_on": "2026-11-02",
+    "note": "Builder allowed this on 2026-11-02 for a class project, overriding the terms review. Original finding: Same as luma.com."
+  },
+  {
+    "domain": "secretnyc.co",
+    "automated_access": "allowed",
+    "reliable": true,
+    "terms_url": "https://feverup.com/legal/terms_en.html",
+    "checked_on": "2026-11-02",
+    "note": "Builder allowed this on 2026-11-02 for a class project, overriding the terms review. Original finding: Its forms link to Fever's terms, which ban robots and scrapers without written permission."
+  },
+  {
+    "domain": "donyc.com",
+    "automated_access": "allowed",
+    "reliable": true,
+    "terms_url": "https://donyc.com/terms",
+    "checked_on": "2026-11-02",
+    "note": "Builder allowed this on 2026-11-02 for a class project, overriding the terms review. Original finding: Terms ban scraping."
+  },
+  {
+    "domain": "eventbrite.com",
+    "automated_access": "allowed",
+    "reliable": false,
+    "terms_url": "https://www.eventbrite.com/help/en-us/articles/251210/eventbrite-terms-of-service/",
+    "checked_on": "2026-11-02",
+    "note": "Builder allowed this on 2026-11-02 for a class project, overriding the terms review. Original finding: Section 13.1 bans scraping and automated extraction."
+  },
+  {
+    "domain": "nycgovparks.org",
+    "automated_access": "allowed",
+    "reliable": true,
+    "terms_url": "https://www.nycgovparks.org/terms",
+    "checked_on": "2026-11-02",
+    "note": "Builder allowed this on 2026-11-02 for a class project, overriding the terms review. Original finding: Refuses our requests with HTTP 403, so its terms and pages are out of reach."
+  },
+  {
+    "domain": "nypl.org",
+    "automated_access": "allowed",
+    "reliable": true,
+    "terms_url": "https://www.nypl.org/help/about-nypl/legal-notices/website-terms-and-conditions",
+    "checked_on": "2026-11-02",
+    "note": "Builder allowed this on 2026-11-02 for a class project, overriding the terms review. Original finding: Terms page could not be read."
+  },
+  {
+    "domain": "lincolncenter.org",
+    "automated_access": "allowed",
+    "reliable": true,
+    "terms_url": "https://www.lincolncenter.org/legal/termsofuse",
+    "checked_on": "2026-11-02",
+    "note": "Builder allowed this on 2026-11-02 for a class project, overriding the terms review. Original finding: Terms page could not be found."
+  }
+]

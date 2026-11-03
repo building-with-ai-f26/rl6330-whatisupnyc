@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="en">
+<head>
+  {% include "partials/head.html" %}
+  <title>List for {{ subscriber.name }} | whatisupnyc</title>
+  <style>
+    {% include "partials/base.css" %}
+    .sign { padding-bottom: 24px; }
+    .sign .row { display: flex; justify-content: space-between; align-items: flex-end; gap: 16px; }
+    .sign a { font-size: 15px; }
+    main { padding: clamp(24px, 4vw, 40px) var(--gutter) 72px; }
+    .column { max-width: 620px; margin: 0 auto; }
+    .for { color: var(--ink); margin: 0 0 24px; }
+    .actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
+    .notice { background: var(--taxi); border-radius: 4px; padding: 12px 16px; }
+  </style>
+</head>
+<body>
+  <header class="sign">
+    <div class="inner row">
+      <div class="logo">{% include "partials/logo.svg" %}</div>
+      <a href="/">Back to the start</a>
+    </div>
+  </header>
+  <main>
+    <div class="column">
+      <p class="for">For {{ subscriber.name }} ({{ subscriber.email }})</p>
+      {% if error %}
+      <p class="notice" role="status">{{ error }}</p>
+      {% else %}
+      <div id="issue">{{ body|safe }}</div>
+      <div class="actions">
+        <button class="plain" id="copy" type="button">Copy this list</button>
+        <form method="post" action="/newsletter/{{ subscriber.id }}/sent">
+          {% for event_id in event_ids %}<input type="hidden" name="event_ids" value="{{ event_id }}">{% endfor %}
+          <button type="submit">Mark as sent</button>
+        </form>
+      </div>
+      <script>
+        document.getElementById("copy").addEventListener("click", function () {
+          var button = this;
+          var issue = document.getElementById("issue");
+          navigator.clipboard.write([new ClipboardItem({
+            "text/html": new Blob([issue.innerHTML], {type: "text/html"}),
+            "text/plain": new Blob([issue.innerText], {type: "text/plain"})
+          })]).then(function () { button.textContent = "Copied"; });
+        });
+      </script>
+      {% endif %}
+    </div>
+  </main>
+</body>
+</html>

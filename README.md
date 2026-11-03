@@ -1,10 +1,10 @@
-# [Project Name]
+# whatisupnyc
 
-> **One-line pitch:** [Who is this for, and what job does it do for them?]
+> **One-line pitch:** For people new to New York: a short, personal list of NYC events worth going to, on the days they choose, instead of checking a dozen sites.
 
 - **Builder:** [Your Name] (`@github-handle`)
 - **Pod:** [Pod Name / Number]
-- **Product Page & Living PRD:** [Add your GitHub Pages URL]
+- **Product Page & Living PRD:** https://building-with-ai-f26.github.io/rl6330-whatisupnyc/
 - **App:** runs locally through Week 4; add a cloud URL in Build 5.
 
 ## Start here: Build 1
@@ -35,11 +35,18 @@ Create your PostHog account in Week 1. Install it on the Product Page and local 
 
 ## Local setup
 
-Clone **your own repository** and ask your coding agent to document the exact install and run commands here and in `AGENTS.md`.
+You need [uv](https://docs.astral.sh/uv/) and free API keys from OpenRouter, Ticketmaster, and Tavily.
 
 ```bash
 git clone https://github.com/building-with-ai-f26/<your-repo-name>.git
 cd <your-repo-name>
+cp .env.example .env      # then add your keys
+uv sync
+uv run python scripts/check_keys.py
+uv run python -m app.pipeline    # collects events, takes about 10 minutes
+uv run uvicorn app.main:app --host 127.0.0.1 --port 8000
 ```
+
+Then open http://127.0.0.1:8000. Run the tests with `uv run pytest`.
 
 If your app needs API keys, use a local environment file such as `.env`. Keep private keys out of source code, browser code, screenshots, and commits. The template ignores `.env`; `.env.example` contains placeholders only.
