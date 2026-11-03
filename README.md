@@ -2,8 +2,8 @@
 
 > **One-line pitch:** For people new to New York: a short, personal list of NYC events worth going to, on the days they choose, instead of checking a dozen sites.
 
-- **Builder:** [Your Name] (`@github-handle`)
-- **Pod:** [Pod Name / Number]
+- **Builder:** Ryandri Lowell (`@rl6330`)
+- **Pod:** [Pod Name / 13]
 - **Product Page & Living PRD:** https://building-with-ai-f26.github.io/rl6330-whatisupnyc/
 - **App:** runs locally through Week 4; add a cloud URL in Build 5.
 
