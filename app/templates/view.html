@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Newsletter for {{ subscriber.name }}</title>
+  <style>
+    body { font-family: Georgia, serif; background: #fafafa; margin: 0; color: #1f2937; }
+    main { max-width: 620px; margin: 0 auto; padding: 32px 16px 80px; }
+    .sheet { background: #fff; border: 1px solid #e5e7eb; border-radius: 12px; padding: 24px; margin: 16px 0; }
+    button { font: inherit; padding: 10px 16px; border-radius: 8px; border: 1px solid #1d63dc; background: #1d63dc; color: #fff; cursor: pointer; margin-right: 8px; }
+    button.secondary { background: #fff; color: #1d63dc; }
+  </style>
+</head>
+<body>
+<main>
+  <p><a href="/">← Back</a></p>
+  <p>For {{ subscriber.name }} ({{ subscriber.email }})</p>
+  {% if error %}
+  <p class="sheet" role="status">{{ error }}</p>
+  {% else %}
+  <div class="sheet" id="issue">{{ body|safe }}</div>
+  <button class="secondary" id="copy" type="button">Copy</button>
+  <form method="post" action="/newsletter/{{ subscriber.id }}/sent" style="display: inline;">
+    {% for event_id in event_ids %}<input type="hidden" name="event_ids" value="{{ event_id }}">{% endfor %}
+    <button type="submit">Mark as sent</button>
+  </form>
+  <script>
+    document.getElementById("copy").addEventListener("click", function () {
+      var issue = document.getElementById("issue");
+      navigator.clipboard.write([new ClipboardItem({
+        "text/html": new Blob([issue.innerHTML], {type: "text/html"}),
+        "text/plain": new Blob([issue.innerText], {type: "text/plain"})
+      })]);
+    });
+  </script>
+  {% endif %}
+</main>
+</body>
+</html>

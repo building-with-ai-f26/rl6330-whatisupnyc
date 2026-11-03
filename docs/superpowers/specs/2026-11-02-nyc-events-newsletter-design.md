@@ -145,7 +145,7 @@ All of these are **[my call]**, because the builder asked for simple defaults.
 | Web search | Tavily free tier | Reportedly 1,000 credits a month |
 | Email | Builder's own email for Build 1, later Resend | Resend's free plan allows 100 emails a day. The builder's domain, whatisupnyc.com, can be the verified sending domain. |
 | Analytics | PostHog from Build 2 | Required by the class |
-| Hosting | Local until Build 5, then to be decided | A free host may lose saved data on restart |
+| Hosting | Local until Build 5, then Vercel, as the builder decided | Vercel's functions do not keep local files, so SQLite must move to a hosted free database, and long collection runs must fit its time limits. Check Vercel's free-plan terms and limits before deploying. |
 
 **Constraints:**
 

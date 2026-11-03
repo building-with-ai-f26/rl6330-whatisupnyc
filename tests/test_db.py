@@ -49,3 +49,16 @@ def test_ai_requests_counted_for_today_only(conn):
 def test_dropped_event_logged_with_reason(conn):
     db.log_dropped(conn, make_event(name="Bad"), "page did not open")
     assert db.dropped_reasons(conn) == {"page did not open": 1}
+
+
+def test_saving_same_event_twice_keeps_one_row_and_id(conn):
+    first = db.save_event(conn, make_event(), Score(10, True, None))
+    second = db.save_event(conn, make_event(), Score(40, True, None))
+    assert first == second
+    assert [e.score.total for e in db.eligible_events(conn, NOW)] == [40]
+
+
+def test_paste_round_trip(conn):
+    db.save_paste(conn, "https://www.tiktok.com/@a/1", "great night", make_event(source_type="pasted"))
+    (link, caption, event), = db.list_pastes(conn)
+    assert (link, caption, event.name, event.source_type) == ("https://www.tiktok.com/@a/1", "great night", "Show", "pasted")

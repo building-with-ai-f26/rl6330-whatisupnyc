@@ -55,31 +55,31 @@ def check_event(event: CandidateEvent, page: PageResult, now: datetime) -> Check
         return CheckResult(False, "page did not open")
     if not date_appears(page.text, event.start):
         return CheckResult(False, "date not confirmed on page")
-    if _normalize(event.venue) not in _normalize(page.text):
+    if normalize_text(event.venue) not in normalize_text(page.text):
         return CheckResult(False, "venue not confirmed on page")
     return CheckResult(True)
 
 
-def _normalize(text: str) -> str:
+def normalize_text(text: str) -> str:
     text = re.sub(r"[’']", "", text.lower())
     return " ".join(re.sub(r"[^a-z0-9]+", " ", text).split())
 
 
-def _name_words(text: str) -> set[str]:
-    return {word for word in _normalize(text).split() if word not in STOP_WORDS}
+def name_words(text: str) -> set[str]:
+    return {word for word in normalize_text(text).split() if word not in STOP_WORDS}
 
 
 def dedupe_key(event: CandidateEvent) -> str:
     day = event.start.astimezone(NY).date().isoformat()
-    return f"{day}|{' '.join(sorted(_name_words(event.venue)))}|{' '.join(sorted(_name_words(event.name)))}"
+    return f"{day}|{' '.join(sorted(name_words(event.venue)))}|{' '.join(sorted(name_words(event.name)))}"
 
 
 def same_event(a: CandidateEvent, b: CandidateEvent) -> bool:
     if a.start.astimezone(NY).date() != b.start.astimezone(NY).date():
         return False
-    if _name_words(a.venue) != _name_words(b.venue):
+    if name_words(a.venue) != name_words(b.venue):
         return False
-    words_a, words_b = _name_words(a.name), _name_words(b.name)
+    words_a, words_b = name_words(a.name), name_words(b.name)
     if not words_a or not words_b:
         return False
     return len(words_a & words_b) / min(len(words_a), len(words_b)) >= 0.5

@@ -3,6 +3,7 @@ import sqlite3
 from datetime import datetime
 from zoneinfo import ZoneInfo
 
+from app.checks import dedupe_key
 from app.models import CandidateEvent, Score, ScoredEvent, Subscriber
 
 NY = ZoneInfo("America/New_York")
@@ -10,6 +11,7 @@ NY = ZoneInfo("America/New_York")
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS events (
     id INTEGER PRIMARY KEY,
+    dedupe_key TEXT NOT NULL UNIQUE,
     name TEXT NOT NULL,
     start TEXT NOT NULL,
     venue TEXT NOT NULL,
@@ -42,6 +44,18 @@ CREATE TABLE IF NOT EXISTS sent_events (
     event_id INTEGER NOT NULL,
     PRIMARY KEY (subscriber_id, event_id)
 );
+CREATE TABLE IF NOT EXISTS pastes (
+    id INTEGER PRIMARY KEY,
+    link TEXT NOT NULL,
+    caption TEXT NOT NULL,
+    name TEXT NOT NULL,
+    start TEXT NOT NULL,
+    venue TEXT NOT NULL,
+    city TEXT NOT NULL,
+    url TEXT NOT NULL,
+    source TEXT NOT NULL,
+    organizer TEXT
+);
 CREATE TABLE IF NOT EXISTS ai_requests (
     day TEXT NOT NULL
 );
@@ -56,10 +70,15 @@ def connect(path: str) -> sqlite3.Connection:
 
 
 def save_event(conn: sqlite3.Connection, event: CandidateEvent, score: Score) -> int:
-    cursor = conn.execute(
-        "INSERT INTO events (name, start, venue, city, url, source, source_type, organizer,"
-        " category, score, eligible, score_reason) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+    key = dedupe_key(event)
+    conn.execute(
+        "INSERT INTO events (dedupe_key, name, start, venue, city, url, source, source_type, organizer,"
+        " category, score, eligible, score_reason) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+        " ON CONFLICT(dedupe_key) DO UPDATE SET url = excluded.url, source = excluded.source,"
+        " source_type = excluded.source_type, score = excluded.score, eligible = excluded.eligible,"
+        " score_reason = excluded.score_reason",
         (
+            key,
             event.name,
             event.start.isoformat(),
             event.venue,
@@ -75,7 +94,46 @@ def save_event(conn: sqlite3.Connection, event: CandidateEvent, score: Score) ->
         ),
     )
     conn.commit()
-    return cursor.lastrowid
+    return conn.execute("SELECT id FROM events WHERE dedupe_key = ?", (key,)).fetchone()["id"]
+
+
+def saved_event_keys(conn: sqlite3.Connection) -> dict[str, bool]:
+    rows = conn.execute("SELECT dedupe_key, eligible FROM events").fetchall()
+    return {row["dedupe_key"]: bool(row["eligible"]) for row in rows}
+
+
+def save_paste(conn: sqlite3.Connection, link: str, caption: str, event: CandidateEvent) -> None:
+    conn.execute(
+        "INSERT INTO pastes (link, caption, name, start, venue, city, url, source, organizer)"
+        " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        (link, caption, event.name, event.start.isoformat(), event.venue, event.city, event.url,
+         event.source, event.organizer),
+    )
+    conn.commit()
+
+
+def list_pastes(conn: sqlite3.Connection) -> list[tuple[str, str, CandidateEvent]]:
+    return [
+        (
+            row["link"],
+            row["caption"],
+            CandidateEvent(
+                name=row["name"],
+                start=datetime.fromisoformat(row["start"]),
+                venue=row["venue"],
+                city=row["city"],
+                url=row["url"],
+                source=row["source"],
+                source_type="pasted",
+                organizer=row["organizer"],
+            ),
+        )
+        for row in conn.execute("SELECT * FROM pastes ORDER BY id").fetchall()
+    ]
+
+
+def all_subscribers(conn: sqlite3.Connection) -> list[Subscriber]:
+    return [_row_to_subscriber(row) for row in conn.execute("SELECT * FROM subscribers ORDER BY id").fetchall()]
 
 
 def eligible_events(conn: sqlite3.Connection, now: datetime) -> list[ScoredEvent]:
@@ -127,8 +185,10 @@ def save_subscriber(
 
 def get_subscriber(conn: sqlite3.Connection, subscriber_id: int) -> Subscriber | None:
     row = conn.execute("SELECT * FROM subscribers WHERE id = ?", (subscriber_id,)).fetchone()
-    if row is None:
-        return None
+    return _row_to_subscriber(row) if row else None
+
+
+def _row_to_subscriber(row: sqlite3.Row) -> Subscriber:
     return Subscriber(
         row["id"], row["name"], row["email"], row["interests"], row["look_prompt"], json.loads(row["days"])
     )
