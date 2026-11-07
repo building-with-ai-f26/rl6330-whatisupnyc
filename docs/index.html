@@ -68,9 +68,6 @@
         <strong>Current Status:</strong> Build 1 local prototype. It runs on real event data on the builder's computer.<br />
         <strong>Demo:</strong> A personalized issue on real event data, generated as if sent the morning of November 3, and the start page.
       </p>
-      <p class="meta">
-        The cloud app link and two-minute video come in Build 5.
-      </p>
       <div class="shots">
         <img src="assets/prototype.png" alt="A generated newsletter with a checker stripe and sections for happening today, popular, and upcoming NYC events" />
       <img src="assets/start-page.png" alt="The start page with a what kind of event bar, four templates, a day picker, and a box for social media finds" />
@@ -83,8 +80,8 @@
       <p class="meta">Updated every week as we test with real users and learn what works.</p>
 
       <h3>1. Target User & The Job to Be Done</h3>
-      <p><strong>Who is this for?</strong> NYU classmates and friends around the city. Most are not from New York, so it is a new city to explore. (Still to confirm by asking 5 classmates how they found the last event they went to.)</p>
-      <p><strong>The painful "Before" workflow:</strong> The information is scattered across many sites and apps. Even on platforms like Secret NYC and Luma, many events are not right for a given person, so they spend time checking and still miss things.</p>
+      <p><strong>Who is this for?</strong> New Yorker especially people who are not from New York, so it is a new city to explore.</p>
+      <p><strong>The painful "Before" workflow:</strong> The information is scattered across many sites and apps. Even on platforms like Instagram, Tiktok, etc. many events are not right for a given person, so they spend time checking and still miss things.</p>
       <p><strong>The "After" workflow with this product:</strong> They say what they like in one bar or pick a template, then choose their days. They get a short list of checked events, each with a date, venue, link, and one line on why it fits.</p>
 
       <h3>2. Scope & Explicit Non-Goals</h3>
@@ -103,7 +100,7 @@
       <div class="grid-2">
         <div class="stat-box">
           <div class="stat-label">Cumulative Build Spend</div>
-          <div class="stat-value">$16.16</div>
+          <div class="stat-value">$25.18</div>
         </div>
         <div class="stat-box">
           <div class="stat-label">Est. Cost Per User Run</div>
@@ -129,46 +126,16 @@
         <h3>Build 1 · Intent.md & Throwaway Prototype (Due Nov 9)</h3>
         <ul>
           <li><strong>What shipped:</strong> A local prototype: automatic collection from Ticketmaster and web pages, event checks, backend scoring, AI picks from checked events, and a paste box for social finds. The database holds 34 eligible events from four sources: Ticketmaster 24, The Skint 5, doNYC 3, and Eventbrite 2. Secret NYC and Luma added none. One issue is shown above. Most eligible events are big ticketed Ticketmaster shows, because the other sources added few events. That skew is the main known weakness.</li>
-          <li><strong>Things learned with AI:</strong> [What you learned from AI practice and Terminus Episodes 1 and 2.]</li>
-          <li><strong>What broke / changed in PRD:</strong> Secret NYC, doNYC, and Eventbrite have terms that ban automated collection, and Luma's terms are unclear. I chose to include them for this class project, and they must be reviewed before any commercial use. TikTok, Instagram, and RedNote stay as pasted links, because reaching them automatically would take login bots or block workarounds. Testing on real data caught paid ads being treated as events, Ticketmaster returning only the next two days, and pasted posts never being confirmed. All three are fixed.</li>
-          <li><strong>Cost & time this week:</strong> $16.16 of Claude Code usage as reported by /cost before the final steps, plus $0.00 on APIs and hosting (free tiers) · about 2.1 hours of measured session activity, not counting Terminus or time outside the session</li>
-        </ul>
-      </div>
-
-      <div class="log-entry">
-        <h3>Build 2 · Smallest Local Version & PostHog (Due Nov 16)</h3>
-        <ul>
-          <li><strong>What shipped:</strong> [Local working slice, PostHog verified on this page and the local app, PRD v2, and local setup in AGENTS.md]</li>
-          <li><strong>What broke / changed in PRD:</strong> [Fill in]</li>
-          <li><strong>Cost & time this week:</strong> $[0.00] · [0] hours</li>
-        </ul>
-      </div>
-
-      <div class="log-entry">
-        <h3>Build 3 · Build.exe: The Core Workflow (Due Nov 23)</h3>
-        <ul>
-          <li><strong>What shipped:</strong> [End-to-end workflow working with real inputs + PostHog funnel events]</li>
-          <li><strong>What broke / changed in PRD:</strong> [Fill in]</li>
-          <li><strong>Cost & time this week:</strong> $[0.00] · [0] hours</li>
-        </ul>
-      </div>
-
-      <div class="log-entry">
-        <h3>Build 4 · Test.py: Choose Track A or Track B (Due Nov 30)</h3>
-        <ul>
-          <li><strong>Chosen track:</strong> [A: 10-case domain eval and one outside target-user review; OR B: 3–5 outside users and replay findings]</li>
-          <li><strong>Results and improvements:</strong> [Before/after evidence; for Track B, fixes to the top three friction points]</li>
-          <li><strong>PRD v4 changes:</strong> [What the evidence changed]</li>
-          <li><strong>Cost & time this week:</strong> $[0.00] · [0] hours</li>
-        </ul>
-      </div>
-
-      <div class="log-entry">
-        <h3>Build 5 · Ship.installer: Launch Ops, Rollback Check & 2-Min Video (Due Dec 7)</h3>
-        <ul>
-          <li><strong>Launch Ops & Safety:</strong> [Verified no exposed keys, set spend cap, tested 2-minute rollback]</li>
-          <li><strong>2-Minute Video & Final Polish:</strong> [Link/embed above]</li>
-          <li><strong>Cost & time this week:</strong> $[0.00] · [0] hours</li>
+          <li><strong>Things learned with AI:</strong>
+            <ul>
+              <li>AI won't find the idea for you. When I asked what to build, it gave generic answers. I had to come up with the idea myself and then challenge it.</li>
+              <li>AI plays it safe. It tends to be strict about laws and rules, so I have to decide for myself how to handle those limits.</li>
+              <li>Getting data is hard. Collecting events from social media is a legal gray area, and there is too much data out there to collect it all, so I had to research first where the AI should crawl.</li>
+              <li>AI can overdo it. It guesses what other tasks should be done and starts doing them. That would be great for real production work, but since this project is for learning, I need to instruct the AI to tell me what it suggests instead of just doing it.</li>
+            </ul>
+          </li>
+          <li><strong>What broke / changed in PRD:</strong> Secret NYC, doNYC, and Eventbrite have terms that ban automated collection, and Luma's terms are unclear. I chose to include them for this class project, and they must be reviewed before any commercial use. TikTok, Instagram, and RedNote stay as pasted links, because reaching them automatically would take login bots or block workarounds. Testing on real data caught paid ads being treated as events, Ticketmaster returning only the next two days, and pasted posts never being confirmed. Finding a reliable source of events is not as easy as I thought.</li>
+          <li><strong>Cost & time this week:</strong> $25.18 of Claude Code usage as reported by /usage before the final steps, plus $0.00 on APIs and hosting (free tiers) · around 3 hours in total build time</li>
         </ul>
       </div>
     </section>
