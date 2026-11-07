@@ -38,8 +38,8 @@ Create your PostHog account in Week 1. Install it on the Product Page and local 
 You need [uv](https://docs.astral.sh/uv/) and free API keys from OpenRouter, Ticketmaster, and Tavily.
 
 ```bash
-git clone https://github.com/building-with-ai-f26/<your-repo-name>.git
-cd <your-repo-name>
+git clone https://github.com/building-with-ai-f26/rl6330-whatisupnyc.git
+cd rl6330-whatisupnyc
 cp .env.example .env      # then add your keys
 uv sync
 uv run python scripts/check_keys.py
