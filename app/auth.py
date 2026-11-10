@@ -13,10 +13,10 @@ SAFE_METHODS = {"GET", "HEAD", "OPTIONS"}
 
 def password_matches(header: str | None, password: str) -> bool:
     # Browsers send "Basic base64(name:password)". Any name works; only the password counts.
-    if not header or not header.startswith("Basic "):
+    if not header or header[:6].lower() != "basic ":
         return False
     try:
-        decoded = base64.b64decode(header[len("Basic "):], validate=True).decode("utf-8")
+        decoded = base64.b64decode(header[6:], validate=True).decode("utf-8")
     except (binascii.Error, UnicodeDecodeError):
         return False
     _, colon, given = decoded.partition(":")

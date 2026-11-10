@@ -43,6 +43,8 @@ def test_broken_header_is_refused(conn, sites):
 def test_right_password_lets_you_in(conn, sites):
     response = bare_client(conn, sites).get("/", headers={"Authorization": basic(PASSWORD)})
     assert response.status_code == 200
+    lower = basic(PASSWORD).replace("Basic", "basic")
+    assert bare_client(conn, sites).get("/", headers={"Authorization": lower}).status_code == 200
 
 
 def test_missing_password_setting_closes_the_site(conn, sites):
@@ -62,6 +64,24 @@ def test_form_from_another_site_is_refused(conn, sites):
     assert client.post("/paste", data=data, headers={**auth, "Origin": "https://evil.example"}).status_code == 403
     assert client.post("/paste", data=data, headers=auth).status_code == 403
     assert client.post("/paste", data=data, headers={**auth, "Origin": "http://testserver"}).status_code == 200
+
+
+def test_every_form_refuses_other_sites(conn, sites):
+    from app import db
+
+    token = db.subscriber_token(conn, db.save_subscriber(conn, "Ana", "a@x.test", "jazz", "", ["Friday"]))
+    client = bare_client(conn, sites)
+    forms = [
+        ("/subscribers", {"name": "Bo", "email": "b@x.test", "interests": "jazz", "days": ["Friday"]}),
+        (f"/newsletter/{token}/sent", {"event_ids": [1]}),
+        ("/paste", {"link": "x", "caption": "x"}),
+    ]
+    for origin in ["https://evil.example", "null", "https://evil.example@testserver", "http://sub.testserver"]:
+        for path, data in forms:
+            headers = {"Authorization": basic(PASSWORD), "Origin": origin}
+            assert client.post(path, data=data, headers=headers).status_code == 403, (path, origin)
+    assert db.find_subscriber_by_token(conn, token) is not None
+    assert db.sent_event_ids(conn, 1) == set()
 
 
 def test_form_with_same_site_referer_is_allowed(conn, sites):
