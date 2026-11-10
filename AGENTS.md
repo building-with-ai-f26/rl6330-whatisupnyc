@@ -25,7 +25,7 @@
 6. **Stop when looping:** If a fix fails twice in a row, stop, summarize what failed, and ask the human before trying a third approach.
 
 ## 4. Project Rules
-- **Sources:** `data/sites.json` records each site's terms finding and the builder's decision. All listed sites are allowed for this class project; review them before any commercial use. Respect robots rules and blocks. Never fetch TikTok, Instagram, or RedNote links, and don't add login bots, proxies, or block workarounds.
+- **Sources:** `data/sites.json` records each site's terms finding and the builder's decision. Secret NYC, doNYC, and Eventbrite are prohibited, because their terms ban automated collection. The other listed sites are allowed for this class project; review them before any commercial use. Respect robots rules and blocks. Never fetch TikTok, Instagram, or RedNote links, and don't add login bots, proxies, or block workarounds.
 - **No invented events:** plain code checks every event, and code confirms every AI pick came from the checked list.
 - **Readers never see** scores, sentiment ratings, or that an event was discovered on a social app.
 - **Design doc:** `docs/superpowers/specs/2026-11-02-nyc-events-newsletter-design.md`

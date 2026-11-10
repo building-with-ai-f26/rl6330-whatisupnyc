@@ -41,3 +41,12 @@ def test_calendar_pages_lists_only_allowed_sites(tmp_path):
         {"domain": "d.example", "automated_access": "allowed", "reliable": False, "calendar_url": "https://d.example/today"},
     ]))
     assert load(str(path)).calendar_pages() == ["https://a.example/today"]
+
+
+def test_sites_whose_terms_ban_collection_stay_off():
+    # The Build 1 feedback asked to drop these, because their terms ban automated collection.
+    from app.sites import load
+
+    real = load()
+    for url in ["https://secretnyc.co/x", "https://donyc.com/x", "https://www.eventbrite.com/e/1"]:
+        assert not real.is_allowed(url)
