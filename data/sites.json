@@ -42,27 +42,27 @@
   },
   {
     "domain": "secretnyc.co",
-    "automated_access": "allowed",
+    "automated_access": "prohibited",
     "reliable": true,
     "terms_url": "https://feverup.com/legal/terms_en.html",
     "checked_on": "2026-11-02",
-    "note": "Builder allowed this on 2026-11-02 for a class project, overriding the terms review. Original finding: Its forms link to Fever's terms, which ban robots and scrapers without written permission."
+    "note": "Dropped on 2026-11-09 after Build 1 feedback, because the terms ban automated collection. Pasted posts can still name its events. Builder allowed this on 2026-11-02 for a class project, overriding the terms review. Original finding: Its forms link to Fever's terms, which ban robots and scrapers without written permission."
   },
   {
     "domain": "donyc.com",
-    "automated_access": "allowed",
+    "automated_access": "prohibited",
     "reliable": true,
     "terms_url": "https://donyc.com/terms",
     "checked_on": "2026-11-02",
-    "note": "Builder allowed this on 2026-11-02 for a class project, overriding the terms review. Original finding: Terms ban scraping."
+    "note": "Dropped on 2026-11-09 after Build 1 feedback, because the terms ban automated collection. Pasted posts can still name its events. Builder allowed this on 2026-11-02 for a class project, overriding the terms review. Original finding: Terms ban scraping."
   },
   {
     "domain": "eventbrite.com",
-    "automated_access": "allowed",
+    "automated_access": "prohibited",
     "reliable": false,
     "terms_url": "https://www.eventbrite.com/help/en-us/articles/251210/eventbrite-terms-of-service/",
     "checked_on": "2026-11-02",
-    "note": "Builder allowed this on 2026-11-02 for a class project, overriding the terms review. Original finding: Section 13.1 bans scraping and automated extraction."
+    "note": "Dropped on 2026-11-09 after Build 1 feedback, because the terms ban automated collection. Pasted posts can still name its events. Builder allowed this on 2026-11-02 for a class project, overriding the terms review. Original finding: Section 13.1 bans scraping and automated extraction."
   },
   {
     "domain": "nycgovparks.org",
