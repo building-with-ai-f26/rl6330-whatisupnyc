@@ -24,14 +24,14 @@
   </header>
   <main>
     <div class="column">
-      <p class="for">For {{ subscriber.name }} ({{ subscriber.email }})</p>
+      <p class="for">For {{ subscriber.name }} ({{ subscriber.email }}). Bookmark this page: its link is private, and it's the only way back to this list.</p>
       {% if error %}
       <p class="notice" role="status">{{ error }}</p>
       {% else %}
       <div id="issue">{{ body|safe }}</div>
       <div class="actions">
         <button class="plain" id="copy" type="button">Copy this list</button>
-        <form method="post" action="/newsletter/{{ subscriber.id }}/sent">
+        <form method="post" action="/newsletter/{{ token }}/sent">
           {% for event_id in event_ids %}<input type="hidden" name="event_ids" value="{{ event_id }}">{% endfor %}
           <button type="submit">Mark as sent</button>
         </form>

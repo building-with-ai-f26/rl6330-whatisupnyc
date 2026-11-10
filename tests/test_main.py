@@ -12,13 +12,24 @@ from tests.conftest import NY, make_event
 from tests.fakes import FakeAI, FakeTavily
 
 NOW = datetime(2026, 11, 2, 12, tzinfo=NY)
+PASSWORD = "correct-horse-battery-staple"
 GOOD = {"name": "Ana", "email": "ana@x.test", "interests": "jazz", "look_prompt": "", "days": ["Friday"]}
 
 
 def client_for(conn, sites, ai=None):
     http = httpx.Client(transport=httpx.MockTransport(lambda r: httpx.Response(404)))
-    deps = AppDeps(conn=conn, ai=ai or FakeAI(), tavily=FakeTavily(), http=http, sites=sites, clock=lambda: NOW)
-    return TestClient(create_app(deps), follow_redirects=False)
+    deps = AppDeps(
+        conn=conn, ai=ai or FakeAI(), tavily=FakeTavily(), http=http, sites=sites, clock=lambda: NOW,
+        site_password=PASSWORD,
+    )
+    client = TestClient(create_app(deps), follow_redirects=False)
+    client.auth = ("pod", PASSWORD)
+    client.headers["Origin"] = "http://testserver"
+    return client
+
+
+def save_ana(conn, name="Ana") -> str:
+    return db.subscriber_token(conn, db.save_subscriber(conn, name, "ana@x.test", "jazz", "", ["Friday"]))
 
 
 def test_start_page_has_bar_templates_days(conn, sites):
@@ -34,6 +45,7 @@ def test_subscriber_saved_with_chosen_days(conn, sites):
     response = client_for(conn, sites).post("/subscribers", data=GOOD)
     assert response.status_code == 303
     assert db.get_subscriber(conn, 1).days == ["Friday"]
+    assert response.headers["location"] == f"/newsletter/{db.subscriber_token(conn, 1)}"
 
 
 @pytest.mark.parametrize("field", ["interests", "name", "email", "days"])
@@ -44,31 +56,35 @@ def test_missing_required_field_rejected(conn, sites, field):
 
 def test_newsletter_shows_picks(conn, sites):
     event_id = db.save_event(conn, make_event(name="Jazz Night"), Score(40, True))
-    db.save_subscriber(conn, "Ana", "ana@x.test", "jazz", "", ["Friday"])
+    token = save_ana(conn)
     ai = FakeAI({"picks": [{"id": event_id, "reason": "You like jazz"}]})
-    html = client_for(conn, sites, ai).get("/newsletter/1").text
+    html = client_for(conn, sites, ai).get(f"/newsletter/{token}").text
     assert "Jazz Night" in html and "You like jazz" in html
 
 
 def test_unknown_subscriber_is_404(conn, sites):
-    assert client_for(conn, sites).get("/newsletter/99").status_code == 404
+    save_ana(conn)
+    client = client_for(conn, sites)
+    assert client.get("/newsletter/not-a-real-link").status_code == 404
+    assert client.get("/newsletter/1").status_code == 404
+    assert client.post("/newsletter/1/sent", data={"event_ids": [1]}).status_code == 404
 
 
 def test_ai_down_shows_plain_message(conn, sites):
     db.save_event(conn, make_event(), Score(40, True))
-    db.save_subscriber(conn, "Ana", "ana@x.test", "jazz", "", ["Friday"])
-    response = client_for(conn, sites, FakeAI(error=AIUnavailable("busy"))).get("/newsletter/1")
+    token = save_ana(conn)
+    response = client_for(conn, sites, FakeAI(error=AIUnavailable("busy"))).get(f"/newsletter/{token}")
     assert response.status_code == 200
     assert "try again" in response.text.lower()
 
 
 def test_mark_sent_excludes_next_time(conn, sites):
     event_id = db.save_event(conn, make_event(name="Jazz Night"), Score(40, True))
-    db.save_subscriber(conn, "Ana", "ana@x.test", "jazz", "", ["Friday"])
+    token = save_ana(conn)
     ai = FakeAI()
     client = client_for(conn, sites, ai)
-    assert client.post("/newsletter/1/sent", data={"event_ids": [event_id]}).status_code == 303
-    html = client.get("/newsletter/1").text
+    assert client.post(f"/newsletter/{token}/sent", data={"event_ids": [event_id]}).status_code == 303
+    html = client.get(f"/newsletter/{token}").text
     assert "no new picks" in html.lower()
     assert ai.calls == 0
 
@@ -78,9 +94,9 @@ def test_paste_shows_message(conn, sites):
     assert "link" in response.text.lower()
 
 
-def test_start_page_keeps_user_text_escaped(conn, sites):
-    db.save_subscriber(conn, "<script>x</script>", "a@x.test", "jazz", "", ["Friday"])
-    assert "<script>x" not in client_for(conn, sites).get("/").text
+def test_newsletter_keeps_user_text_escaped(conn, sites):
+    token = save_ana(conn, name="<script>x</script>")
+    assert "<script>x" not in client_for(conn, sites).get(f"/newsletter/{token}").text
 
 
 def test_start_page_shows_the_logo_and_tab_icon(conn, sites):
@@ -95,13 +111,12 @@ def test_day_buttons_keep_full_day_names_for_screen_readers(conn, sites):
     assert ">Mon<" in html
 
 
-def test_people_list_comes_after_the_forms(conn, sites):
-    db.save_subscriber(conn, "Ana", "a@x.test", "jazz", "", ["Friday"])
+def test_start_page_lists_nobody(conn, sites):
+    token = save_ana(conn, name="Ana Tester")
     html = client_for(conn, sites).get("/").text
-    assert html.index("Make my list") < html.index("Ana") 
-    assert html.index("Add this event") < html.index("Ana")
+    assert "Ana Tester" not in html and "ana@x.test" not in html and token not in html
 
 
 def test_newsletter_page_shows_the_logo(conn, sites):
-    db.save_subscriber(conn, "Ana", "a@x.test", "jazz", "", ["Friday"])
-    assert 'aria-label="whatisupnyc"' in client_for(conn, sites).get("/newsletter/1").text
+    token = save_ana(conn)
+    assert 'aria-label="whatisupnyc"' in client_for(conn, sites).get(f"/newsletter/{token}").text
