@@ -32,6 +32,8 @@ class CheckResult:
 @dataclass
 class Signals:
     reputable_match: bool = False
+    # Listed by the city agency that runs the event, through an official feed.
+    official_feed: bool = False
     brand_confirmed: bool = False
     coverage_domains: set[str] = field(default_factory=set)
     pasted_post_count: int = 0

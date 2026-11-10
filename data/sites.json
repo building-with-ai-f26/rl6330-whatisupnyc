@@ -66,11 +66,11 @@
   },
   {
     "domain": "nycgovparks.org",
-    "automated_access": "allowed",
+    "automated_access": "prohibited",
     "reliable": true,
     "terms_url": "https://www.nycgovparks.org/terms",
     "checked_on": "2026-11-02",
-    "note": "Builder allowed this on 2026-11-02 for a class project, overriding the terms review. Original finding: Refuses our requests with HTTP 403, so its terms and pages are out of reach."
+    "note": "Blocked on 2026-11-09, because the site refuses our requests (HTTP 403) and we respect blocks. Its events come from the NYC Open Data feed instead, which the Open Data Law makes free to reuse. Builder allowed this on 2026-11-02 for a class project, overriding the terms review. Original finding: Refuses our requests with HTTP 403, so its terms and pages are out of reach."
   },
   {
     "domain": "nypl.org",

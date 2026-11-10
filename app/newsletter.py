@@ -16,6 +16,9 @@ SHORT_ISSUE_BELOW = 3
 HIDDEN_SOURCES = re.compile(r"tiktok|instagram|\big\b|rednote|xiaohongshu|小红书|luma|lu\.ma", re.IGNORECASE)
 POPULAR_FROM_SCORE = 40
 CHECKER_SQUARES = 24
+# Keeps the request short enough for the free model.
+MAX_EVENTS_FOR_AI = 150
+PARKS_SOURCE = "nyc_parks"
 NEUTRAL_REASON = "This matches what you asked for."
 
 CHOOSE_SYSTEM = """You choose NYC events for one reader's newsletter.
@@ -44,7 +47,9 @@ def choose_picks(
     sent_ids: set[int] | None = None,
 ) -> list[Pick]:
     available = [event for event in events if event.id not in (sent_ids or set())]
-    available.sort(key=lambda event: event.score.total, reverse=True)
+    # Best first, then soonest.
+    available.sort(key=lambda event: (-event.score.total, event.event.start))
+    available = available[:MAX_EVENTS_FOR_AI]
     if not available:
         return []
     listing = [
@@ -127,6 +132,8 @@ def render_newsletter(picks: list[Pick], *, now: datetime) -> str:
         checker=range(CHECKER_SQUARES),
         count=len(picks),
         short=0 < len(picks) < SHORT_ISSUE_BELOW,
+        # The Open Data Law lets the city ask apps to name the source of its data.
+        parks_credit=any(pick.event.event.source == PARKS_SOURCE for pick in picks),
     )
 
 
