@@ -158,3 +158,20 @@ def test_brand_inside_the_event_name_cannot_confirm_itself():
 def test_shipped_list_has_no_generic_aliases():
     names = [name for entry in load_reputable().entries for name in entry.aliases]
     assert not {"The Garden", "The Beacon", "Nets"} & set(names)
+
+
+def test_official_city_feed_is_eligible_but_not_popular():
+    result = score(sig(official_feed=True))
+    assert result.eligible and result.total == 20
+    assert result.total < 40
+
+
+def test_official_feed_adds_to_other_signals():
+    assert score(sig(official_feed=True, reputable_match=True, brand_confirmed=True)).total == 60
+
+
+def test_famous_name_must_be_in_the_event_name():
+    library = Reputable([Entry("New York Public Library", ["NYPL"], "nypl.org")])
+    assert library.named_in(make_event(name="Author Talk at the New York Public Library"))
+    assert not library.named_in(make_event(name="Chair Yoga", venue="NYPL - Eastchester Library"))
+    assert not library.named_in(make_event(name="NYPL Chair Yoga"))

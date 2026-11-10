@@ -26,10 +26,12 @@ def jsonld(name, venue="Other Hall"):
     )
 
 
-def deps(sites, pages=None, ticketmaster=FIXTURE, tavily=None, ai=None):
+def deps(sites, pages=None, ticketmaster=FIXTURE, tavily=None, ai=None, parks=None):
     def handler(request):
         if request.url.host == "app.ticketmaster.com":
             return httpx.Response(200, json=ticketmaster)
+        if request.url.host == "data.cityofnewyork.us":
+            return httpx.Response(200, json=parks or [])
         if request.url.path == "/robots.txt":
             return httpx.Response(404)
         html = (pages or {}).get(str(request.url))
@@ -155,3 +157,12 @@ def test_same_post_pasted_twice_counts_once(conn, sites):
     d = deps(sites, {"https://reliable.example/p": "<p>Show on Sat, Nov 7 at Beacon Theatre</p>"}, tm)
     run_pipeline(conn, d, NOW)
     assert db.eligible_events(conn, NOW)[0].score.total == 55
+
+
+def test_parks_feed_event_is_eligible_without_opening_its_page(conn, sites):
+    parks = [{"title": "Fall Foliage Walk", "link": {"url": "http://www.nycgovparks.org/events/walk"},
+              "parknames": "Central Park", "starttime": "2026-11-08T11:00:00.000", "categories": "Nature | Tours"}]
+    d = deps(sites, ticketmaster=EMPTY_TM, parks=parks)
+    run_pipeline(conn, d, NOW)
+    saved = db.eligible_events(conn, NOW)
+    assert [(e.event.name, e.score.total) for e in saved] == [("Fall Foliage Walk", 20)]

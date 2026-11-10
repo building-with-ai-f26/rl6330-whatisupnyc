@@ -8,6 +8,8 @@ from app.pages import PageResult
 from app.sites import Sites
 
 REPUTABLE_POINTS = 40
+# Below the Popular cutoff, so everyday park events land under Upcoming.
+OFFICIAL_FEED_POINTS = 20
 POINTS_PER_COVERAGE_DOMAIN = 10
 MAX_COVERAGE_POINTS = 30
 POINTS_PER_PASTED_POST = 5
@@ -19,12 +21,13 @@ SENTIMENT_POINTS = {"positive": 10, "mixed": 5, "unknown": 0, "negative": 0}
 
 def score(signals: Signals) -> Score:
     reputation = REPUTABLE_POINTS if signals.reputable_match and signals.brand_confirmed else 0
+    official = OFFICIAL_FEED_POINTS if signals.official_feed else 0
     coverage = min(MAX_COVERAGE_POINTS, POINTS_PER_COVERAGE_DOMAIN * len(signals.coverage_domains))
     interest = min(MAX_INTEREST_POINTS, POINTS_PER_PASTED_POST * signals.pasted_post_count)
-    total = reputation + coverage + interest + SENTIMENT_POINTS[signals.sentiment]
+    total = reputation + official + coverage + interest + SENTIMENT_POINTS[signals.sentiment]
     if signals.sentiment == "negative":
         return Score(total, False, "negative sentiment")
-    if reputation == 0 and coverage == 0:
+    if reputation == 0 and official == 0 and coverage == 0:
         return Score(total, False, "no credibility signal")
     return Score(total, True, None)
 
@@ -64,6 +67,12 @@ class Reputable:
             if normalize(entry.name) in name or any(normalize(n) in fields for n in entry.names()):
                 return entry
         return None
+
+    def named_in(self, event: CandidateEvent) -> Entry | None:
+        # Fame counts only from the event's own name. A venue like one of the library's
+        # many branches doesn't make a routine class famous.
+        name = normalize(event.name)
+        return next((entry for entry in self.entries if normalize(entry.name) in name), None)
 
 
 def load_reputable(path: str = "data/reputable.json") -> Reputable:

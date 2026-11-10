@@ -247,3 +247,22 @@ def test_instructions_forbid_unsupported_claims_and_repeating_the_date():
 
     assert "Never claim how popular or loved an event is" in CHOOSE_SYSTEM
     assert "Don't repeat the date" in CHOOSE_SYSTEM
+
+
+def test_ai_sees_at_most_150_events_best_then_soonest():
+    from datetime import timedelta
+
+    many = [scored(i, score=20, start=datetime(2026, 11, 7, 20, tzinfo=NY) + timedelta(hours=i)) for i in range(1, 200)]
+    many.append(scored(500, score=40, start=datetime(2026, 11, 20, 20, tzinfo=NY)))
+    ai = FakeAI({"picks": []})
+    choose(SUB, list(reversed(many)), ai)
+    prompt = ai.prompts[0]
+    assert prompt.count('"id"') == 150
+    assert prompt.index("Event 500") < prompt.index('"Event 1"') < prompt.index('"Event 2"')
+    assert '"Event 149"' in prompt and '"Event 150"' not in prompt
+
+
+def test_parks_pick_gets_a_source_credit():
+    parks = scored(1, source="nyc_parks", organizer="NYC Parks")
+    assert "NYC Open Data" in render([Pick(parks, "Fun")])
+    assert "NYC Open Data" not in render([Pick(scored(2), "Fun")])

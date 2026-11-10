@@ -1,0 +1,13 @@
+[
+  {"title": "Le Carrousel Extravaganza", "link": {"url": "http://www.nycgovparks.org/events/2026/11/07/le-carrousel"}, "parknames": "Bryant Park", "location": "Le Carrousel", "starttime": "2026-11-07T14:00:00.000", "categories": "Art | Kids | Holiday", "registration_description": ""},
+  {"title": "Yoga en Espa&#241;ol", "link": {"url": "http://www.nycgovparks.org/events/2026/11/07/yoga"}, "location": "Torsney Playground", "starttime": "2026-11-07T10:00:00.000", "categories": "Fitness | Yoga & Pilates Classes"},
+  {"title": "Fall Foliage Walk", "link": {"url": "http://www.nycgovparks.org/events/2026/11/08/foliage"}, "location": "Meet at the Dairy", "starttime": "2026-11-08T11:00:00.000", "categories": "Nature | Tours"},
+  {"title": "Zumba", "link": {"url": "http://www.nycgovparks.org/events/2026/11/08/zumba"}, "parknames": "Gertrude Ederle Recreation Center", "starttime": "2026-11-08T18:00:00.000", "categories": "Dance | Exercise Classes"},
+  {"title": "Sunset Yoga at Lincoln Center", "link": {"url": "http://www.nycgovparks.org/events/2026/11/08/sunset-yoga"}, "parknames": "Damrosch Park", "starttime": "2026-11-08T17:00:00.000", "categories": "Fitness | Yoga & Pilates Classes"},
+  {"title": "Virtual Bird Talk", "link": {"url": "http://www.nycgovparks.org/events/2026/11/09/bird-talk"}, "parknames": "Central Park", "starttime": "2026-11-09T19:00:00.000", "categories": "Nature | Talks"},
+  {"title": "Pottery Workshop", "link": {"url": "http://www.nycgovparks.org/events/2026/11/09/pottery"}, "parknames": "St. Mary's Park", "starttime": "2026-11-09T15:00:00.000", "categories": "Art", "registration_description": "Registration is closed."},
+  {"title": "No Time Event", "link": {"url": "http://www.nycgovparks.org/events/x"}, "parknames": "Central Park", "categories": "Art"},
+  {"title": "No Place Event", "link": {"url": "http://www.nycgovparks.org/events/y"}, "starttime": "2026-11-09T15:00:00.000", "categories": "Art"},
+  {"title": "No Link Event", "parknames": "Central Park", "starttime": "2026-11-09T15:00:00.000", "categories": "Art"},
+  {"title": "CANCELED: Harbor Tour", "link": {"url": "http://www.nycgovparks.org/events/z"}, "parknames": "Battery Park", "starttime": "2026-11-09T15:00:00.000", "categories": "Tours"}
+]

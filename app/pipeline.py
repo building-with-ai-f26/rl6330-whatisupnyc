@@ -14,6 +14,7 @@ from app.pages import PageResult, fetch_page
 from app.scoring import Reputable, brand_confirmed, domain_of, load_reputable, normalize, reliable_domains, score
 from app.sentiment import Opinion, gather_opinions, rate_sentiment
 from app.sites import Sites, load as load_sites
+from app.sources.nyc_parks import SOURCE as NYC_PARKS, fetch_parks_events
 from app.sources.ticketmaster import fetch_events
 from app.sources.web import TavilyClient, collect_web_events
 
@@ -92,6 +93,7 @@ def _collect(deps: PipelineDeps, now: datetime) -> list[CandidateEvent]:
     sources = (
         ("ticketmaster", lambda: fetch_events(deps.http, deps.ticketmaster_key, now)),
         ("web", lambda: collect_web_events(deps.tavily, deps.http, deps.sites, deps.ai, now)),
+        ("nyc_parks", lambda: fetch_parks_events(deps.http, now, lambda e: deps.reputable.named_in(e) is not None)),
     )
     for name, collect in sources:
         try:
@@ -147,6 +149,7 @@ def _check_group(conn, group: Group, deps: PipelineDeps, now: datetime):
     signals = Signals(
         coverage_domains=reliable_domains([m.url for m in good if m.source_type != "api"], deps.sites),
         pasted_post_count=len({link for link, _ in group.captions}),
+        official_feed=any(m.source == NYC_PARKS for m in good),
     )
     entry = deps.reputable.match(event)
     if entry:

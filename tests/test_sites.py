@@ -48,5 +48,7 @@ def test_sites_whose_terms_ban_collection_stay_off():
     from app.sites import load
 
     real = load()
-    for url in ["https://secretnyc.co/x", "https://donyc.com/x", "https://www.eventbrite.com/e/1"]:
+    for url in ["https://secretnyc.co/x", "https://donyc.com/x", "https://www.eventbrite.com/e/1",
+                # NYC Parks blocks our requests, so its events come from NYC Open Data instead.
+                "https://www.nycgovparks.org/events/x"]:
         assert not real.is_allowed(url)
