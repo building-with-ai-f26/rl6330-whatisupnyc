@@ -1,4 +1,5 @@
 import json
+import secrets
 import sqlite3
 from datetime import datetime
 from zoneinfo import ZoneInfo
@@ -37,7 +38,8 @@ CREATE TABLE IF NOT EXISTS subscribers (
     email TEXT NOT NULL,
     interests TEXT NOT NULL,
     look_prompt TEXT NOT NULL,
-    days TEXT NOT NULL
+    days TEXT NOT NULL,
+    token TEXT
 );
 CREATE TABLE IF NOT EXISTS sent_events (
     subscriber_id INTEGER NOT NULL,
@@ -66,7 +68,24 @@ def connect(path: str) -> sqlite3.Connection:
     conn = sqlite3.connect(path, check_same_thread=False)
     conn.row_factory = sqlite3.Row
     conn.executescript(SCHEMA)
+    _give_subscribers_links(conn)
     return conn
+
+
+def _new_token() -> str:
+    # 32 random bytes, so a link can't be guessed or counted up to.
+    return secrets.token_urlsafe(32)
+
+
+def _give_subscribers_links(conn: sqlite3.Connection) -> None:
+    # Databases made before private links have no token column yet.
+    columns = {row["name"] for row in conn.execute("PRAGMA table_info(subscribers)")}
+    if "token" not in columns:
+        conn.execute("ALTER TABLE subscribers ADD COLUMN token TEXT")
+    for row in conn.execute("SELECT id FROM subscribers WHERE token IS NULL").fetchall():
+        conn.execute("UPDATE subscribers SET token = ? WHERE id = ?", (_new_token(), row["id"]))
+    conn.execute("CREATE UNIQUE INDEX IF NOT EXISTS subscribers_token ON subscribers (token)")
+    conn.commit()
 
 
 def save_event(conn: sqlite3.Connection, event: CandidateEvent, score: Score) -> int:
@@ -132,10 +151,6 @@ def list_pastes(conn: sqlite3.Connection) -> list[tuple[str, str, CandidateEvent
     ]
 
 
-def all_subscribers(conn: sqlite3.Connection) -> list[Subscriber]:
-    return [_row_to_subscriber(row) for row in conn.execute("SELECT * FROM subscribers ORDER BY id").fetchall()]
-
-
 def eligible_events(conn: sqlite3.Connection, now: datetime) -> list[ScoredEvent]:
     rows = conn.execute(
         "SELECT * FROM events WHERE eligible = 1 ORDER BY score DESC, id"
@@ -176,8 +191,8 @@ def save_subscriber(
     conn: sqlite3.Connection, name: str, email: str, interests: str, look_prompt: str, days: list[str]
 ) -> int:
     cursor = conn.execute(
-        "INSERT INTO subscribers (name, email, interests, look_prompt, days) VALUES (?, ?, ?, ?, ?)",
-        (name, email, interests, look_prompt, json.dumps(days)),
+        "INSERT INTO subscribers (name, email, interests, look_prompt, days, token) VALUES (?, ?, ?, ?, ?, ?)",
+        (name, email, interests, look_prompt, json.dumps(days), _new_token()),
     )
     conn.commit()
     return cursor.lastrowid
@@ -185,6 +200,15 @@ def save_subscriber(
 
 def get_subscriber(conn: sqlite3.Connection, subscriber_id: int) -> Subscriber | None:
     row = conn.execute("SELECT * FROM subscribers WHERE id = ?", (subscriber_id,)).fetchone()
+    return _row_to_subscriber(row) if row else None
+
+
+def subscriber_token(conn: sqlite3.Connection, subscriber_id: int) -> str:
+    return conn.execute("SELECT token FROM subscribers WHERE id = ?", (subscriber_id,)).fetchone()["token"]
+
+
+def find_subscriber_by_token(conn: sqlite3.Connection, token: str) -> Subscriber | None:
+    row = conn.execute("SELECT * FROM subscribers WHERE token = ?", (token,)).fetchone()
     return _row_to_subscriber(row) if row else None
 
 

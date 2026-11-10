@@ -35,6 +35,33 @@ def test_subscriber_round_trip(conn):
     assert (saved.name, saved.days) == ("Ana", ["Mon", "Fri"])
 
 
+def test_each_subscriber_gets_a_long_random_link(conn):
+    first = db.subscriber_token(conn, db.save_subscriber(conn, "Ana", "a@x.test", "jazz", "", ["Fri"]))
+    second = db.subscriber_token(conn, db.save_subscriber(conn, "Bo", "b@x.test", "jazz", "", ["Fri"]))
+    assert first != second and len(first) >= 32
+    assert db.find_subscriber_by_token(conn, first).name == "Ana"
+    assert db.find_subscriber_by_token(conn, "guess") is None
+
+
+def test_older_database_gets_links_for_saved_people(tmp_path):
+    import sqlite3
+
+    path = tmp_path / "old.db"
+    old = sqlite3.connect(path)
+    old.execute(
+        "CREATE TABLE subscribers (id INTEGER PRIMARY KEY, name TEXT NOT NULL, email TEXT NOT NULL,"
+        " interests TEXT NOT NULL, look_prompt TEXT NOT NULL, days TEXT NOT NULL)"
+    )
+    old.execute("INSERT INTO subscribers VALUES (1, 'Ana', 'a@x.test', 'jazz', '', '[\"Fri\"]')")
+    old.commit()
+    old.close()
+    conn = db.connect(str(path))
+    token = db.subscriber_token(conn, 1)
+    assert len(token) >= 32
+    assert db.find_subscriber_by_token(conn, token).name == "Ana"
+    conn.close()
+
+
 def test_sent_ids_round_trip(conn):
     db.mark_sent(conn, 1, [2, 3])
     assert db.sent_event_ids(conn, 1) == {2, 3}

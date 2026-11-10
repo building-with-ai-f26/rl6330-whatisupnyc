@@ -11,7 +11,7 @@
 ## 2. Commands
 - **Install dependencies:** `uv sync`
 - **Collect events:** `uv run python -m app.pipeline` (takes about 10 minutes on the free model)
-- **Run locally:** `uv run uvicorn app.main:app --host 127.0.0.1 --port 8000`, then open http://127.0.0.1:8000. Keep it on `127.0.0.1`, because the pages have no login.
+- **Run locally:** `uv run uvicorn app.main:app --host 127.0.0.1 --port 8000`, then open http://127.0.0.1:8000 and enter `SITE_PASSWORD` from `.env` (any name works). Every page needs that password, and the site stays closed without one. Newsletters open only by their private link.
 - **Run deterministic tests:** `uv run pytest`
 - **Run model evals:** `uv run python -m scripts.eval_sentiment`, after labeling `tests/sentiment_examples.json`
 - **Check API keys:** `uv run python scripts/check_keys.py`

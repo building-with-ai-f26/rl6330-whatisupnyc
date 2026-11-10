@@ -35,18 +35,18 @@ Create your PostHog account in Week 1. Install it on the Product Page and local 
 
 ## Local setup
 
-You need [uv](https://docs.astral.sh/uv/) and free API keys from OpenRouter, Ticketmaster, and Tavily.
+You need [uv](https://docs.astral.sh/uv/), free API keys from OpenRouter, Ticketmaster, and Tavily, and a site password of 16 or more characters.
 
 ```bash
 git clone https://github.com/building-with-ai-f26/rl6330-whatisupnyc.git
 cd rl6330-whatisupnyc
-cp .env.example .env      # then add your keys
+cp .env.example .env      # then add your keys and SITE_PASSWORD
 uv sync
 uv run python scripts/check_keys.py
 uv run python -m app.pipeline    # collects events, takes about 10 minutes
 uv run uvicorn app.main:app --host 127.0.0.1 --port 8000
 ```
 
-Then open http://127.0.0.1:8000. Run the tests with `uv run pytest`.
+Then open http://127.0.0.1:8000 and enter your `SITE_PASSWORD` (any name works). Each newsletter has a private link, so bookmark it after you save your preferences. Run the tests with `uv run pytest`.
 
 If your app needs API keys, use a local environment file such as `.env`. Keep private keys out of source code, browser code, screenshots, and commits. The template ignores `.env`; `.env.example` contains placeholders only.

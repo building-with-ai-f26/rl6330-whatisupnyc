@@ -5,10 +5,10 @@ from datetime import datetime, timezone
 
 import httpx
 from dotenv import load_dotenv
-from fastapi import FastAPI, Form, HTTPException
+from fastapi import FastAPI, Form, HTTPException, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 
-from app import db
+from app import auth, db
 from app.ai import AIClient, AIUnavailable
 from app.newsletter import _templates, choose_picks, render_newsletter
 from app.sites import Sites, load as load_sites
@@ -33,6 +33,7 @@ class AppDeps:
     http: httpx.Client
     sites: Sites
     clock: Callable[[], datetime]
+    site_password: str
 
 
 def _default_deps() -> AppDeps:
@@ -46,6 +47,7 @@ def _default_deps() -> AppDeps:
         http=http,
         sites=load_sites(),
         clock=lambda: datetime.now(timezone.utc),
+        site_password=os.environ.get("SITE_PASSWORD", ""),
     )
 
 
@@ -54,7 +56,8 @@ def _page(template: str, **context) -> str:
 
 
 def create_app(deps: AppDeps | None = None) -> FastAPI:
-    app = FastAPI(title="whatisupnyc")
+    # No automatic pages that list every route.
+    app = FastAPI(title="whatisupnyc", docs_url=None, redoc_url=None, openapi_url=None)
     cache: list[AppDeps] = [deps] if deps else []
 
     def get_deps() -> AppDeps:
@@ -63,15 +66,20 @@ def create_app(deps: AppDeps | None = None) -> FastAPI:
             cache.append(_default_deps())
         return cache[0]
 
+    @app.middleware("http")
+    async def require_password(request: Request, call_next):
+        refusal = auth.check(request, get_deps().site_password)
+        return refusal or await call_next(request)
+
     def start_page(message: str = "", status_code: int = 200) -> HTMLResponse:
-        html = _page(
-            "index.html",
-            days=DAYS,
-            templates=TEMPLATES,
-            message=message,
-            subscribers=db.all_subscribers(get_deps().conn),
-        )
+        html = _page("index.html", days=DAYS, templates=TEMPLATES, message=message)
         return HTMLResponse(html, status_code=status_code)
+
+    def subscriber_for(token: str):
+        subscriber = db.find_subscriber_by_token(get_deps().conn, token)
+        if subscriber is None:
+            raise HTTPException(status_code=404, detail="Subscriber not found")
+        return subscriber
 
     @app.get("/", response_class=HTMLResponse)
     def index():
@@ -88,35 +96,33 @@ def create_app(deps: AppDeps | None = None) -> FastAPI:
         chosen = [day for day in days if day in DAYS]
         if not name.strip() or not email.strip() or not interests.strip() or not chosen:
             return start_page("Please fill in a name, an email, what kind of event, and at least one day.", 400)
-        new_id = db.save_subscriber(
-            get_deps().conn, name.strip(), email.strip(), interests.strip(), look_prompt.strip(), chosen
-        )
-        return RedirectResponse(f"/newsletter/{new_id}", status_code=303)
+        conn = get_deps().conn
+        new_id = db.save_subscriber(conn, name.strip(), email.strip(), interests.strip(), look_prompt.strip(), chosen)
+        return RedirectResponse(f"/newsletter/{db.subscriber_token(conn, new_id)}", status_code=303)
 
-    @app.get("/newsletter/{subscriber_id}", response_class=HTMLResponse)
-    def newsletter(subscriber_id: int):
+    @app.get("/newsletter/{token}", response_class=HTMLResponse)
+    def newsletter(token: str):
         d = get_deps()
-        subscriber = db.get_subscriber(d.conn, subscriber_id)
-        if subscriber is None:
-            raise HTTPException(status_code=404, detail="Subscriber not found")
+        subscriber = subscriber_for(token)
         events = db.eligible_events(d.conn, d.clock())
         try:
             picks = choose_picks(
-                subscriber, events, d.ai, now=d.clock(), sent_ids=db.sent_event_ids(d.conn, subscriber_id)
+                subscriber, events, d.ai, now=d.clock(), sent_ids=db.sent_event_ids(d.conn, subscriber.id)
             )
         except AIUnavailable:
-            return _page("view.html", subscriber=subscriber, error=AI_BUSY, body=None, event_ids=[])
+            return _page("view.html", subscriber=subscriber, token=token, error=AI_BUSY, body=None, event_ids=[])
         return _page(
             "view.html",
             subscriber=subscriber,
+            token=token,
             error=None,
             body=render_newsletter(picks, now=d.clock()),
             event_ids=[pick.event.id for pick in picks],
         )
 
-    @app.post("/newsletter/{subscriber_id}/sent")
-    def mark_sent(subscriber_id: int, event_ids: list[int] = Form([])):
-        db.mark_sent(get_deps().conn, subscriber_id, event_ids)
+    @app.post("/newsletter/{token}/sent")
+    def mark_sent(token: str, event_ids: list[int] = Form([])):
+        db.mark_sent(get_deps().conn, subscriber_for(token).id, event_ids)
         return RedirectResponse("/", status_code=303)
 
     @app.post("/paste", response_class=HTMLResponse)
