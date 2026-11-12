@@ -9,7 +9,7 @@ from fastapi import FastAPI, Form, HTTPException, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 
 from app import auth, db
-from app.ai import AIClient, AIUnavailable
+from app.ai import AIClient, AIUnavailable, backup_from_env
 from app.newsletter import _templates, choose_picks, render_newsletter
 from app.sites import Sites, load as load_sites
 from app.sources.pasted import process_paste
@@ -42,7 +42,9 @@ def _default_deps() -> AppDeps:
     http = httpx.Client()
     return AppDeps(
         conn=conn,
-        ai=AIClient(http, os.environ["OPENROUTER_API_KEY"], os.environ["OPENROUTER_MODEL"], conn),
+        ai=AIClient(
+            http, os.environ["OPENROUTER_API_KEY"], os.environ["OPENROUTER_MODEL"], conn, backup=backup_from_env()
+        ),
         tavily=TavilyClient(http, os.environ["TAVILY_API_KEY"], run_budget=100),
         http=http,
         sites=load_sites(),

@@ -46,3 +46,11 @@ report(
         timeout=30,
     ),
 )
+report(
+    "minimax",
+    lambda key: httpx.get(
+        "https://api.minimax.io/v1/models",
+        headers={"Authorization": f"Bearer {key}"},
+        timeout=30,
+    ),
+)
