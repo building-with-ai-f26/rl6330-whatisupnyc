@@ -34,6 +34,9 @@ class AppDeps:
     sites: Sites
     clock: Callable[[], datetime]
     site_password: str
+    # PostHog analytics. The project key is public by design; no key means no tracking.
+    posthog_key: str = ""
+    posthog_host: str = "https://us.i.posthog.com"
 
 
 def _default_deps() -> AppDeps:
@@ -50,6 +53,8 @@ def _default_deps() -> AppDeps:
         sites=load_sites(),
         clock=lambda: datetime.now(timezone.utc),
         site_password=os.environ.get("SITE_PASSWORD", ""),
+        posthog_key=os.environ.get("POSTHOG_KEY", ""),
+        posthog_host=os.environ.get("POSTHOG_HOST", "https://us.i.posthog.com"),
     )
 
 
@@ -73,8 +78,12 @@ def create_app(deps: AppDeps | None = None) -> FastAPI:
         refusal = auth.check(request, get_deps().site_password)
         return refusal or await call_next(request)
 
+    def page(template: str, **context) -> str:
+        d = get_deps()
+        return _page(template, posthog_key=d.posthog_key, posthog_host=d.posthog_host, **context)
+
     def start_page(message: str = "", status_code: int = 200) -> HTMLResponse:
-        html = _page("index.html", days=DAYS, templates=TEMPLATES, message=message)
+        html = page("index.html", days=DAYS, templates=TEMPLATES, message=message)
         return HTMLResponse(html, status_code=status_code)
 
     def subscriber_for(token: str):
@@ -112,8 +121,8 @@ def create_app(deps: AppDeps | None = None) -> FastAPI:
                 subscriber, events, d.ai, now=d.clock(), sent_ids=db.sent_event_ids(d.conn, subscriber.id)
             )
         except AIUnavailable:
-            return _page("view.html", subscriber=subscriber, token=token, error=AI_BUSY, body=None, event_ids=[])
-        return _page(
+            return page("view.html", subscriber=subscriber, token=token, error=AI_BUSY, body=None, event_ids=[])
+        return page(
             "view.html",
             subscriber=subscriber,
             token=token,
