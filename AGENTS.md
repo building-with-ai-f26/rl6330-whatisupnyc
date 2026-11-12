@@ -6,7 +6,7 @@
 - **What this repo builds:** whatisupnyc, a personalized NYC events newsletter. It collects events automatically, checks and scores them, and has AI choose picks for each person only from checked events.
 - **Primary user & core workflow:** People new to NYC, starting with NYU classmates and friends. They say what they like and pick their days, then get a short list of events. See the living PRD in `docs/index.html`.
 - **Tech stack:** Python 3.12 / uv / FastAPI / SQLite / OpenRouter free model / Tavily / Ticketmaster Discovery API / PostHog analytics (`POSTHOG_KEY`; empty turns it off). Vercel is the planned host from Build 5, which requires the database and login work listed in the design doc.
-- **AI model:** `nvidia/nemotron-3.5-super-vl:free` through OpenRouter, set by `OPENROUTER_MODEL`. Chosen on 2026-11-02: it returned valid JSON and ignored an injected instruction, while `google/gemma-4-26b-a4b-it:free` returned HTTP 429 and `thinkingmachines/inkling:free` returned HTTP 403. It is slow, about 40 seconds for one extraction.
+- **AI model:** `nvidia/nemotron-3.5-super-vl:free` through OpenRouter, set by `OPENROUTER_MODEL`. Chosen on 2026-11-02: it returned valid JSON and ignored an injected instruction, while `google/gemma-4-26b-a4b-it:free` returned HTTP 429 and `thinkingmachines/inkling:free` returned HTTP 403. It is slow, about 40 seconds for one extraction. **Backup:** `MiniMax-M3` through MiniMax's own API (`MINIMAX_API_KEY`, `MINIMAX_MODEL`), tried once when OpenRouter fails. It is paid, answers in about a second, and writes `<think>` reasoning before its JSON, which the app removes.
 
 ## 2. Commands
 - **Install dependencies:** `uv sync`
