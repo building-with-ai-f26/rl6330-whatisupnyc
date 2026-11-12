@@ -16,11 +16,11 @@ PASSWORD = "correct-horse-battery-staple"
 GOOD = {"name": "Ana", "email": "ana@x.test", "interests": "jazz", "look_prompt": "", "days": ["Friday"]}
 
 
-def client_for(conn, sites, ai=None):
+def client_for(conn, sites, ai=None, posthog_key=""):
     http = httpx.Client(transport=httpx.MockTransport(lambda r: httpx.Response(404)))
     deps = AppDeps(
         conn=conn, ai=ai or FakeAI(), tavily=FakeTavily(), http=http, sites=sites, clock=lambda: NOW,
-        site_password=PASSWORD,
+        site_password=PASSWORD, posthog_key=posthog_key,
     )
     client = TestClient(create_app(deps), follow_redirects=False)
     client.auth = ("pod", PASSWORD)
@@ -120,3 +120,16 @@ def test_start_page_lists_nobody(conn, sites):
 def test_newsletter_page_shows_the_logo(conn, sites):
     token = save_ana(conn)
     assert 'aria-label="whatisupnyc"' in client_for(conn, sites).get(f"/newsletter/{token}").text
+
+
+def test_no_posthog_key_means_no_tracking(conn, sites):
+    assert "posthog" not in client_for(conn, sites).get("/").text
+
+
+def test_posthog_loads_on_every_page_when_key_set(conn, sites):
+    client = client_for(conn, sites, posthog_key="phc_test")
+    token = save_ana(conn)
+    for path in ["/", f"/newsletter/{token}"]:
+        html = client.get(path).text
+        assert 'posthog.init("phc_test"' in html
+        assert "before_send" in html
