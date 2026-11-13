@@ -87,5 +87,13 @@
     "terms_url": "https://www.lincolncenter.org/legal/termsofuse",
     "checked_on": "2026-11-02",
     "note": "Builder allowed this on 2026-11-02 for a class project, overriding the terms review. Original finding: Terms page could not be found."
+  },
+  {
+    "domain": "engage.nyu.edu",
+    "automated_access": "allowed",
+    "reliable": true,
+    "terms_url": null,
+    "checked_on": "2026-11-12",
+    "note": "NYU's official student events site. No terms of use found. Robots rules allow the public events.rss feed and event pages but block /api/, so only the feed (https://engage.nyu.edu/events.rss) is read. Builder allowed this on 2026-11-12 for a class project. The feed lists public events only."
   }
 ]

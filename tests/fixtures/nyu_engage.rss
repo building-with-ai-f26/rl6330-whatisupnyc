@@ -1,0 +1,77 @@
+<?xml version="1.0" encoding="utf-8"?>
+<rss version="2.0">
+  <channel><title>New York University Public Events</title>
+<item>
+  <title>Studio Tour @ Conran Design Group </title>
+  <link>https://engage.nyu.edu/event/1001</link>
+  <category>Arts</category>
+  <category>ThoughtfulLearning</category>
+  <category>Creative (Design, Aesthetic)</category>
+  <category><![CDATA[Professional & Career Development]]></category>
+  <category>Professional Networking</category>
+  <start xmlns="events">Thu, 05 Nov 2026 19:30:00 GMT</start>
+  <location xmlns="events">Tisch School of the Arts </location>
+  <status xmlns="events">confirmed</status>
+  <host xmlns="events">AStudio at NYU</host>
+</item>
+<item>
+  <title>Southeast Asian Festival</title>
+  <link>https://engage.nyu.edu/event/1002</link>
+  <category>Cultural</category>
+  <start xmlns="events">Tue, 08 Dec 2026 23:00:00 GMT</start>
+  <location xmlns="events">GC Grand Hall</location>
+  <status xmlns="events">confirmed</status>
+  <host xmlns="events">International Student Council</host>
+</item>
+<item>
+  <title>Chess Club Weekly Meeting</title>
+  <link>https://engage.nyu.edu/event/1003</link>
+  <start xmlns="events">Mon, 16 Nov 2026 22:00:00 GMT</start>
+  <location xmlns="events">Kimmel Center</location>
+  <status xmlns="events">confirmed</status>
+  <host xmlns="events">Chess Club</host>
+</item>
+<item>
+  <title>Penthouse Rehearsals</title>
+  <link>https://engage.nyu.edu/event/1004</link>
+  <start xmlns="events">Sat, 14 Nov 2026 23:00:00 GMT</start>
+  <location xmlns="events">13th Floor Penthouse</location>
+  <status xmlns="events">confirmed</status>
+</item>
+<item>
+  <title>Fall Formal</title>
+  <link>https://engage.nyu.edu/event/1005</link>
+  <start xmlns="events">Fri, 20 Nov 2026 23:00:00 GMT</start>
+  <location xmlns="events">Kimmel Rosenthal Pavilion</location>
+  <status xmlns="events">cancelled</status>
+</item>
+<item>
+  <title>Mecha Modeling (Cancelled)</title>
+  <link>https://engage.nyu.edu/event/1006</link>
+  <start xmlns="events">Fri, 20 Nov 2026 22:00:00 GMT</start>
+  <location xmlns="events">Kimmel 802</location>
+  <status xmlns="events">confirmed</status>
+</item>
+<item>
+  <title>Career Talk with Alumni</title>
+  <link>https://engage.nyu.edu/event/1007</link>
+  <start xmlns="events">Wed, 18 Nov 2026 23:00:00 GMT</start>
+  <location xmlns="events">https://nyu.zoom.us/j/123</location>
+  <status xmlns="events">confirmed</status>
+</item>
+<item>
+  <title>Welcome Back Mixer</title>
+  <link>https://engage.nyu.edu/event/1008</link>
+  <start xmlns="events">Sun, 01 Nov 2026 22:00:00 GMT</start>
+  <location xmlns="events">Kimmel 910</location>
+  <status xmlns="events">confirmed</status>
+</item>
+<item>
+  <title>Movie Night</title>
+  <link>https://engage.nyu.edu/event/1009</link>
+  <start xmlns="events">Fri, 13 Nov 2026 23:00:00 GMT</start>
+  <location xmlns="events"></location>
+  <status xmlns="events">confirmed</status>
+</item>
+  </channel>
+</rss>
