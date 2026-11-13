@@ -15,6 +15,7 @@ from app.scoring import Reputable, brand_confirmed, domain_of, load_reputable, n
 from app.sentiment import Opinion, gather_opinions, rate_sentiment
 from app.sites import Sites, load as load_sites
 from app.sources.nyc_parks import SOURCE as NYC_PARKS, fetch_parks_events
+from app.sources.nyu_engage import SOURCE as NYU_ENGAGE, fetch_engage_events
 from app.sources.ticketmaster import fetch_events
 from app.sources.web import TavilyClient, collect_web_events
 
@@ -24,6 +25,10 @@ MAX_COVERAGE_SEARCHES = 8
 MAX_SENTIMENT_EVENTS = 6
 # All pasted posts count as one source, so they can't meet the two-source rule alone.
 PASTED_POSTS_SOURCE = "pasted posts"
+
+
+# Listed by the organization that runs the event, so the listing itself is the credibility signal.
+OFFICIAL_FEEDS = {NYC_PARKS, NYU_ENGAGE}
 
 
 @dataclass
@@ -94,6 +99,7 @@ def _collect(deps: PipelineDeps, now: datetime) -> list[CandidateEvent]:
         ("ticketmaster", lambda: fetch_events(deps.http, deps.ticketmaster_key, now)),
         ("web", lambda: collect_web_events(deps.tavily, deps.http, deps.sites, deps.ai, now)),
         ("nyc_parks", lambda: fetch_parks_events(deps.http, now, lambda e: deps.reputable.named_in(e) is not None)),
+        ("nyu_engage", lambda: fetch_engage_events(deps.http, now)),
     )
     for name, collect in sources:
         try:
@@ -149,7 +155,7 @@ def _check_group(conn, group: Group, deps: PipelineDeps, now: datetime):
     signals = Signals(
         coverage_domains=reliable_domains([m.url for m in good if m.source_type != "api"], deps.sites),
         pasted_post_count=len({link for link, _ in group.captions}),
-        official_feed=any(m.source == NYC_PARKS for m in good),
+        official_feed=any(m.source in OFFICIAL_FEEDS for m in good),
     )
     entry = deps.reputable.match(event)
     if entry:
