@@ -8,8 +8,11 @@ from app.pages import PageResult
 from app.sites import Sites
 
 REPUTABLE_POINTS = 40
-# Below the Popular cutoff, so everyday park events land under Upcoming.
-OFFICIAL_FEED_POINTS = 20
+# Listed by the organization that runs the event. Both stay below the Popular cutoff, so everyday
+# park events land under Upcoming, and campus club events rank below city events.
+OFFICIAL_FEED_POINTS = {"nyc_parks": 20, "nyu_engage": 10}
+# Each feed after the first that lists the same event. No limit for now.
+POINTS_PER_EXTRA_FEED = 10
 POINTS_PER_COVERAGE_DOMAIN = 10
 MAX_COVERAGE_POINTS = 30
 POINTS_PER_PASTED_POST = 5
@@ -21,13 +24,14 @@ SENTIMENT_POINTS = {"positive": 10, "mixed": 5, "unknown": 0, "negative": 0}
 
 def score(signals: Signals) -> Score:
     reputation = REPUTABLE_POINTS if signals.reputable_match and signals.brand_confirmed else 0
-    official = OFFICIAL_FEED_POINTS if signals.official_feed else 0
+    official = max((OFFICIAL_FEED_POINTS.get(feed, 0) for feed in signals.feeds), default=0)
+    overlap = POINTS_PER_EXTRA_FEED * max(0, len(signals.feeds) - 1)
     coverage = min(MAX_COVERAGE_POINTS, POINTS_PER_COVERAGE_DOMAIN * len(signals.coverage_domains))
     interest = min(MAX_INTEREST_POINTS, POINTS_PER_PASTED_POST * signals.pasted_post_count)
-    total = reputation + official + coverage + interest + SENTIMENT_POINTS[signals.sentiment]
+    total = reputation + official + overlap + coverage + interest + SENTIMENT_POINTS[signals.sentiment]
     if signals.sentiment == "negative":
         return Score(total, False, "negative sentiment")
-    if reputation == 0 and official == 0 and coverage == 0:
+    if reputation == 0 and official == 0 and overlap == 0 and coverage == 0:
         return Score(total, False, "no credibility signal")
     return Score(total, True, None)
 

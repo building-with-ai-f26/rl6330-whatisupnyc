@@ -178,4 +178,18 @@ def test_engage_feed_event_is_eligible_as_official_listing(conn, sites):
     </item></channel></rss>"""
     run_pipeline(conn, deps(sites, ticketmaster=EMPTY_TM, engage=engage), NOW)
     saved = db.eligible_events(conn, NOW)
-    assert [(e.event.name, e.event.source, e.score.total) for e in saved] == [("Southeast Asian Festival", "nyu_engage", 20)]
+    assert [(e.event.name, e.event.source, e.score.total) for e in saved] == [("Southeast Asian Festival", "nyu_engage", 10)]
+
+
+def test_event_on_two_feeds_gets_overlap_points(conn, sites):
+    parks = [{"title": "Fall Foliage Walk", "link": {"url": "http://www.nycgovparks.org/events/walk"},
+              "parknames": "Central Park", "starttime": "2026-11-08T11:00:00.000", "categories": "Nature"}]
+    engage = b"""<rss><channel><item><title>Fall Foliage Walk</title>
+      <link>https://engage.nyu.edu/event/7</link>
+      <start xmlns="events">Sun, 08 Nov 2026 16:00:00 GMT</start>
+      <location xmlns="events">Central Park</location><status xmlns="events">confirmed</status>
+    </item></channel></rss>"""
+    run_pipeline(conn, deps(sites, ticketmaster=EMPTY_TM, parks=parks, engage=engage), NOW)
+    saved = db.eligible_events(conn, NOW)
+    # One merged event: NYC Parks listing (20) plus 10 for the second feed.
+    assert [(e.event.name, e.score.total) for e in saved] == [("Fall Foliage Walk", 30)]

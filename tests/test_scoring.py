@@ -161,13 +161,33 @@ def test_shipped_list_has_no_generic_aliases():
 
 
 def test_official_city_feed_is_eligible_but_not_popular():
-    result = score(sig(official_feed=True))
+    result = score(sig(feeds={"nyc_parks"}))
     assert result.eligible and result.total == 20
     assert result.total < 40
 
 
+def test_campus_club_feed_is_eligible_but_below_city_feed():
+    result = score(sig(feeds={"nyu_engage"}))
+    assert result.eligible and result.total == 10
+
+
+def test_ticketing_feed_alone_earns_no_listing_points():
+    assert not score(sig(feeds={"ticketmaster"})).eligible
+
+
 def test_official_feed_adds_to_other_signals():
-    assert score(sig(official_feed=True, reputable_match=True, brand_confirmed=True)).total == 60
+    assert score(sig(feeds={"nyc_parks"}, reputable_match=True, brand_confirmed=True)).total == 60
+
+
+def test_each_extra_feed_adds_10_with_no_limit():
+    # Best official listing (20) plus 10 for each feed after the first.
+    assert score(sig(feeds={"nyc_parks", "nyu_engage"})).total == 30
+    assert score(sig(feeds={"nyc_parks", "nyu_engage", "ticketmaster", "a", "b"})).total == 60
+
+
+def test_two_feeds_are_enough_credibility_on_their_own():
+    result = score(sig(feeds={"ticketmaster", "some_new_feed"}))
+    assert (result.total, result.eligible) == (10, True)
 
 
 def test_famous_name_must_be_in_the_event_name():
