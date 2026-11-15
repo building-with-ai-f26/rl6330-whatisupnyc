@@ -5,7 +5,7 @@
 ## 1. Project Overview
 - **What this repo builds:** whatisupnyc, a personalized NYC events newsletter. It collects events automatically, checks and scores them, and has AI choose picks for each person only from checked events.
 - **Primary user & core workflow:** People new to NYC, starting with NYU classmates and friends. They say what they like and pick their days, then get a short list of events. See the living PRD in `docs/index.html`.
-- **Tech stack:** Python 3.12 / uv / FastAPI / SQLite / OpenRouter free model / Tavily / Ticketmaster Discovery API / PostHog analytics (`POSTHOG_KEY`; empty turns it off). Vercel is the planned host from Build 5, which requires the database and login work listed in the design doc.
+- **Tech stack:** Python 3.12 / uv / FastAPI / SQLite / OpenRouter free model / Tavily / Ticketmaster Discovery API / PostHog analytics (`POSTHOG_KEY`; empty turns it off). Live at whatisupnyc.com on a VPS since 2026-11-09 (see Deploy below); the design doc's Vercel plan came first.
 - **AI model:** `nvidia/nemotron-3.5-super-vl:free` through OpenRouter, set by `OPENROUTER_MODEL`. Chosen on 2026-11-02: it returned valid JSON and ignored an injected instruction, while `google/gemma-4-26b-a4b-it:free` returned HTTP 429 and `thinkingmachines/inkling:free` returned HTTP 403. It is slow, about 40 seconds for one extraction. **Backup:** `MiniMax-M3` through MiniMax's own API (`MINIMAX_API_KEY`, `MINIMAX_MODEL`), tried once when OpenRouter fails. It is paid, answers in about a second, and writes `<think>` reasoning before its JSON, which the app removes.
 
 ## 2. Commands
@@ -29,3 +29,16 @@
 - **No invented events:** plain code checks every event, and code confirms every AI pick came from the checked list.
 - **Readers never see** scores, sentiment ratings, or that an event was discovered on a social app.
 - **Design doc:** `docs/superpowers/specs/2026-11-02-nyc-events-newsletter-design.md`
+
+## 5. Deploy (whatisupnyc.com)
+- **Where:** a VPS reached with the SSH host alias `ryandri` (in the builder's `~/.ssh/config`). Caddy serves whatisupnyc.com and passes requests to the app on `127.0.0.1:8310`. The server also runs unrelated projects, so touch only whatisupnyc's files and services.
+- **Pieces:** code in `/opt/whatisupnyc/app` (a git clone of `main`), Python environment `/opt/whatisupnyc/venv`, settings in `/etc/whatisupnyc/env` (root-only; the server's own keys and site password, separate from the local `.env`), database `/var/lib/whatisupnyc/whatisupnyc.db`, web app `whatisupnyc.service`, daily collector `whatisupnyc-pipeline.timer` (06:30 New York time).
+- **Update after merging a PR:**
+  1. Back up: `B=/root/backups/whatisupnyc-$(date +%F) && mkdir -p $B && cp -a /opt/whatisupnyc/app /etc/whatisupnyc/env $B/ && /opt/whatisupnyc/venv/bin/python -c "import sqlite3; sqlite3.connect('/var/lib/whatisupnyc/whatisupnyc.db').backup(sqlite3.connect('$B/whatisupnyc.db'))"` (the server has no `sqlite3` command).
+  2. `cd /opt/whatisupnyc/app && git pull --ff-only`
+  3. Only if `pyproject.toml` or `uv.lock` changed: `UV_CACHE_DIR=/opt/whatisupnyc/.uv-cache UV_PROJECT_ENVIRONMENT=/opt/whatisupnyc/venv /opt/whatisupnyc/bin/uv sync --frozen --no-dev`
+  4. If the PR added an environment variable, add it to `/etc/whatisupnyc/env` as well as `.env.example`.
+  5. `systemctl restart whatisupnyc && systemctl is-active whatisupnyc`
+  6. Check: the site loads with the password, and PostHog's Activity page shows a `$pageview` from host `whatisupnyc.com`.
+- **Undo:** copy the backup's `app` folder back over `/opt/whatisupnyc/app` and restart.
+- **Scoring changes apply only to newly collected events.** The collector skips events it already scored, so deploy scoring changes before the 06:30 run.
