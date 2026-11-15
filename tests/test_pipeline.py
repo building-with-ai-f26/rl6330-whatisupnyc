@@ -26,12 +26,14 @@ def jsonld(name, venue="Other Hall"):
     )
 
 
-def deps(sites, pages=None, ticketmaster=FIXTURE, tavily=None, ai=None, parks=None):
+def deps(sites, pages=None, ticketmaster=FIXTURE, tavily=None, ai=None, parks=None, engage=None):
     def handler(request):
         if request.url.host == "app.ticketmaster.com":
             return httpx.Response(200, json=ticketmaster)
         if request.url.host == "data.cityofnewyork.us":
             return httpx.Response(200, json=parks or [])
+        if str(request.url) == "https://engage.nyu.edu/events.rss" and engage:
+            return httpx.Response(200, content=engage)
         if request.url.path == "/robots.txt":
             return httpx.Response(404)
         html = (pages or {}).get(str(request.url))
@@ -166,3 +168,14 @@ def test_parks_feed_event_is_eligible_without_opening_its_page(conn, sites):
     run_pipeline(conn, d, NOW)
     saved = db.eligible_events(conn, NOW)
     assert [(e.event.name, e.score.total) for e in saved] == [("Fall Foliage Walk", 20)]
+
+
+def test_engage_feed_event_is_eligible_as_official_listing(conn, sites):
+    engage = b"""<rss><channel><item><title>Southeast Asian Festival</title>
+      <link>https://engage.nyu.edu/event/1002</link>
+      <start xmlns="events">Sun, 08 Nov 2026 23:00:00 GMT</start>
+      <location xmlns="events">GC Grand Hall</location><status xmlns="events">confirmed</status>
+    </item></channel></rss>"""
+    run_pipeline(conn, deps(sites, ticketmaster=EMPTY_TM, engage=engage), NOW)
+    saved = db.eligible_events(conn, NOW)
+    assert [(e.event.name, e.event.source, e.score.total) for e in saved] == [("Southeast Asian Festival", "nyu_engage", 20)]
