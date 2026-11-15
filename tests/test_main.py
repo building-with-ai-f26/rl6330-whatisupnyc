@@ -187,3 +187,13 @@ def test_posthog_loads_on_every_page_when_key_set(conn, sites):
         html = client.get(path).text
         assert 'posthog.init("phc_test"' in html
         assert "before_send" in html
+
+
+def test_rejected_form_keeps_what_the_reader_typed(conn, sites):
+    data = {**GOOD, "interests": "late jazz <and> rooftop films", "look_prompt": "short", "email": "", "days": ["Friday", "Sunday"]}
+    html = client_for(conn, sites).post("/subscribers", data=data).text
+    assert "late jazz &lt;and&gt; rooftop films</textarea>" in html
+    assert 'value="Ana"' in html and 'value="short"' in html
+    assert 'value="Friday" aria-label="Friday" checked' in html
+    assert 'value="Sunday" aria-label="Sunday" checked' in html
+    assert 'value="Monday" aria-label="Monday" checked' not in html

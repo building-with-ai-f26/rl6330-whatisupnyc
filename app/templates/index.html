@@ -100,7 +100,7 @@
         <div class="step current" data-name="interests">
           <p class="intro">whatisupnyc sends you a short list of NYC events picked for what you like, on the days you choose. Every event is checked first, so each one has a real date, venue and link.</p>
           <label class="ask" for="interests">What kind of events do you like?</label>
-          <textarea id="interests" class="plate" name="interests" rows="3" required aria-describedby="interests-oops" placeholder="Late jazz, free museum nights, weird comedy"></textarea>
+          <textarea id="interests" class="plate" name="interests" rows="3" required aria-describedby="interests-oops" placeholder="Late jazz, free museum nights, weird comedy">{{ form.interests }}</textarea>
           <div class="chips" role="group" aria-label="Quick picks">
             {% for label, text in templates.items() %}
             <button type="button" data-text="{{ text }}" aria-pressed="false">{{ label }}</button>
@@ -117,7 +117,7 @@
           <legend class="ask">Which days do you want your list?</legend>
           <div class="days">
             {% for day in days %}
-            <label><input type="checkbox" name="days" value="{{ day }}" aria-label="{{ day }}"><span aria-hidden="true">{{ day[:3] }}</span></label>
+            <label><input type="checkbox" name="days" value="{{ day }}" aria-label="{{ day }}"{% if day in form.days %} checked{% endif %}><span aria-hidden="true">{{ day[:3] }}</span></label>
             {% endfor %}
           </div>
           <p class="oops" id="days-oops" role="alert"></p>
@@ -129,7 +129,7 @@
 
         <div class="step" data-name="name">
           <label class="ask" for="name">What should we call you?</label>
-          <input id="name" class="plate" name="name" type="text" required autocomplete="off" aria-describedby="name-oops">
+          <input id="name" class="plate" name="name" type="text" required autocomplete="off" aria-describedby="name-oops" value="{{ form.name }}">
           <p class="oops" id="name-oops" role="alert"></p>
           <div class="nav">
             <button type="button" class="next">Continue</button>
@@ -140,7 +140,7 @@
 
         <div class="step" data-name="email">
           <label class="ask" for="email">What's your email?</label>
-          <input id="email" class="plate" name="email" type="email" required autocomplete="off" inputmode="email" aria-describedby="email-oops">
+          <input id="email" class="plate" name="email" type="email" required autocomplete="off" inputmode="email" aria-describedby="email-oops" value="{{ form.email }}">
           <p class="oops" id="email-oops" role="alert"></p>
           <div class="nav">
             <button type="button" class="next">Continue</button>
@@ -152,7 +152,7 @@
         <div class="step" data-name="style">
           <label class="ask" for="look_prompt">How should your list read?</label>
           <p class="note" id="look-note">Optional. Say it in your own words, or skip it.</p>
-          <input id="look_prompt" class="plate" name="look_prompt" type="text" aria-describedby="look-note" placeholder="Keep it short and casual">
+          <input id="look_prompt" class="plate" name="look_prompt" type="text" aria-describedby="look-note" placeholder="Keep it short and casual" value="{{ form.look_prompt }}">
           <div class="nav">
             <button type="submit" class="make">Make my list</button>
             <button type="button" class="skip">Skip and make my list</button>
