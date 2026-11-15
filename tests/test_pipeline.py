@@ -8,6 +8,8 @@ from app import db
 from app.ai import AIUnavailable
 from app.pipeline import PipelineDeps, run_pipeline
 from app.scoring import Entry, Reputable
+from app.sites import Sites
+from app.sources import wp_events
 from app.sources.web import SearchHit
 from tests.conftest import NY, make_event
 from tests.fakes import FakeAI, FakeTavily
@@ -26,7 +28,7 @@ def jsonld(name, venue="Other Hall"):
     )
 
 
-def deps(sites, pages=None, ticketmaster=FIXTURE, tavily=None, ai=None, parks=None, engage=None):
+def deps(sites, pages=None, ticketmaster=FIXTURE, tavily=None, ai=None, parks=None, engage=None, wp=None):
     def handler(request):
         if request.url.host == "app.ticketmaster.com":
             return httpx.Response(200, json=ticketmaster)
@@ -34,6 +36,8 @@ def deps(sites, pages=None, ticketmaster=FIXTURE, tavily=None, ai=None, parks=No
             return httpx.Response(200, json=parks or [])
         if str(request.url) == "https://engage.nyu.edu/events.rss" and engage:
             return httpx.Response(200, content=engage)
+        if request.url.path == "/wp-json/tribe/events/v1/events" and wp:
+            return httpx.Response(200, json=wp)
         if request.url.path == "/robots.txt":
             return httpx.Response(404)
         html = (pages or {}).get(str(request.url))
@@ -193,3 +197,18 @@ def test_event_on_two_feeds_gets_overlap_points(conn, sites):
     saved = db.eligible_events(conn, NOW)
     # One merged event: NYC Parks listing (20) plus 10 for the second feed.
     assert [(e.event.name, e.score.total) for e in saved] == [("Fall Foliage Walk", 30)]
+
+
+def test_wordpress_feed_event_is_saved_as_official_listing(conn, monkeypatch):
+    monkeypatch.setattr(wp_events, "PAUSE_SECONDS", 0)
+    feed_url = "https://movingimage.org/wp-json/tribe/events/v1/events"
+    sites = Sites([{"domain": "movingimage.org", "automated_access": "allowed", "reliable": True,
+                    "events_api": {"url": feed_url, "organization": "Museum of the Moving Image"}}])
+    feed = {"events": [{"title": "Paths of Glory", "start_date": "2026-11-07 15:30:00", "timezone": "America/New_York",
+                        "url": "https://movingimage.org/event/paths-of-glory/", "venue": [], "categories": []}]}
+    page = {"https://movingimage.org/event/paths-of-glory/": "<p>Paths of Glory</p>"}
+    run_pipeline(conn, deps(sites, page, EMPTY_TM, wp=feed), NOW)
+    saved = db.eligible_events(conn, NOW)
+    assert [(e.event.name, e.event.source, e.score.total) for e in saved] == [
+        ("Paths of Glory", "wp:movingimage.org", 20)
+    ]

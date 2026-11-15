@@ -61,13 +61,18 @@ def _page_text(html: str) -> str:
 
 
 def _robots_allow(client: httpx.Client, url: str) -> bool:
+    parser = robots_rules(client, url)
+    return parser is None or parser.can_fetch(USER_AGENT, url)
+
+
+def robots_rules(client: httpx.Client, url: str) -> RobotFileParser | None:
+    """The site's robots rules, loaded once per client. None means the site has no readable robots.txt."""
     parts = urlparse(url)
     origin = f"{parts.scheme}://{parts.netloc}"
     per_client = _robots_cache.setdefault(client, {})
     if origin not in per_client:
         per_client[origin] = _load_robots(client, origin)
-    parser = per_client[origin]
-    return parser is None or parser.can_fetch(USER_AGENT, url)
+    return per_client[origin]
 
 
 def _load_robots(client: httpx.Client, origin: str) -> RobotFileParser | None:

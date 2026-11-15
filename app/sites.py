@@ -26,6 +26,14 @@ class Sites:
     def allowed_domains(self) -> list[str]:
         return [d for d, e in self._entries.items() if e["automated_access"] == "allowed"]
 
+    def events_feeds(self) -> list[tuple[str, dict]]:
+        """(domain, feed details) for each allowed site that publishes an events feed."""
+        return [
+            (d, e["events_api"])
+            for d, e in self._entries.items()
+            if e["automated_access"] == "allowed" and e.get("events_api")
+        ]
+
     def calendar_pages(self) -> list[str]:
         return [
             e["calendar_url"]
