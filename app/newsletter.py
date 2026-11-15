@@ -1,5 +1,6 @@
 import json
 import re
+from collections import Counter
 from datetime import datetime
 from pathlib import Path
 from urllib.parse import urlparse
@@ -18,6 +19,8 @@ POPULAR_FROM_SCORE = 40
 CHECKER_SQUARES = 24
 # Keeps the request short enough for the free model.
 MAX_EVENTS_FOR_AI = 150
+# So one big source can't fill the whole list before the reader's interests are considered.
+MAX_EVENTS_PER_SOURCE = 50
 PARKS_SOURCE = "nyc_parks"
 NEUTRAL_REASON = "This matches what you asked for."
 
@@ -49,7 +52,7 @@ def choose_picks(
     available = [event for event in events if event.id not in (sent_ids or set())]
     # Best first, then soonest.
     available.sort(key=lambda event: (-event.score.total, event.event.start))
-    available = available[:MAX_EVENTS_FOR_AI]
+    available = _cap_per_source(available)[:MAX_EVENTS_FOR_AI]
     if not available:
         return []
     listing = [
@@ -71,6 +74,18 @@ def choose_picks(
     )
     result = ai.complete_json(CHOOSE_SYSTEM, user)
     return confirm_picks(result.get("picks", []), available)[:max_picks]
+
+
+
+def _cap_per_source(events: list[ScoredEvent]) -> list[ScoredEvent]:
+    """Keeps each source's best events, in the order given, up to the per-source limit."""
+    counts: Counter[str] = Counter()
+    kept = []
+    for item in events:
+        if counts[item.event.source] < MAX_EVENTS_PER_SOURCE:
+            counts[item.event.source] += 1
+            kept.append(item)
+    return kept
 
 
 def confirm_picks(raw: list, events: list[ScoredEvent]) -> list[Pick]:

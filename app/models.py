@@ -32,8 +32,8 @@ class CheckResult:
 @dataclass
 class Signals:
     reputable_match: bool = False
-    # Listed by the organization that runs the event (the city or NYU), through an official feed.
-    official_feed: bool = False
+    # Feeds that list this event, like "nyc_parks" or "ticketmaster". Web pages are counted as coverage instead.
+    feeds: set[str] = field(default_factory=set)
     brand_confirmed: bool = False
     coverage_domains: set[str] = field(default_factory=set)
     pasted_post_count: int = 0
