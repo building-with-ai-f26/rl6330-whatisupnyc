@@ -14,6 +14,7 @@ REPUTABLE_POINTS = 40
 OFFICIAL_FEED_POINTS = {
     "nyc_parks": 20,
     "nyu_engage": 10,
+    "nps": 20,
     # WordPress event feeds (app/sources/wp_events.py), one source per site.
     "wp:movingimage.org": 20,
     "wp:scandinaviahouse.org": 20,

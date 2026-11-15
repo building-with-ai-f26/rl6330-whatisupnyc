@@ -28,10 +28,12 @@ def jsonld(name, venue="Other Hall"):
     )
 
 
-def deps(sites, pages=None, ticketmaster=FIXTURE, tavily=None, ai=None, parks=None, engage=None, wp=None):
+def deps(sites, pages=None, ticketmaster=FIXTURE, tavily=None, ai=None, parks=None, engage=None, wp=None, nps=None):
     def handler(request):
         if request.url.host == "app.ticketmaster.com":
             return httpx.Response(200, json=ticketmaster)
+        if request.url.host == "developer.nps.gov":
+            return httpx.Response(200, json=nps or {"total": "0", "data": []})
         if request.url.host == "data.cityofnewyork.us":
             return httpx.Response(200, json=parks or [])
         if str(request.url) == "https://engage.nyu.edu/events.rss" and engage:
@@ -50,6 +52,7 @@ def deps(sites, pages=None, ticketmaster=FIXTURE, tavily=None, ai=None, parks=No
         sites=sites,
         reputable=REPUTABLE,
         ticketmaster_key="k",
+        nps_key="k",
     )
 
 
@@ -212,3 +215,13 @@ def test_wordpress_feed_event_is_saved_as_official_listing(conn, monkeypatch):
     assert [(e.event.name, e.event.source, e.score.total) for e in saved] == [
         ("Paths of Glory", "wp:movingimage.org", 20)
     ]
+
+
+def test_national_park_service_event_is_saved_as_official_listing(conn, sites):
+    nps = {"total": "1", "data": [{"id": "A1", "title": "Fort Tompkins Tour", "location": "Fort Wadsworth Visitor Center",
+                                    "parkfullname": "Gateway National Recreation Area", "isfree": "true",
+                                    "types": ["Guided Tour"], "tags": [], "dates": ["2026-11-07"],
+                                    "times": [{"timestart": "10:30 AM"}], "cancelleddatelist": []}]}
+    run_pipeline(conn, deps(sites, ticketmaster=EMPTY_TM, nps=nps), NOW)
+    saved = db.eligible_events(conn, NOW)
+    assert [(e.event.name, e.event.source, e.score.total) for e in saved] == [("Fort Tompkins Tour", "nps", 20)]

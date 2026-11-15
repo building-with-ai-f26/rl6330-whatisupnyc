@@ -14,6 +14,7 @@ from app.pages import PageResult, fetch_page
 from app.scoring import Reputable, brand_confirmed, domain_of, load_reputable, normalize, reliable_domains, score
 from app.sentiment import Opinion, gather_opinions, rate_sentiment
 from app.sites import Sites, load as load_sites
+from app.sources.nps import fetch_nps_events
 from app.sources.nyc_parks import fetch_parks_events
 from app.sources.nyu_engage import fetch_engage_events
 from app.sources.ticketmaster import fetch_events
@@ -36,6 +37,8 @@ class PipelineDeps:
     sites: Sites
     reputable: Reputable
     ticketmaster_key: str
+    # Optional: without it, National Park Service events are skipped.
+    nps_key: str = ""
 
 
 @dataclass
@@ -98,6 +101,7 @@ def _collect(deps: PipelineDeps, now: datetime) -> list[CandidateEvent]:
         ("nyc_parks", lambda: fetch_parks_events(deps.http, now, lambda e: deps.reputable.named_in(e) is not None)),
         ("nyu_engage", lambda: fetch_engage_events(deps.http, now)),
         ("wp_events", lambda: fetch_wp_events(deps.http, deps.sites, now)),
+        ("nps", lambda: fetch_nps_events(deps.http, deps.nps_key, now)),
     )
     for name, collect in sources:
         try:
@@ -201,6 +205,7 @@ def _default_deps(conn) -> PipelineDeps:
         sites=load_sites(),
         reputable=load_reputable(),
         ticketmaster_key=os.environ["TICKETMASTER_API_KEY"],
+        nps_key=os.environ.get("NPS_API_KEY", ""),
     )
 
 

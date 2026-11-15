@@ -47,6 +47,14 @@ report(
     ),
 )
 report(
+    "nps",
+    lambda key: httpx.get(
+        "https://developer.nps.gov/api/v1/events",
+        params={"api_key": key, "parkCode": "gate", "pageSize": 1},
+        timeout=30,
+    ),
+)
+report(
     "minimax",
     lambda key: httpx.get(
         "https://api.minimax.io/v1/models",
