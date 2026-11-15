@@ -303,5 +303,13 @@
     "terms_url": null,
     "checked_on": "2026-11-15",
     "note": "Builder skipped on 2026-11-15: terms limit use to personal, noncommercial use."
+  },
+  {
+    "domain": "nps.gov",
+    "automated_access": "allowed",
+    "reliable": true,
+    "terms_url": null,
+    "checked_on": "2026-11-15",
+    "note": "National Park Service, a federal agency. Events come from its public data API (developer.nps.gov), which is made for apps and needs a free key (NPS_API_KEY). Only parks in New York City are kept; Sandy Hook in New Jersey is left out. Robots rules allow nps.gov event pages (checked 2026-11-15). The API's own terms page was not read. Builder chose this source on 2026-11-15."
   }
 ]

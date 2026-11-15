@@ -1,0 +1,298 @@
+{
+ "total": "10",
+ "data": [
+  {
+   "id": "0275DC25-BA79-B5C3-F122BBA791E81BF1",
+   "title": "Jamaica Bay Book Club",
+   "location": "Jamaica Bay Wildlife Refuge Visitor Center",
+   "parkfullname": "Gateway National Recreation Area",
+   "sitecode": "gate",
+   "isallday": "false",
+   "isfree": "true",
+   "types": [
+    "Other"
+   ],
+   "tags": [
+    "Jamaica Bay Wildlife Refuge",
+    "Jamaica Bay Unit",
+    "Gateway National Recreation Area",
+    "ranger program",
+    "book club"
+   ],
+   "dates": [
+    "2026-11-20"
+   ],
+   "times": [
+    {
+     "timestart": "02:00 PM"
+    }
+   ],
+   "cancelleddatelist": []
+  },
+  {
+   "id": "6EDF053C-C210-BD98-EB826C1AD4526045",
+   "title": "House Tour",
+   "location": "The tour is inside the brownstone at 28 E 20th St, New York, NY 10029",
+   "parkfullname": "Theodore Roosevelt Birthplace National Historic Site",
+   "sitecode": "thrb",
+   "isallday": "false",
+   "isfree": "true",
+   "types": [
+    "Guided Tour"
+   ],
+   "tags": [],
+   "dates": [
+    "2026-11-15",
+    "2026-11-18",
+    "2026-11-19",
+    "2026-11-20"
+   ],
+   "times": [
+    {
+     "timestart": "11:00 AM"
+    },
+    {
+     "timestart": "12:00 PM"
+    },
+    {
+     "timestart": "02:00 PM"
+    },
+    {
+     "timestart": "03:00 PM"
+    }
+   ],
+   "cancelleddatelist": []
+  },
+  {
+   "id": "F0E36293-F220-02E6-70BDC29EB41F8C76",
+   "title": "Hangar B Ranger Tour",
+   "location": "Hangar B, Floyd Bennett Field",
+   "parkfullname": "Gateway National Recreation Area",
+   "sitecode": "gate",
+   "isallday": "false",
+   "isfree": "true",
+   "types": [
+    "Guided Tour"
+   ],
+   "tags": [
+    "hangar b",
+    "floyd bennett field",
+    "jamaica bay unit",
+    "gateway national recreation area",
+    "aviation"
+   ],
+   "dates": [
+    "2026-11-21",
+    "2026-11-28"
+   ],
+   "times": [
+    {
+     "timestart": "10:30 AM"
+    }
+   ],
+   "cancelleddatelist": [
+    "11/21/2026"
+   ]
+  },
+  {
+   "id": "8AA36381-AD51-6272-86DA432A7863B3F4",
+   "title": "Nike Missile Radar Site Tour at Sandy Hook",
+   "location": "Horseshoe Cove, Parking Lot L, Sandy Hook",
+   "parkfullname": "Gateway National Recreation Area",
+   "sitecode": "gate",
+   "isallday": "false",
+   "isfree": "true",
+   "types": [
+    "Other",
+    "Partner Program"
+   ],
+   "tags": [
+    "Gateway National Recreation Area",
+    "Sandy Hook",
+    "Nike Missiles",
+    "Cold War history"
+   ],
+   "dates": [
+    "2026-11-15"
+   ],
+   "times": [
+    {
+     "timestart": "12:00 PM"
+    }
+   ],
+   "cancelleddatelist": [
+    "11/15/2026"
+   ]
+  },
+  {
+   "id": "F18A0D6B-B4E4-A374-CA8FF67ED5BAD9CC",
+   "title": "How To Hibernate Walk",
+   "location": "Jamaica Bay Wildlife Refuge Visitor Center",
+   "parkfullname": "Gateway National Recreation Area",
+   "sitecode": "gate",
+   "isallday": "false",
+   "isfree": "true",
+   "types": [
+    "Guided Tour",
+    "Walk"
+   ],
+   "tags": [
+    "ranger program",
+    "hibernation",
+    "walk",
+    "jamaica bay wildlife refuge",
+    "jamaica bay unit",
+    "gateway national recreation area"
+   ],
+   "dates": [
+    "2026-11-21"
+   ],
+   "times": [
+    {
+     "timestart": "02:00 PM"
+    }
+   ],
+   "cancelleddatelist": []
+  },
+  {
+   "id": "B08E3673-D95F-A7DE-EDEED9171FADDEA6",
+   "title": "Thanksgiving Holly Forest Walk at Sandy Hook",
+   "location": "Parking Lot F – Fishing Beach. Sandy Hook Unit",
+   "parkfullname": "Gateway National Recreation Area",
+   "sitecode": "gate",
+   "isallday": "false",
+   "isfree": "true",
+   "types": [
+    "Guided Tour",
+    "Walk"
+   ],
+   "tags": [
+    "Gateway National Recreation Area",
+    "Sandy Hook",
+    "Holly Forest",
+    "ranger walk"
+   ],
+   "dates": [
+    "2026-11-22"
+   ],
+   "times": [
+    {
+     "timestart": "03:00 PM"
+    }
+   ],
+   "cancelleddatelist": []
+  },
+  {
+   "id": "8B0F5C37-BF98-83D7-06C0CF1706FF2BB4",
+   "title": "A Partnership that Forged a New Nation",
+   "location": "",
+   "parkfullname": "Hamilton Grange National Memorial",
+   "sitecode": "hagr",
+   "isallday": "false",
+   "isfree": "true",
+   "types": [
+    "Talk"
+   ],
+   "tags": [],
+   "dates": [
+    "2026-11-27"
+   ],
+   "times": [
+    {
+     "timestart": "12:00 PM"
+    }
+   ],
+   "cancelleddatelist": []
+  },
+  {
+   "id": "F1B46009-0881-980C-EB73BB0C34C07B3F",
+   "title": "Junior Ranger Birding Buddies",
+   "location": "Jamaica Bay Wildlife Refuge Visitor Center",
+   "parkfullname": "Gateway National Recreation Area",
+   "sitecode": "gate",
+   "isallday": "false",
+   "isfree": "true",
+   "types": [
+    "Guided Tour",
+    "Walk"
+   ],
+   "tags": [
+    "junior ranger",
+    "ranger program",
+    "junior birder",
+    "jamaica bay wildlife refuge",
+    "jamaica bay unit",
+    "gateway national recreation area"
+   ],
+   "dates": [
+    "2026-11-28"
+   ],
+   "times": [
+    {
+     "timestart": "11:00 AM"
+    }
+   ],
+   "cancelleddatelist": []
+  },
+  {
+   "id": "F1DFFA22-C988-4171-6DD1346C283AE080",
+   "title": "How To Hibernate Walk",
+   "location": "Jamaica Bay Wildlife Refuge Visitor Center",
+   "parkfullname": "Gateway National Recreation Area",
+   "sitecode": "gate",
+   "isallday": "false",
+   "isfree": "true",
+   "types": [
+    "Guided Tour",
+    "Walk"
+   ],
+   "tags": [
+    "ranger program",
+    "hibernation",
+    "walk",
+    "jamaica bay wildlife refuge",
+    "jamaica bay unit",
+    "gateway national recreation area"
+   ],
+   "dates": [
+    "2026-11-29"
+   ],
+   "times": [
+    {
+     "timestart": "02:00 PM"
+    }
+   ],
+   "cancelleddatelist": []
+  },
+  {
+   "id": "C3E409FA-B201-735D-75D3B8E8FA9673D0",
+   "title": "Stargazing: Floyd Bennett Field with Amateur Astronomers Association",
+   "location": "Floyd Bennett Field, near the community garden.",
+   "parkfullname": "Gateway National Recreation Area",
+   "sitecode": "gate",
+   "isallday": "false",
+   "isfree": "true",
+   "types": [
+    "Campfire/Evening Program",
+    "Other",
+    "Partner Program"
+   ],
+   "tags": [
+    "partner program",
+    "stargazing",
+    "floyd bennett field",
+    "gateway national recreation area",
+    "jamaica bay unit"
+   ],
+   "dates": [
+    "2026-12-12"
+   ],
+   "times": [
+    {
+     "timestart": "08:00 PM"
+    }
+   ],
+   "cancelleddatelist": []
+  }
+ ]
+}
