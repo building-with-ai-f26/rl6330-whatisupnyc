@@ -34,11 +34,65 @@ def save_ana(conn, name="Ana") -> str:
 
 def test_start_page_has_bar_templates_days(conn, sites):
     html = client_for(conn, sites).get("/").text
-    assert "what kind of event?" in html.lower()
+    assert "what kind of events do you like?" in html.lower()
     for text in ["New to NYC", "Free and cheap", "Live music and comedy", "Art and culture"]:
         assert text in html
     for day in ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]:
         assert day in html
+
+
+def start_form(html: str) -> str:
+    start = html.index('<form id="make"')
+    return html[start:html.index("</form>", start)]
+
+
+def test_start_page_opens_with_explanation_then_big_interests_box(conn, sites):
+    html = client_for(conn, sites).get("/").text
+    form = start_form(html)
+    intro = form.index('class="intro"')
+    box = form.index('<textarea id="interests"')
+    # The explanation and the interests box come before every other question.
+    assert intro < box < form.index('type="checkbox" name="days"') < form.index('id="name"') < form.index('id="email"')
+    assert "short list of NYC events" in form[intro:box]
+    assert 'class="step current" data-name="interests"' in form
+
+
+def test_start_page_has_every_field_in_one_form_so_it_works_without_javascript(conn, sites):
+    html = client_for(conn, sites).get("/").text
+    form = start_form(html)
+    assert 'action="/subscribers"' in html and 'method="post"' in html
+    for field in ['name="interests"', 'name="name"', 'name="email"', 'name="look_prompt"', 'name="days"']:
+        assert field in form
+    assert form.count('type="checkbox" name="days"') == 7
+    assert 'type="submit"' in form
+    # The paste form is a separate form, after the sign-up flow.
+    assert 'action="/paste"' not in form and html.index('action="/paste#add"') > html.index("</form>")
+
+
+def test_start_step_tracking_sends_no_typed_text(conn, sites):
+    html = client_for(conn, sites, posthog_key="phc_test").get("/").text
+    assert "start_step_viewed" in html and "start_form_submitted" in html
+    script = html[html.rindex("<script>"):]
+    for typed in ["box.value", "name.value", "email.value", "look_prompt.value"]:
+        for line in script.splitlines():
+            if "track(" in line:
+                assert typed not in line
+
+
+def test_server_error_shows_every_field_and_the_message(conn, sites):
+    response = client_for(conn, sites).post("/subscribers", data={**GOOD, "days": []})
+    assert response.status_code == 400
+    assert "at least one day" in response.text
+    # Not in step-by-step mode: every question shows at once.
+    assert 'class="flow stepping"' not in response.text
+    assert 'class="flow"' in response.text
+
+
+def test_paste_message_shows_beside_paste_form_and_flow_keeps_its_steps(conn, sites):
+    html = client_for(conn, sites).post("/paste", data={"link": "not a link", "caption": "x"}).text
+    assert 'class="flow stepping"' in html
+    assert '<details id="add" class="extra" open>' in html
+    assert html.index('class="message"') > html.index('action="/paste#add"')
 
 
 def test_subscriber_saved_with_chosen_days(conn, sites):

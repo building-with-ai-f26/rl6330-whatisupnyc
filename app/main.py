@@ -82,8 +82,9 @@ def create_app(deps: AppDeps | None = None) -> FastAPI:
         d = get_deps()
         return _page(template, posthog_key=d.posthog_key, posthog_host=d.posthog_host, **context)
 
-    def start_page(message: str = "", status_code: int = 200) -> HTMLResponse:
-        html = page("index.html", days=DAYS, templates=TEMPLATES, message=message)
+    def start_page(message: str = "", status_code: int = 200, paste_message: str = "") -> HTMLResponse:
+        # message belongs to the sign-up form; paste_message shows beside the "add an event" form.
+        html = page("index.html", days=DAYS, templates=TEMPLATES, message=message, paste_message=paste_message)
         return HTMLResponse(html, status_code=status_code)
 
     def subscriber_for(token: str):
@@ -142,7 +143,7 @@ def create_app(deps: AppDeps | None = None) -> FastAPI:
         result = process_paste(link.strip(), caption, d.tavily, d.http, d.sites, d.ai, d.clock())
         if result.event:
             db.save_paste(d.conn, link.strip(), caption, result.event)
-        return start_page(result.message)
+        return start_page(paste_message=result.message)
 
     return app
 
