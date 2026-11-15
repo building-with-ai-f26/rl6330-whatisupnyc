@@ -289,6 +289,14 @@
     "note": "Not used: section 2.2 of its terms limits site content to 'your information and personal use only' and bars other uses without written consent. Robots rules would allow the feed. Checked 2026-11-15."
   },
   {
+    "domain": "fitnyc.edu",
+    "automated_access": "prohibited",
+    "reliable": true,
+    "terms_url": null,
+    "checked_on": "2026-11-15",
+    "note": "Builder skipped on 2026-11-15: its events feed redirects in a loop between http and https, so it can't be read. Try again if FIT fixes the feed."
+  },
+  {
     "domain": "prospectpark.org",
     "automated_access": "prohibited",
     "reliable": true,
