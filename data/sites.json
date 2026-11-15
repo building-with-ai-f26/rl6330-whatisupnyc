@@ -95,5 +95,213 @@
     "terms_url": null,
     "checked_on": "2026-11-12",
     "note": "NYU's official student events site. No terms of use found. Robots rules allow the public events.rss feed and event pages but block /api/, so only the feed (https://engage.nyu.edu/events.rss) is read. Builder allowed this on 2026-11-12 for a class project. The feed lists public events only."
+  },
+  {
+    "domain": "movingimage.org",
+    "automated_access": "allowed",
+    "reliable": true,
+    "terms_url": null,
+    "checked_on": "2026-11-15",
+    "note": "Museum of the Moving Image's official calendar, read from its WordPress events feed. The builder's sweep on 2026-11-12 found no restriction on automated access in its terms. Robots rules allow its events feed (checked 2026-11-15). Only facts are stored: name, date and time, venue, link, category. Builder allowed this on 2026-11-15 for a class project; review before any commercial use.",
+    "events_api": {
+      "url": "https://movingimage.org/wp-json/tribe/events/v1/events",
+      "organization": "Museum of the Moving Image"
+    }
+  },
+  {
+    "domain": "scandinaviahouse.org",
+    "automated_access": "allowed",
+    "reliable": true,
+    "terms_url": null,
+    "checked_on": "2026-11-15",
+    "note": "Scandinavia House's official calendar, read from its WordPress events feed. The builder's sweep on 2026-11-12 found no restriction on automated access in its terms. Robots rules allow its events feed (checked 2026-11-15). Only facts are stored: name, date and time, venue, link, category. Builder allowed this on 2026-11-15 for a class project; review before any commercial use.",
+    "events_api": {
+      "url": "https://www.scandinaviahouse.org/wp-json/tribe/events/v1/events",
+      "organization": "Scandinavia House"
+    }
+  },
+  {
+    "domain": "zincbar.com",
+    "automated_access": "allowed",
+    "reliable": true,
+    "terms_url": null,
+    "checked_on": "2026-11-15",
+    "note": "Zinc Bar's official calendar, read from its WordPress events feed. The builder's sweep on 2026-11-12 found no restriction on automated access in its terms. Robots rules allow its events feed (checked 2026-11-15). Only facts are stored: name, date and time, venue, link, category. Builder allowed this on 2026-11-15 for a class project; review before any commercial use.",
+    "events_api": {
+      "url": "https://www.zincbar.com/wp-json/tribe/events/v1/events",
+      "organization": "Zinc Bar"
+    }
+  },
+  {
+    "domain": "nytransitmuseum.org",
+    "automated_access": "allowed",
+    "reliable": true,
+    "terms_url": null,
+    "checked_on": "2026-11-15",
+    "note": "New York Transit Museum's official calendar, read from its WordPress events feed. The builder's sweep on 2026-11-12 found no restriction on automated access in its terms. Robots rules allow its events feed (checked 2026-11-15). Only facts are stored: name, date and time, venue, link, category. Builder allowed this on 2026-11-15 for a class project; review before any commercial use.",
+    "events_api": {
+      "url": "https://www.nytransitmuseum.org/wp-json/tribe/events/v1/events",
+      "organization": "New York Transit Museum"
+    }
+  },
+  {
+    "domain": "greenwichhouse.org",
+    "automated_access": "allowed",
+    "reliable": true,
+    "terms_url": null,
+    "checked_on": "2026-11-15",
+    "note": "Greenwich House's official calendar, read from its WordPress events feed. The builder's sweep on 2026-11-12 found no restriction on automated access in its terms. Robots rules allow its events feed (checked 2026-11-15). Only facts are stored: name, date and time, venue, link, category. Builder allowed this on 2026-11-15 for a class project; review before any commercial use.",
+    "events_api": {
+      "url": "https://www.greenwichhouse.org/wp-json/tribe/events/v1/events",
+      "organization": "Greenwich House"
+    }
+  },
+  {
+    "domain": "bargemusic.org",
+    "automated_access": "allowed",
+    "reliable": true,
+    "terms_url": null,
+    "checked_on": "2026-11-15",
+    "note": "Bargemusic's official calendar, read from its WordPress events feed. The builder's sweep on 2026-11-12 found no restriction on automated access in its terms. Robots rules allow its events feed (checked 2026-11-15). Only facts are stored: name, date and time, venue, link, category. Builder allowed this on 2026-11-15 for a class project; review before any commercial use.",
+    "events_api": {
+      "url": "https://www.bargemusic.org/wp-json/tribe/events/v1/events",
+      "organization": "Bargemusic"
+    }
+  },
+  {
+    "domain": "mocada.org",
+    "automated_access": "allowed",
+    "reliable": true,
+    "terms_url": null,
+    "checked_on": "2026-11-15",
+    "note": "MoCADA's official calendar, read from its WordPress events feed. The builder's sweep on 2026-11-12 found no restriction on automated access in its terms. Robots rules allow its events feed (checked 2026-11-15). Only facts are stored: name, date and time, venue, link, category. Builder allowed this on 2026-11-15 for a class project; review before any commercial use.",
+    "events_api": {
+      "url": "https://mocada.org/wp-json/tribe/events/v1/events",
+      "organization": "MoCADA"
+    }
+  },
+  {
+    "domain": "uniondocs.org",
+    "automated_access": "allowed",
+    "reliable": true,
+    "terms_url": null,
+    "checked_on": "2026-11-15",
+    "note": "UnionDocs's official calendar, read from its WordPress events feed. The builder's sweep on 2026-11-12 found no restriction on automated access in its terms. Robots rules allow its events feed (checked 2026-11-15). Robots rules ask for 10 seconds between requests, which the feed reader follows. Only facts are stored: name, date and time, venue, link, category. Builder allowed this on 2026-11-15 for a class project; review before any commercial use.",
+    "events_api": {
+      "url": "https://uniondocs.org/wp-json/tribe/events/v1/events",
+      "organization": "UnionDocs"
+    }
+  },
+  {
+    "domain": "stannswarehouse.org",
+    "automated_access": "allowed",
+    "reliable": true,
+    "terms_url": null,
+    "checked_on": "2026-11-15",
+    "note": "St. Ann's Warehouse's official calendar, read from its WordPress events feed. The builder's sweep on 2026-11-12 found no restriction on automated access in its terms. Robots rules allow its events feed (checked 2026-11-15). Only facts are stored: name, date and time, venue, link, category. Builder allowed this on 2026-11-15 for a class project; review before any commercial use.",
+    "events_api": {
+      "url": "https://stannswarehouse.org/wp-json/tribe/events/v1/events",
+      "organization": "St. Ann's Warehouse"
+    }
+  },
+  {
+    "domain": "bricktheater.com",
+    "automated_access": "allowed",
+    "reliable": true,
+    "terms_url": null,
+    "checked_on": "2026-11-15",
+    "note": "The Brick's official calendar, read from its WordPress events feed. The builder's sweep on 2026-11-12 found no restriction on automated access in its terms. Robots rules allow its events feed (checked 2026-11-15). Only facts are stored: name, date and time, venue, link, category. Builder allowed this on 2026-11-15 for a class project; review before any commercial use.",
+    "events_api": {
+      "url": "https://www.bricktheater.com/wp-json/tribe/events/v1/events",
+      "organization": "The Brick"
+    }
+  },
+  {
+    "domain": "riversideparknyc.org",
+    "automated_access": "allowed",
+    "reliable": true,
+    "terms_url": null,
+    "checked_on": "2026-11-15",
+    "note": "Riverside Park Conservancy's official calendar, read from its WordPress events feed. The builder's sweep on 2026-11-12 found no restriction on automated access in its terms. Robots rules allow its events feed (checked 2026-11-15). Only facts are stored: name, date and time, venue, link, category. Builder allowed this on 2026-11-15 for a class project; review before any commercial use.",
+    "events_api": {
+      "url": "https://riversideparknyc.org/wp-json/tribe/events/v1/events",
+      "organization": "Riverside Park Conservancy"
+    }
+  },
+  {
+    "domain": "casaitaliananyu.org",
+    "automated_access": "allowed",
+    "reliable": true,
+    "terms_url": null,
+    "checked_on": "2026-11-15",
+    "note": "Casa Italiana Zerilli-Marimò at NYU's official calendar, read from its WordPress events feed. The builder's sweep on 2026-11-12 found no restriction on automated access in its terms. Robots rules allow its events feed (checked 2026-11-15). Campus listing, worth 10 points. Only facts are stored: name, date and time, venue, link, category. Builder allowed this on 2026-11-15 for a class project; review before any commercial use.",
+    "events_api": {
+      "url": "https://www.casaitaliananyu.org/wp-json/tribe/events/v1/events",
+      "organization": "Casa Italiana Zerilli-Marimò at NYU"
+    }
+  },
+  {
+    "domain": "hunter.cuny.edu",
+    "automated_access": "allowed",
+    "reliable": true,
+    "terms_url": null,
+    "checked_on": "2026-11-15",
+    "note": "Hunter College's official calendar, read from its WordPress events feed. The builder's sweep on 2026-11-12 found no restriction on automated access in its terms. Robots rules allow its events feed (checked 2026-11-15). Campus listing, worth 10 points. Only lectures and performing arts and film are kept; the rest is student services. Only facts are stored: name, date and time, venue, link, category. Builder allowed this on 2026-11-15 for a class project; review before any commercial use.",
+    "events_api": {
+      "url": "https://www.hunter.cuny.edu/wp-json/tribe/events/v1/events",
+      "organization": "Hunter College",
+      "only_categories": [
+        "Lectures",
+        "Performing Arts & Film"
+      ]
+    }
+  },
+  {
+    "domain": "events.fitnyc.edu",
+    "automated_access": "allowed",
+    "reliable": true,
+    "terms_url": null,
+    "checked_on": "2026-11-15",
+    "note": "Fashion Institute of Technology's official calendar. The builder's sweep on 2026-11-12 found no restriction on automated access in its terms, and robots rules allow its WordPress events feed (checked 2026-11-15). Its feed is not read for now: on 2026-11-15 the https address redirected to http and dropped the date range and page number, and the http address redirected back to https. Builder decision needed. If it is fixed, add an events_api entry keeping only its Public category, worth 10 points as a campus listing."
+  },
+  {
+    "domain": "poetshouse.org",
+    "automated_access": "prohibited",
+    "reliable": true,
+    "terms_url": null,
+    "checked_on": "2026-11-15",
+    "note": "Not used: its events feed refused our requests with HTTP 403 on 2026-11-15, and we respect blocks."
+  },
+  {
+    "domain": "elmuseo.org",
+    "automated_access": "prohibited",
+    "reliable": true,
+    "terms_url": null,
+    "checked_on": "2026-11-15",
+    "note": "Not used: its robots.txt and events feed refused our requests with HTTP 403 on 2026-11-15, and we respect blocks."
+  },
+  {
+    "domain": "mocanyc.org",
+    "automated_access": "prohibited",
+    "reliable": true,
+    "terms_url": "https://www.mocanyc.org/terms-of-use/",
+    "checked_on": "2026-11-15",
+    "note": "Not used: section 2.2 of its terms limits site content to 'your information and personal use only' and bars other uses without written consent. Robots rules would allow the feed. Checked 2026-11-15."
+  },
+  {
+    "domain": "prospectpark.org",
+    "automated_access": "prohibited",
+    "reliable": true,
+    "terms_url": null,
+    "checked_on": "2026-11-15",
+    "note": "Builder skipped on 2026-11-15: terms limit use to personal, noncommercial use."
+  },
+  {
+    "domain": "flatironnomad.nyc",
+    "automated_access": "prohibited",
+    "reliable": true,
+    "terms_url": null,
+    "checked_on": "2026-11-15",
+    "note": "Builder skipped on 2026-11-15: terms limit use to personal, noncommercial use."
   }
 ]

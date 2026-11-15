@@ -8,9 +8,27 @@ from app.pages import PageResult
 from app.sites import Sites
 
 REPUTABLE_POINTS = 40
-# Listed by the organization that runs the event. Both stay below the Popular cutoff, so everyday
-# park events land under Upcoming, and campus club events rank below city events.
-OFFICIAL_FEED_POINTS = {"nyc_parks": 20, "nyu_engage": 10}
+# Listed by the organization that runs the event. All stay below the Popular cutoff, so everyday
+# park events land under Upcoming. City, federal and cultural institutions get 20; campus listings
+# get 10, so campus events rank below city events.
+OFFICIAL_FEED_POINTS = {
+    "nyc_parks": 20,
+    "nyu_engage": 10,
+    # WordPress event feeds (app/sources/wp_events.py), one source per site.
+    "wp:movingimage.org": 20,
+    "wp:scandinaviahouse.org": 20,
+    "wp:zincbar.com": 20,
+    "wp:nytransitmuseum.org": 20,
+    "wp:greenwichhouse.org": 20,
+    "wp:bargemusic.org": 20,
+    "wp:mocada.org": 20,
+    "wp:uniondocs.org": 20,
+    "wp:stannswarehouse.org": 20,
+    "wp:bricktheater.com": 20,
+    "wp:riversideparknyc.org": 20,
+    "wp:casaitaliananyu.org": 10,
+    "wp:hunter.cuny.edu": 10,
+}
 # Each feed after the first that lists the same event. No limit for now.
 POINTS_PER_EXTRA_FEED = 10
 POINTS_PER_COVERAGE_DOMAIN = 10

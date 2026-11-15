@@ -18,6 +18,7 @@ from app.sources.nyc_parks import fetch_parks_events
 from app.sources.nyu_engage import fetch_engage_events
 from app.sources.ticketmaster import fetch_events
 from app.sources.web import TavilyClient, collect_web_events
+from app.sources.wp_events import fetch_wp_events
 
 log = logging.getLogger(__name__)
 
@@ -96,6 +97,7 @@ def _collect(deps: PipelineDeps, now: datetime) -> list[CandidateEvent]:
         ("web", lambda: collect_web_events(deps.tavily, deps.http, deps.sites, deps.ai, now)),
         ("nyc_parks", lambda: fetch_parks_events(deps.http, now, lambda e: deps.reputable.named_in(e) is not None)),
         ("nyu_engage", lambda: fetch_engage_events(deps.http, now)),
+        ("wp_events", lambda: fetch_wp_events(deps.http, deps.sites, now)),
     )
     for name, collect in sources:
         try:
