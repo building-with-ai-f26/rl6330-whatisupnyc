@@ -8,6 +8,17 @@
 - **Tech stack:** Python 3.12 / uv / FastAPI / SQLite / OpenRouter free model / Tavily / Ticketmaster Discovery API / PostHog analytics (`POSTHOG_KEY`; empty turns it off). Live at whatisupnyc.com on a VPS since 2026-11-09 (see Deploy below); the design doc's Vercel plan came first.
 - **AI model:** `nvidia/nemotron-3.5-super-vl:free` through OpenRouter, set by `OPENROUTER_MODEL`. Chosen on 2026-11-02: it returned valid JSON and ignored an injected instruction, while `google/gemma-4-26b-a4b-it:free` returned HTTP 429 and `thinkingmachines/inkling:free` returned HTTP 403. It is slow, about 40 seconds for one extraction. **Backup:** `MiniMax-M3` through MiniMax's own API (`MINIMAX_API_KEY`, `MINIMAX_MODEL`), tried once when OpenRouter fails. It is paid, answers in about a second, and writes `<think>` reasoning before its JSON, which the app removes.
 - **Optional source keys:** `NPS_API_KEY` (National Park Service events) and `NYC_EVENTS_CALENDAR_API_KEY` (the city's NYC Events Calendar). An empty key skips that source.
+- **Project structure:**
+  - `app/main.py`: the web app: the start page, saving readers, the newsletter page, and pasted posts.
+  - `app/pipeline.py`: the morning collection run: checks waiting pasted posts, collects from every source, groups copies of the same event, checks, scores, and saves.
+  - `app/sources/`: one file per event source (Ticketmaster, NYC Parks, NYU Engage, NPS, NYC Events Calendar, WordPress event calendars, web pages, pasted posts).
+  - `app/checks.py`, `app/scoring.py`, `app/sentiment.py`: the plain-code checks, the points, and the review-tone rating.
+  - `app/newsletter.py`: picks the 150 events the AI sees, asks the AI to choose, confirms each pick, and builds the list.
+  - `app/ai.py`: OpenRouter with the MiniMax backup and the 50-a-day limit. `app/db.py`: every SQLite table and query. `app/auth.py`: the site password.
+  - `app/templates/`: the pages (`index.html` is the start page, `view.html` the newsletter page, `newsletter.html` the list itself).
+  - `data/sites.json`: each site's terms finding and whether we may collect from it. `data/reputable.json`: venues worth reputation points.
+  - `tests/`: `uv run pytest`, with saved API responses in `tests/fixtures/`. `scripts/`: key check and the sentiment eval.
+  - `docs/index.html`: the Product Page (living PRD and build log), published with GitHub Pages.
 
 ## 2. Commands
 - **Install dependencies:** `uv sync`
