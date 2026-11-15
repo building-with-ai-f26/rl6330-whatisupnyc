@@ -80,7 +80,23 @@
     .field { display: block; font-weight: 500; font-size: 15px; margin: 16px 0 6px; }
     .extra input, .extra textarea { width: 100%; border: 1px solid var(--black); border-radius: 4px; padding: 11px 12px; font: inherit; background: var(--white); }
     .extra button { margin-top: 18px; }
-    @media (prefers-reduced-motion: reduce) { .js .stepping .step.current { animation: none; } }
+    .extra button[disabled] { opacity: 0.6; cursor: progress; }
+    .added { margin: 16px 0 0; padding: 0; list-style: none; }
+    .added li { padding: 8px 0; border-top: 1px solid #d6d6d6; overflow-wrap: anywhere; }
+    .added li::before { content: "Added: "; font-weight: 500; }
+
+    /* Shown while the AI picks the list, which can take up to a minute. */
+    .making { position: fixed; inset: 0; z-index: 10; display: flex; flex-direction: column; justify-content: center; gap: 24px; padding: 0 var(--gutter); background: var(--black); color: var(--white); }
+    .making[hidden] { display: none; }
+    .making strong { font-weight: 500; font-size: clamp(40px, 7.6vw, 96px); line-height: 1; letter-spacing: -0.035em; }
+    .making p { margin: 0; max-width: 40ch; color: var(--fog); font-size: clamp(17px, 2vw, 21px); }
+    .making .bar { position: relative; overflow: hidden; height: 6px; max-width: 640px; background: #3a3a3a; border-radius: 1px; }
+    .making .bar::after { content: ""; position: absolute; inset: 0; width: 30%; background: var(--taxi); animation: slide 1.4s ease-in-out infinite; }
+    @keyframes slide { from { transform: translateX(-100%); } to { transform: translateX(340%); } }
+    @media (prefers-reduced-motion: reduce) {
+      .js .stepping .step.current { animation: none; }
+      .making .bar::after { animation: none; width: 100%; }
+    }
   </style>
 </head>
 <body>
@@ -166,18 +182,24 @@
     <div class="inner">
       <details id="add" class="extra"{% if paste_message %} open{% endif %}>
         <summary>Saw an event on social media? Add it</summary>
-        <p>Paste the post, and we'll look for the event on a page we can check.</p>
-        <form method="post" action="/paste#add">
-          {% if paste_message %}<p class="message" role="status">{{ paste_message }}</p>{% endif %}
+        <p>Paste the post, and we'll look for the event on a page we can check. Add as many as you like; your answers above stay put.</p>
+        <form id="paste" method="post" action="/paste#add">
+          <p class="message" role="status"{% if not paste_message %} hidden{% endif %}>{{ paste_message }}</p>
           <label class="field" for="link">Link to the post</label>
           <input id="link" name="link" type="url" required>
           <label class="field" for="caption">Caption, or the event's name, date, and venue</label>
           <textarea id="caption" name="caption" rows="3" required></textarea>
           <button class="dark" type="submit">Add this event</button>
+          <ul class="added" aria-label="Posts you added"></ul>
         </form>
       </details>
     </div>
   </main>
+  <div class="making" id="making" role="status" aria-live="polite" hidden>
+    <strong>Making your list…</strong>
+    <div class="bar" aria-hidden="true"></div>
+    <p>We're picking events for you from everything we've checked. This can take up to a minute.</p>
+  </div>
   <script>
     (function () {
       var form = document.getElementById("make");
@@ -268,6 +290,36 @@
           }
         }
         track("start_form_submitted", {}, { transport: "sendBeacon" });
+        document.getElementById("making").hidden = false;
+      });
+      // Coming back with the browser's Back button shows the form again, not the loading screen.
+      window.addEventListener("pageshow", function () { document.getElementById("making").hidden = true; });
+
+      // Pasted posts are sent in the background, so the reader keeps their place and can add more.
+      var paste = document.getElementById("paste");
+      var pasteNote = paste.querySelector(".message");
+      paste.addEventListener("submit", function (event) {
+        if (!window.fetch) return;
+        event.preventDefault();
+        var button = paste.querySelector("button");
+        var link = paste.elements.link.value.trim();
+        button.disabled = true;
+        button.textContent = "Adding…";
+        fetch("/paste", { method: "POST", body: new FormData(paste), headers: { Accept: "application/json" } })
+          .then(function (response) { return response.json(); })
+          .then(function (reply) {
+            pasteNote.textContent = reply.message;
+            pasteNote.hidden = false;
+            if (!reply.added) return;
+            var item = document.createElement("li");
+            item.textContent = link;
+            paste.querySelector(".added").appendChild(item);
+            paste.reset();
+            paste.elements.link.focus();
+            track("post_pasted", {});
+          })
+          .catch(function () { paste.submit(); })
+          .then(function () { button.disabled = false; button.textContent = "Add this event"; });
       });
 
       if (!stepping) return;

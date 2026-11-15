@@ -242,3 +242,43 @@ def test_nyc_calendar_event_is_saved_as_official_listing(conn, sites):
     assert [(e.event.name, e.event.source, e.score.total) for e in saved] == [
         ("Macy's Parade Balloon Inflation", "nyc_calendar", 20)
     ]
+
+
+PASTE_DETAILS = {"name": "Show", "date": "2026-11-07", "time": "20:00", "venue": "Beacon Theatre", "city": None, "organizer": None}
+PASTE_PAGE = {"https://reliable.example/show": "<p>Show on Sat, Nov 7 at Beacon Theatre</p>"}
+
+
+def test_run_checks_waiting_pastes_then_clears_them(conn, sites):
+    db.save_waiting_paste(conn, "https://www.tiktok.com/@a/1", "Show at Beacon, Nov 7")
+    tavily = FakeTavily([SearchHit("https://reliable.example/show", "t", "c")])
+    run_pipeline(conn, deps(sites, PASTE_PAGE, EMPTY_TM, tavily=tavily, ai=FakeAI(dict(PASTE_DETAILS))), NOW)
+    assert db.list_waiting_pastes(conn) == []
+    (link, _, event), = db.list_pastes(conn)
+    assert (link, event.url) == ("https://www.tiktok.com/@a/1", "https://reliable.example/show")
+
+
+def test_unconfirmed_waiting_paste_is_dropped(conn, sites):
+    db.save_waiting_paste(conn, "https://www.tiktok.com/@a/1", "Show at Beacon, Nov 7")
+    run_pipeline(conn, deps(sites, ticketmaster=EMPTY_TM, ai=FakeAI(dict(PASTE_DETAILS))), NOW)
+    assert db.list_waiting_pastes(conn) == [] and db.list_pastes(conn) == []
+
+
+def test_waiting_paste_stays_when_the_ai_is_busy(conn, sites):
+    db.save_waiting_paste(conn, "https://www.tiktok.com/@a/1", "Show at Beacon, Nov 7")
+    run_pipeline(conn, deps(sites, ticketmaster=EMPTY_TM, ai=FakeAI(error=AIUnavailable("busy"))), NOW)
+    assert len(db.list_waiting_pastes(conn)) == 1
+
+
+def test_run_checks_at_most_ten_waiting_pastes(conn, sites):
+    for n in range(12):
+        db.save_waiting_paste(conn, f"https://www.tiktok.com/@a/{n}", "Show at Beacon, Nov 7")
+    ai = FakeAI(*[dict(PASTE_DETAILS)] * 12)
+    run_pipeline(conn, deps(sites, ticketmaster=EMPTY_TM, ai=ai), NOW)
+    assert len(db.list_waiting_pastes(conn)) == 2
+
+
+def test_waiting_paste_is_dropped_after_three_busy_runs(conn, sites):
+    db.save_waiting_paste(conn, "https://www.tiktok.com/@a/1", "Show at Beacon, Nov 7")
+    for _ in range(3):
+        run_pipeline(conn, deps(sites, ticketmaster=EMPTY_TM, ai=FakeAI(error=AIUnavailable("busy"))), NOW)
+    assert db.list_waiting_pastes(conn) == []

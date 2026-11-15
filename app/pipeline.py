@@ -18,6 +18,7 @@ from app.sources.nps import fetch_nps_events
 from app.sources.nyc_calendar import fetch_calendar_events
 from app.sources.nyc_parks import fetch_parks_events
 from app.sources.nyu_engage import fetch_engage_events
+from app.sources.pasted import process_paste
 from app.sources.ticketmaster import fetch_events
 from app.sources.web import TavilyClient, collect_web_events
 from app.sources.wp_events import fetch_wp_events
@@ -26,6 +27,10 @@ log = logging.getLogger(__name__)
 
 MAX_COVERAGE_SEARCHES = 8
 MAX_SENTIMENT_EVENTS = 6
+# Each pasted post can use an AI request, so a run checks only this many and leaves the rest of the
+# shared daily AI limit for collected events. A post that keeps failing is dropped after MAX_PASTE_TRIES.
+MAX_PASTES_PER_RUN = 10
+MAX_PASTE_TRIES = 3
 # All pasted posts count as one source, so they can't meet the two-source rule alone.
 PASTED_POSTS_SOURCE = "pasted posts"
 
@@ -61,6 +66,11 @@ class Group:
 
 
 def run_pipeline(conn, deps: PipelineDeps, now: datetime) -> PipelineSummary:
+    try:
+        _check_waiting_pastes(conn, deps, now)
+    except Exception:
+        # Pasted posts can wait for tomorrow; collecting today's events matters more.
+        log.exception("Could not check waiting pasted posts")
     candidates = _collect(deps, now)
     pastes = db.list_pastes(conn)
     groups = _group(candidates, pastes)
@@ -94,6 +104,23 @@ def run_pipeline(conn, deps: PipelineDeps, now: datetime) -> PipelineSummary:
         db.save_event(conn, event, outcome)
         eligible += outcome.eligible
     return PipelineSummary(len(candidates) + len(pastes), passed, dropped, eligible)
+
+
+def _check_waiting_pastes(conn, deps: PipelineDeps, now: datetime) -> None:
+    """Find each post readers pasted since the last run on a page we can check."""
+    for paste_id, link, caption in db.list_waiting_pastes(conn, MAX_PASTES_PER_RUN):
+        try:
+            result = process_paste(link, caption, deps.tavily, deps.http, deps.sites, deps.ai, now)
+        except Exception:
+            log.exception("Could not check a pasted post")
+            db.count_waiting_paste_try(conn, paste_id, MAX_PASTE_TRIES)
+            continue
+        if result.try_again:
+            db.count_waiting_paste_try(conn, paste_id, MAX_PASTE_TRIES)
+            continue
+        if result.event:
+            db.save_paste(conn, link, caption, result.event)
+        db.delete_waiting_paste(conn, paste_id)
 
 
 def _collect(deps: PipelineDeps, now: datetime) -> list[CandidateEvent]:
