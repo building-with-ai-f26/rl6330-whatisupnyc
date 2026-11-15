@@ -222,3 +222,18 @@ def test_start_page_has_a_loading_screen_for_making_the_list(conn, sites):
     html = client_for(conn, sites).get("/").text
     assert '<div class="making" id="making" role="status" aria-live="polite" hidden>' in html
     assert "Making your list" in html
+
+
+def test_paste_that_is_too_long_is_refused(conn, sites):
+    reply = client_for(conn, sites).post("/paste", data={"link": "https://www.tiktok.com/@a/1", "caption": "x" * 4001},
+                                         headers={"Accept": "application/json"})
+    assert reply.status_code == 400 and db.list_waiting_pastes(conn) == []
+
+
+def test_paste_refused_when_too_many_are_waiting(conn, sites, monkeypatch):
+    monkeypatch.setattr("app.main.MAX_WAITING_PASTES", 1)
+    client = client_for(conn, sites)
+    data = {"link": "https://www.tiktok.com/@a/1", "caption": "Jazz, Nov 7"}
+    assert client.post("/paste", data=data, headers={"Accept": "application/json"}).status_code == 200
+    assert client.post("/paste", data=data, headers={"Accept": "application/json"}).status_code == 400
+    assert len(db.list_waiting_pastes(conn)) == 1

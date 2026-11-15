@@ -64,7 +64,8 @@ CREATE TABLE IF NOT EXISTS ai_requests (
 CREATE TABLE IF NOT EXISTS waiting_pastes (
     id INTEGER PRIMARY KEY,
     link TEXT NOT NULL,
-    caption TEXT NOT NULL
+    caption TEXT NOT NULL,
+    tries INTEGER NOT NULL DEFAULT 0
 );
 """
 
@@ -142,9 +143,20 @@ def save_waiting_paste(conn: sqlite3.Connection, link: str, caption: str) -> Non
     conn.commit()
 
 
-def list_waiting_pastes(conn: sqlite3.Connection) -> list[tuple[int, str, str]]:
-    rows = conn.execute("SELECT id, link, caption FROM waiting_pastes ORDER BY id").fetchall()
+def count_waiting_pastes(conn: sqlite3.Connection) -> int:
+    return conn.execute("SELECT COUNT(*) FROM waiting_pastes").fetchone()[0]
+
+
+def list_waiting_pastes(conn: sqlite3.Connection, limit: int = -1) -> list[tuple[int, str, str]]:
+    rows = conn.execute("SELECT id, link, caption FROM waiting_pastes ORDER BY id LIMIT ?", (limit,)).fetchall()
     return [(row["id"], row["link"], row["caption"]) for row in rows]
+
+
+def count_waiting_paste_try(conn: sqlite3.Connection, paste_id: int, max_tries: int) -> None:
+    """Note one failed try, and give up on the post after max_tries."""
+    conn.execute("UPDATE waiting_pastes SET tries = tries + 1 WHERE id = ?", (paste_id,))
+    conn.execute("DELETE FROM waiting_pastes WHERE id = ? AND tries >= ?", (paste_id, max_tries))
+    conn.commit()
 
 
 def delete_waiting_paste(conn: sqlite3.Connection, paste_id: int) -> None:

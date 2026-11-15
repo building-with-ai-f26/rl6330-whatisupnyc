@@ -267,3 +267,18 @@ def test_waiting_paste_stays_when_the_ai_is_busy(conn, sites):
     db.save_waiting_paste(conn, "https://www.tiktok.com/@a/1", "Show at Beacon, Nov 7")
     run_pipeline(conn, deps(sites, ticketmaster=EMPTY_TM, ai=FakeAI(error=AIUnavailable("busy"))), NOW)
     assert len(db.list_waiting_pastes(conn)) == 1
+
+
+def test_run_checks_at_most_ten_waiting_pastes(conn, sites):
+    for n in range(12):
+        db.save_waiting_paste(conn, f"https://www.tiktok.com/@a/{n}", "Show at Beacon, Nov 7")
+    ai = FakeAI(*[dict(PASTE_DETAILS)] * 12)
+    run_pipeline(conn, deps(sites, ticketmaster=EMPTY_TM, ai=ai), NOW)
+    assert len(db.list_waiting_pastes(conn)) == 2
+
+
+def test_waiting_paste_is_dropped_after_three_busy_runs(conn, sites):
+    db.save_waiting_paste(conn, "https://www.tiktok.com/@a/1", "Show at Beacon, Nov 7")
+    for _ in range(3):
+        run_pipeline(conn, deps(sites, ticketmaster=EMPTY_TM, ai=FakeAI(error=AIUnavailable("busy"))), NOW)
+    assert db.list_waiting_pastes(conn) == []

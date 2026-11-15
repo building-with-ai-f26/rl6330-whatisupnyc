@@ -13,6 +13,9 @@ from app.ai import AIClient, AIUnavailable, backup_from_env
 from app.newsletter import _templates, choose_picks, render_newsletter
 from app.sites import Sites, load as load_sites
 from app.sources.pasted import paste_problem
+
+# Keeps a flood of posts from piling up faster than the morning runs can check them.
+MAX_WAITING_PASTES = 200
 from app.sources.web import TavilyClient
 
 DAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
@@ -149,6 +152,8 @@ def create_app(deps: AppDeps | None = None) -> FastAPI:
     def paste(request: Request, link: str = Form(""), caption: str = Form("")):
         # Only saved here, so the reader never waits. The next collection run checks it.
         problem = paste_problem(link.strip(), caption)
+        if not problem and db.count_waiting_pastes(get_deps().conn) >= MAX_WAITING_PASTES:
+            problem = "We have a lot of posts to check right now. Please try again tomorrow."
         if not problem:
             db.save_waiting_paste(get_deps().conn, link.strip(), caption)
         message = problem or "Thanks! We'll check it and add the event if we can confirm it on a page we can check."

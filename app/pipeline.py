@@ -27,6 +27,10 @@ log = logging.getLogger(__name__)
 
 MAX_COVERAGE_SEARCHES = 8
 MAX_SENTIMENT_EVENTS = 6
+# Each pasted post can use an AI request, so a run checks only this many and leaves the rest of the
+# shared daily AI limit for collected events. A post that keeps failing is dropped after MAX_PASTE_TRIES.
+MAX_PASTES_PER_RUN = 10
+MAX_PASTE_TRIES = 3
 # All pasted posts count as one source, so they can't meet the two-source rule alone.
 PASTED_POSTS_SOURCE = "pasted posts"
 
@@ -100,13 +104,15 @@ def run_pipeline(conn, deps: PipelineDeps, now: datetime) -> PipelineSummary:
 
 def _check_waiting_pastes(conn, deps: PipelineDeps, now: datetime) -> None:
     """Find each post readers pasted since the last run on a page we can check."""
-    for paste_id, link, caption in db.list_waiting_pastes(conn):
+    for paste_id, link, caption in db.list_waiting_pastes(conn, MAX_PASTES_PER_RUN):
         try:
             result = process_paste(link, caption, deps.tavily, deps.http, deps.sites, deps.ai, now)
         except Exception:
             log.exception("Could not check a pasted post")
+            db.count_waiting_paste_try(conn, paste_id, MAX_PASTE_TRIES)
             continue
         if result.try_again:
+            db.count_waiting_paste_try(conn, paste_id, MAX_PASTE_TRIES)
             continue
         if result.event:
             db.save_paste(conn, link, caption, result.event)
