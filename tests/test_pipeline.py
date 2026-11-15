@@ -28,10 +28,13 @@ def jsonld(name, venue="Other Hall"):
     )
 
 
-def deps(sites, pages=None, ticketmaster=FIXTURE, tavily=None, ai=None, parks=None, engage=None, wp=None, nps=None):
+def deps(sites, pages=None, ticketmaster=FIXTURE, tavily=None, ai=None, parks=None, engage=None, wp=None, nps=None,
+         calendar=None):
     def handler(request):
         if request.url.host == "app.ticketmaster.com":
             return httpx.Response(200, json=ticketmaster)
+        if request.url.host == "api.nyc.gov":
+            return httpx.Response(200, json=calendar or {"items": [], "pagination": {"numPages": 0}})
         if request.url.host == "developer.nps.gov":
             return httpx.Response(200, json=nps or {"total": "0", "data": []})
         if request.url.host == "data.cityofnewyork.us":
@@ -53,6 +56,7 @@ def deps(sites, pages=None, ticketmaster=FIXTURE, tavily=None, ai=None, parks=No
         reputable=REPUTABLE,
         ticketmaster_key="k",
         nps_key="k",
+        nyc_calendar_key="k",
     )
 
 
@@ -225,3 +229,16 @@ def test_national_park_service_event_is_saved_as_official_listing(conn, sites):
     run_pipeline(conn, deps(sites, ticketmaster=EMPTY_TM, nps=nps), NOW)
     saved = db.eligible_events(conn, NOW)
     assert [(e.event.name, e.event.source, e.score.total) for e in saved] == [("Fort Tompkins Tour", "nps", 20)]
+
+
+def test_nyc_calendar_event_is_saved_as_official_listing(conn, sites):
+    calendar = {"items": [{"startDate": "2026-11-07T13:00:00.000-05:00", "allDay": False, "canceled": False,
+                           "permalink": "https://www1.nyc.gov/events/balloon-inflation/270016/1",
+                           "name": "Macy's Parade Balloon Inflation", "location": "Museum of Natural History",
+                           "boroughs": ["Mn"], "categories": "Free,Holidays,General Events"}],
+                "pagination": {"currentPage": 1, "numPages": 1, "isLastPage": True}}
+    run_pipeline(conn, deps(sites, ticketmaster=EMPTY_TM, calendar=calendar), NOW)
+    saved = db.eligible_events(conn, NOW)
+    assert [(e.event.name, e.event.source, e.score.total) for e in saved] == [
+        ("Macy's Parade Balloon Inflation", "nyc_calendar", 20)
+    ]

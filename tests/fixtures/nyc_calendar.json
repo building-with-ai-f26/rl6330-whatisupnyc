@@ -1,0 +1,218 @@
+{
+ "items": [
+  {
+   "startDate": "2026-11-15T00:00:00.000-05:00",
+   "allDay": false,
+   "canceled": false,
+   "permalink": "https://www1.nyc.gov/events/proximity-exhibition/1342496/1",
+   "id": 1342496,
+   "sequence": 1,
+   "name": "Proximity Exhibition",
+   "location": "Newhouse Center for Contemporary Art (Building C)",
+   "address": "Newhouse Center for Contemporary Art (Building C) in Snug Harbor Cultural Center",
+   "boroughs": [
+    "SI"
+   ],
+   "categories": "Parks & Recreation"
+  },
+  {
+   "startDate": "2026-11-15T06:00:00.000-05:00",
+   "allDay": false,
+   "canceled": false,
+   "permalink": "https://www1.nyc.gov/events/inwood-greenmarket-saturday/1327416/317",
+   "id": 1327416,
+   "sequence": 317,
+   "name": "Inwood Greenmarket Saturday",
+   "location": null,
+   "address": " ISHAM STREET between SEAMAN AVENUE and COOPER STREET  Manhattan",
+   "boroughs": [
+    "Mn"
+   ],
+   "categories": "Street and Neighborhood"
+  },
+  {
+   "startDate": "2026-11-15T10:00:00.000-05:00",
+   "allDay": false,
+   "canceled": false,
+   "permalink": "https://www1.nyc.gov/site/dsny/events/community-recycling-event-lower-east-side/1291476/1",
+   "id": 1291476,
+   "sequence": 1,
+   "name": "Community Recycling Event - Lower East Side",
+   "location": "Tompkins Square Park",
+   "address": "Avenue A btw 9th & 10th Streets",
+   "boroughs": [
+    "Mn"
+   ],
+   "categories": "Health & Public Safety,Environment,Free,Community Recycling,Disposal,Environment,General Events"
+  },
+  {
+   "startDate": "2026-11-15T10:30:00.000-05:00",
+   "allDay": false,
+   "canceled": false,
+   "permalink": "https://www1.nyc.gov/events/autumn-leaves-story-time-and-craft/1326716/1",
+   "id": 1326716,
+   "sequence": 1,
+   "name": "Autumn Leaves Story Time and Craft",
+   "location": "Blood Root Valley",
+   "address": "Greenbelt Nature Center - 700 Rockland Avenue at Brielle Avenue",
+   "boroughs": [
+    "SI"
+   ],
+   "categories": "Free,Parks & Recreation,Kids and Family,General Events"
+  },
+  {
+   "startDate": "2026-11-17T10:00:00.000-05:00",
+   "allDay": false,
+   "canceled": false,
+   "permalink": "https://www1.nyc.gov/site/mayorspeu/events/access-benefits-at-jobsnyc-center/1349216/1",
+   "id": 1349216,
+   "sequence": 1,
+   "name": "Access Benefits at JobsNYC Center",
+   "location": null,
+   "address": "2 Lafayette St",
+   "boroughs": [
+    "Mn"
+   ],
+   "categories": "Free,Benefits Access,General Events,Special Event"
+  },
+  {
+   "startDate": "2026-11-18T00:01:00.000-05:00",
+   "allDay": true,
+   "canceled": false,
+   "permalink": "https://www1.nyc.gov/events/gridlock-alert-day/1246656/6",
+   "id": 1246656,
+   "sequence": 6,
+   "name": "Gridlock Alert Day",
+   "location": null,
+   "address": "Citywide",
+   "boroughs": [
+    "Bx",
+    "Bk",
+    "Mn",
+    "Qn",
+    "SI"
+   ],
+   "categories": "Street and Neighborhood,General Events"
+  },
+  {
+   "startDate": "2026-11-19T00:01:00.000-05:00",
+   "allDay": true,
+   "canceled": false,
+   "permalink": "https://www1.nyc.gov/events/gridlock-alert-day/1246656/7",
+   "id": 1246656,
+   "sequence": 7,
+   "name": "Gridlock Alert Day",
+   "location": null,
+   "address": "Citywide",
+   "boroughs": [
+    "Bx",
+    "Bk",
+    "Mn",
+    "Qn",
+    "SI"
+   ],
+   "categories": "Street and Neighborhood,General Events"
+  },
+  {
+   "startDate": "2026-11-20T12:00:00.000-05:00",
+   "allDay": false,
+   "canceled": false,
+   "permalink": "https://www1.nyc.gov/events/proximity-exhibition/1342496/2",
+   "id": 1342496,
+   "sequence": 2,
+   "name": "Proximity Exhibition",
+   "location": "Newhouse Center for Contemporary Art (Building C)",
+   "address": "Newhouse Center for Contemporary Art (Building C) in Snug Harbor Cultural Center",
+   "boroughs": [
+    "SI"
+   ],
+   "categories": "Parks & Recreation"
+  },
+  {
+   "startDate": "2026-11-21T14:00:00.000-05:00",
+   "allDay": false,
+   "canceled": true,
+   "permalink": "https://www1.nyc.gov/events/proximity-artist-talk/1/1",
+   "id": 1,
+   "sequence": 1,
+   "name": "Proximity Artist Talk",
+   "location": "Newhouse Center for Contemporary Art (Building C)",
+   "address": "Newhouse Center for Contemporary Art (Building C) in Snug Harbor Cultural Center",
+   "boroughs": [
+    "SI"
+   ],
+   "categories": "Parks & Recreation"
+  },
+  {
+   "startDate": "2026-11-25T13:00:00.000-05:00",
+   "allDay": false,
+   "canceled": false,
+   "permalink": "https://www1.nyc.gov/events/macys-parade-balloon-inflation/270016/1",
+   "id": 270016,
+   "sequence": 1,
+   "name": "Macy's Parade Balloon Inflation",
+   "location": "Areas surrounding the Museum of Natural History",
+   "address": "Areas surrounding the Museum of Natural History",
+   "boroughs": [
+    "Mn"
+   ],
+   "categories": "Free,Holidays,Kids and Family,General Events"
+  },
+  {
+   "startDate": "2026-11-26T00:01:00.000-05:00",
+   "allDay": true,
+   "canceled": false,
+   "permalink": "https://www1.nyc.gov/events/thanksgiving-day/10728/1",
+   "id": 10728,
+   "sequence": 1,
+   "name": "Thanksgiving Day",
+   "location": null,
+   "address": "NYC Public Schools",
+   "boroughs": [
+    "Bx",
+    "Bk",
+    "Mn",
+    "Qn",
+    "SI"
+   ],
+   "categories": "City Government Office,Holidays,Education,General Events"
+  },
+  {
+   "startDate": "2026-11-26T08:30:00.000-05:00",
+   "allDay": false,
+   "canceled": false,
+   "permalink": "https://www1.nyc.gov/events/macys-thanksgiving-day-parade/270017/1",
+   "id": 270017,
+   "sequence": 1,
+   "name": "Macy's Thanksgiving Day Parade",
+   "location": null,
+   "address": "Check website for route information",
+   "boroughs": [
+    "Mn"
+   ],
+   "categories": "Free,Holidays,Kids and Family,General Events"
+  },
+  {
+   "startDate": "2026-11-27T08:00:00.000-05:00",
+   "allDay": false,
+   "canceled": false,
+   "permalink": "https://www1.nyc.gov/events/line-dance-fitness/1349136/1",
+   "id": 1349136,
+   "sequence": 1,
+   "name": "Line Dance Fitness",
+   "location": "Golden Age Classroom B in Brownsville Recreation Center",
+   "address": "1555 Linden Boulevard",
+   "boroughs": [
+    "Bk"
+   ],
+   "categories": "Free,Parks & Recreation,Athletic,General Events"
+  }
+ ],
+ "pagination": {
+  "currentPage": 1,
+  "numPages": 1,
+  "totalItems": 13,
+  "isFirstPage": true,
+  "isLastPage": true
+ }
+}
