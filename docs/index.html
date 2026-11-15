@@ -101,13 +101,14 @@
 
       <h3>3. How It Works Under the Hood & Riskiest Assumption (Week 2+)</h3>
       <p><strong>Riskiest Assumption:</strong> That people act on it. Friends may already be the best filter, so the real test is whether readers actually go to an event they would not otherwise have found. On the technical side, few event sources allow automated collection, which limits variety.</p>
+      <p><strong>How this build tests it:</strong> For now, the main number is how many people sign up for the newsletter. Sign-up is now one step at a time, so PostHog shows the step where people leave. Clicks on events are tracked on the newsletter page, but not yet from the email; that's next, by sending email links through whatisupnyc.com first. Whether people actually go is hard to measure at scale, so for now I'll ask my pod, and later add a one-click "Did you go?" question to each issue.</p>
       <p><strong>Simple Architecture:</strong> Each morning: event feeds (Ticketmaster, NYC Parks, NYU Engage, National Park Service, the NYC Events Calendar, 13 museum and venue calendars), allowed web pages, and pasted posts → plain-code checks → scoring (official feeds, events on several feeds, coverage) → saved. When a reader asks: the best 150 upcoming events, at most 50 from one source → AI picks from those only → code confirms each pick → newsletter</p>
 
       <h3>4. Unit Economics & Analytics Snapshot (Updated Weekly)</h3>
       <div class="grid-2">
         <div class="stat-box">
           <div class="stat-label">Cumulative Build Spend</div>
-          <div class="stat-value">$25.18</div>
+          <div class="stat-value">$62.80</div>
         </div>
         <div class="stat-box">
           <div class="stat-label">Est. Cost Per User Run</div>
@@ -137,8 +138,8 @@
           <li><strong>Ranking changes:</strong> Engage club events are worth 10 points instead of 20, so they rank below city events. An event listed by more than one feed earns 10 more points for each extra feed. The AI now sees at most 50 events from any one source, so a big source can't fill all 150 slots before the reader's interests are considered: before this, one test newsletter had 7 of 8 picks from Engage, and with Engage at 10 and no limit, NYC Parks would have filled 125 of the 150 slots.</li>
           <li><strong>Start page:</strong> The start page now opens with a short explanation and a big "What kind of events do you like?" box, then asks one question at a time (days, name, email, an optional style note) with a progress bar and Back link, and PostHog records which step people reach without recording what they type. After trying it on whatisupnyc.com: a "Making your list…" screen now covers the wait while the AI picks, and adding a social media post saves it in under a second instead of checking it on the spot (which could take a minute and reset the steps). Readers can add several posts without losing their place, and the next morning's collection run checks them.</li>
           <li><strong>Things learned with AI:</strong> Security is an issue to pay attention to: one user's information must never reach another user, and each user has to be treated individually. Getting event sources and following their terms and conditions is hard.</li>
-          <li><strong>What broke / changed in PRD:</strong> </li>
-          <li><strong>Cost & time this week:</strong> $0.0003 on the MiniMax backup (two test calls; every real list so far came from the free model), $0.00 on other APIs · around 3–4 hours</li>
+          <li><strong>What broke / changed in PRD:</strong> PostHog was first installed on this Product Page instead of the live app, so it had to be added to whatisupnyc.com. On the live site, adding a social media post took up to a minute and reset the sign-up steps, so posts are now saved and checked the next morning. NYU Engage club events crowded out everything else until the ranking changes. My first commits silently failed because a <code>!</code> in zsh negated the command. PRD: the riskiest assumption now has a test (sign-ups and where people drop off), the architecture lists every source, and the cost per run is worked out.</li>
+          <li><strong>Cost & time this week:</strong> $37.62 of Claude Code usage as reported by /usage, $0.0003 on the MiniMax backup (two test calls; every real list so far came from the free model), $0.00 on other APIs · around 3–4 hours</li>
         </ul>
       </div>
 
