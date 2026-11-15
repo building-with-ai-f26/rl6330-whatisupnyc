@@ -66,7 +66,11 @@ class Group:
 
 
 def run_pipeline(conn, deps: PipelineDeps, now: datetime) -> PipelineSummary:
-    _check_waiting_pastes(conn, deps, now)
+    try:
+        _check_waiting_pastes(conn, deps, now)
+    except Exception:
+        # Pasted posts can wait for tomorrow; collecting today's events matters more.
+        log.exception("Could not check waiting pasted posts")
     candidates = _collect(deps, now)
     pastes = db.list_pastes(conn)
     groups = _group(candidates, pastes)
