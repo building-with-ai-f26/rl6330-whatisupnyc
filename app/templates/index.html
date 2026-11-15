@@ -3,94 +3,295 @@
 <head>
   {% include "partials/head.html" %}
   <title>whatisupnyc</title>
+  {#- Marks the page as "JavaScript on" before it paints, so the steps never flash as one long form. #}
+  <script>document.documentElement.className += " js";</script>
   <style>
     {% include "partials/base.css" %}
-    .sign { padding-bottom: clamp(36px, 6vw, 72px); }
-    .big { display: block; margin: clamp(44px, 8vw, 96px) 0 clamp(18px, 3vw, 28px); font-weight: 500; font-size: clamp(46px, 9.2vw, 112px); line-height: 0.98; letter-spacing: -0.035em; }
-    #interests { width: 100%; background: var(--white); color: var(--black); border: 0; border-radius: 4px; padding: 18px 20px; font: 400 clamp(18px, 2.2vw, 24px)/1.3 Archivo, Helvetica, Arial, sans-serif; }
-    #interests::placeholder { color: var(--steel); }
-    .starts { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
-    .starts button { background: transparent; color: var(--white); border: 1px solid var(--white); border-radius: 999px; padding: 8px 14px; font-size: 15px; font-weight: 400; transition: background-color 120ms, color 120ms, transform 120ms var(--press); }
-    .starts button:hover { background: var(--white); color: var(--black); }
-    main { padding: clamp(32px, 5vw, 56px) var(--gutter) 72px; }
-    .grid { display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr); gap: clamp(32px, 6vw, 80px); }
-    p { margin: 0 0 18px; color: var(--ink); max-width: 44ch; }
-    .field { display: block; font-weight: 500; font-size: 15px; margin: 16px 0 6px; }
-    input[type=text], input[type=email], input[type=url], textarea { width: 100%; border: 1px solid var(--black); border-radius: 4px; padding: 11px 12px; font: inherit; background: var(--white); }
-    fieldset { border: 0; padding: 0; margin: 0; }
-    legend { font-weight: 500; font-size: 15px; padding: 0; margin-bottom: 8px; }
-    .days { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; }
+    :root { --fog: #b3b3b3; --plate: clamp(22px, 3vw, 34px); }
+    .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+
+    /* The black street sign holds the whole flow. */
+    .sign { padding-bottom: clamp(40px, 6vw, 72px); }
+    .js .stepping-sign { min-height: 100svh; }
+    .flow { max-width: 860px; }
+    .intro { margin: clamp(20px, 3.5vw, 36px) 0 0; max-width: 40ch; font-size: clamp(18px, 2vw, 22px); line-height: 1.4; color: var(--white); }
+    .message { background: var(--taxi); color: var(--black); border-radius: 4px; padding: 12px 16px; margin: 28px 0 0; max-width: 60ch; }
+
+    /* Progress: five blocks, one per question. Only drawn when JavaScript runs the steps. */
+    .progress { display: none; align-items: center; gap: 14px; margin: clamp(24px, 4vw, 40px) 0 0; color: var(--fog); font-size: 15px; }
+    .js .stepping .progress { display: flex; }
+    .progress ol { display: flex; gap: 4px; margin: 0; padding: 0; list-style: none; }
+    .progress li { width: clamp(22px, 4vw, 36px); height: 6px; border-radius: 1px; background: #3a3a3a; transition: background-color 200ms; }
+    .progress li.done { background: var(--white); }
+    .progress li.now { background: var(--taxi); }
+
+    .step { margin: 0; padding: 0; border: 0; min-width: 0; }
+    .step + .step { margin-top: 56px; }
+    .js .stepping .step { display: none; margin-top: 0; }
+    .js .stepping .step.current { display: block; animation: arrive 260ms var(--press); }
+    @keyframes arrive { from { opacity: 0; transform: translateY(10px); } }
+
+    .ask { display: block; padding: 0; margin: clamp(18px, 3vw, 32px) 0 clamp(14px, 2vw, 22px); font-weight: 500; font-size: clamp(34px, 6.4vw, 80px); line-height: 1; letter-spacing: -0.035em; max-width: 14ch; }
+    .step:first-of-type .ask { font-size: clamp(40px, 7.6vw, 96px); }
+    .note { margin: -8px 0 18px; color: var(--fog); max-width: 46ch; }
+
+    /* White plates on the black sign: the fields readers type into. */
+    .plate { display: block; width: 100%; background: var(--white); color: var(--black); border: 0; border-radius: 4px; padding: 16px 20px; font: 400 var(--plate)/1.25 Archivo, Helvetica, Arial, sans-serif; }
+    .plate::placeholder { color: var(--steel); }
+    textarea.plate { min-height: 3.8em; resize: vertical; }
+    .plate[aria-invalid="true"] { box-shadow: inset 0 0 0 3px var(--taxi); }
+
+    .chips { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 14px; }
+    .chips button { background: transparent; color: var(--white); border: 1px solid #5a5a5a; border-radius: 999px; padding: 8px 14px; font-size: 15px; font-weight: 400; transition: background-color 120ms, color 120ms, border-color 120ms, transform 120ms var(--press); }
+    .chips button:hover { border-color: var(--white); }
+    .chips button[aria-pressed="true"] { background: var(--white); color: var(--black); border-color: var(--white); }
+    html:not(.js) .chips { display: none; }
+
+    .days { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 6px; max-width: 640px; }
     .days label { position: relative; }
-    .days input { position: absolute; opacity: 0; width: 100%; height: 100%; margin: 0; cursor: pointer; }
-    .days span { display: block; text-align: center; border: 1px solid var(--black); border-radius: 4px; padding: 12px 0; font-weight: 500; font-size: 15px; transition: background-color 120ms; }
-    .days input:checked + span { background: var(--taxi); }
-    .days input:focus-visible + span { outline: 3px solid var(--black); outline-offset: 2px; }
-    form > button { margin-top: 22px; }
-    .ruled { border-top: 4px solid var(--black); padding-top: 12px; }
-    .message { max-width: none; background: var(--taxi); color: var(--black); border-radius: 4px; padding: 12px 16px; margin-bottom: 32px; }
-    @media (max-width: 760px) { .grid { grid-template-columns: 1fr; } }
+    .days input { position: absolute; inset: 0; opacity: 0; width: 100%; height: 100%; margin: 0; cursor: pointer; }
+    .days span { display: block; text-align: center; border: 1px solid var(--white); border-radius: 4px; padding: clamp(16px, 2.6vw, 24px) 0; font-weight: 500; font-size: clamp(15px, 1.8vw, 19px); transition: background-color 120ms, color 120ms; }
+    .days input:checked + span { background: var(--taxi); border-color: var(--taxi); color: var(--black); }
+    .days input:focus-visible + span { outline: 3px solid var(--taxi); outline-offset: 3px; }
+
+    .oops { min-height: 1.5em; margin: 12px 0 0; color: var(--taxi); font-weight: 500; }
+    .oops:empty { min-height: 0; margin: 0; }
+
+    .nav { display: flex; flex-wrap: wrap; align-items: center; gap: 12px 20px; margin-top: 24px; }
+    .js .stepping .nav { display: flex; }
+    .nav .next, .nav .skip, .nav .back, .nav .enter { display: none; }
+    .js .stepping .nav .next, .js .stepping .nav .skip, .js .stepping .nav .back, .js .stepping .nav .enter { display: inline-block; }
+    .js .stepping .step:not(:last-of-type) .nav .make { display: none; }
+    html:not(.js) .step:not(:last-of-type) .nav, .js .flow:not(.stepping) .step:not(:last-of-type) .nav { display: none; }
+    .enter { color: var(--fog); font-size: 15px; }
+    .nav .back, .nav .skip { background: none; color: var(--white); padding: 8px 2px; font-weight: 500; font-size: 17px; text-decoration: underline; text-underline-offset: 4px; }
+    .nav .skip { color: var(--fog); }
+    .nav .back:hover, .nav .skip:hover { color: var(--taxi); }
+    @media (pointer: coarse) { .js .stepping .nav .enter { display: none; } }
+
+    /* Quieter, below the flow. */
+    main { padding: clamp(32px, 5vw, 56px) var(--gutter) 72px; }
+    main :focus-visible { outline-color: var(--black); }
+    .extra { border-top: 4px solid var(--black); padding-top: 14px; max-width: 640px; }
+    .extra summary { cursor: pointer; font-size: 19px; font-weight: 500; }
+    .extra summary:hover { text-decoration: underline; text-underline-offset: 4px; }
+    .extra p { color: var(--ink); max-width: 46ch; margin: 12px 0 0; }
+    .extra .message { margin: 0 0 16px; }
+    .field { display: block; font-weight: 500; font-size: 15px; margin: 16px 0 6px; }
+    .extra input, .extra textarea { width: 100%; border: 1px solid var(--black); border-radius: 4px; padding: 11px 12px; font: inherit; background: var(--white); }
+    .extra button { margin-top: 18px; }
+    @media (prefers-reduced-motion: reduce) { .js .stepping .step.current { animation: none; } }
   </style>
 </head>
 <body>
-  <header class="sign">
+  {#- A server error shows every field at once, with the message, so nothing is hidden. #}
+  {%- set stepping = not message %}
+  <header class="sign{% if stepping %} stepping-sign{% endif %}">
     <div class="inner">
       <div class="logo">{% include "partials/logo.svg" %}</div>
-      <label class="big" for="interests">What kind of event?</label>
-      <input id="interests" name="interests" form="make" type="text" required placeholder="Late jazz, free museum nights, weird comedy">
-      <div class="starts">
-        {% for label, text in templates.items() %}
-        <button type="button" data-text="{{ text }}">{{ label }}</button>
-        {% endfor %}
-      </div>
+      <form id="make" class="flow{% if stepping %} stepping{% endif %}" method="post" action="/subscribers">
+        {% if message %}<p class="message" role="status">{{ message }}</p>{% endif %}
+        <div class="progress" aria-hidden="true">
+          <ol>{% for _ in range(5) %}<li></li>{% endfor %}</ol>
+          <span class="count">Step 1 of 5</span>
+        </div>
+        <p id="announce" class="sr-only" aria-live="polite"></p>
+
+        <div class="step current" data-name="interests">
+          <p class="intro">whatisupnyc sends you a short list of NYC events picked for what you like, on the days you choose. Every event is checked first, so each one has a real date, venue and link.</p>
+          <label class="ask" for="interests">What kind of events do you like?</label>
+          <textarea id="interests" class="plate" name="interests" rows="3" required aria-describedby="interests-oops" placeholder="Late jazz, free museum nights, weird comedy">{{ form.interests }}</textarea>
+          <div class="chips" role="group" aria-label="Quick picks">
+            {% for label, text in templates.items() %}
+            <button type="button" data-text="{{ text }}" aria-pressed="false">{{ label }}</button>
+            {% endfor %}
+          </div>
+          <p class="oops" id="interests-oops" role="alert"></p>
+          <div class="nav">
+            <button type="button" class="next">Continue</button>
+            <span class="enter">or press Enter</span>
+          </div>
+        </div>
+
+        <fieldset class="step" data-name="days" aria-describedby="days-oops">
+          <legend class="ask">Which days do you want your list?</legend>
+          <div class="days">
+            {% for day in days %}
+            <label><input type="checkbox" name="days" value="{{ day }}" aria-label="{{ day }}"{% if day in form.days %} checked{% endif %}><span aria-hidden="true">{{ day[:3] }}</span></label>
+            {% endfor %}
+          </div>
+          <p class="oops" id="days-oops" role="alert"></p>
+          <div class="nav">
+            <button type="button" class="next">Continue</button>
+            <button type="button" class="back">Back</button>
+          </div>
+        </fieldset>
+
+        <div class="step" data-name="name">
+          <label class="ask" for="name">What should we call you?</label>
+          <input id="name" class="plate" name="name" type="text" required autocomplete="off" aria-describedby="name-oops" value="{{ form.name }}">
+          <p class="oops" id="name-oops" role="alert"></p>
+          <div class="nav">
+            <button type="button" class="next">Continue</button>
+            <button type="button" class="back">Back</button>
+            <span class="enter">or press Enter</span>
+          </div>
+        </div>
+
+        <div class="step" data-name="email">
+          <label class="ask" for="email">What's your email?</label>
+          <input id="email" class="plate" name="email" type="email" required autocomplete="off" inputmode="email" aria-describedby="email-oops" value="{{ form.email }}">
+          <p class="oops" id="email-oops" role="alert"></p>
+          <div class="nav">
+            <button type="button" class="next">Continue</button>
+            <button type="button" class="back">Back</button>
+            <span class="enter">or press Enter</span>
+          </div>
+        </div>
+
+        <div class="step" data-name="style">
+          <label class="ask" for="look_prompt">How should your list read?</label>
+          <p class="note" id="look-note">Optional. Say it in your own words, or skip it.</p>
+          <input id="look_prompt" class="plate" name="look_prompt" type="text" aria-describedby="look-note" placeholder="Keep it short and casual" value="{{ form.look_prompt }}">
+          <div class="nav">
+            <button type="submit" class="make">Make my list</button>
+            <button type="button" class="skip">Skip and make my list</button>
+            <button type="button" class="back">Back</button>
+          </div>
+        </div>
+      </form>
     </div>
   </header>
   <main>
     <div class="inner">
-      {% if message %}<p class="message" role="status">{{ message }}</p>{% endif %}
-      <div class="grid">
-        <section>
-          <h2>Your list, on your days</h2>
-          <p>Checked NYC events picked for what you like, each with a date, a venue, and a link.</p>
-          <form id="make" method="post" action="/subscribers">
-            <fieldset>
-              <legend>Which days?</legend>
-              <div class="days">
-                {% for day in days %}
-                <label><input type="checkbox" name="days" value="{{ day }}" aria-label="{{ day }}"><span aria-hidden="true">{{ day[:3] }}</span></label>
-                {% endfor %}
-              </div>
-            </fieldset>
-            <label class="field" for="look_prompt">How should it read? (optional)</label>
-            <input id="look_prompt" name="look_prompt" type="text" placeholder="Keep it short and casual">
-            <label class="field" for="name">Name</label>
-            <input id="name" name="name" type="text" required autocomplete="off">
-            <label class="field" for="email">Email</label>
-            <input id="email" name="email" type="email" required autocomplete="off">
-            <button type="submit">Make my list</button>
-          </form>
-        </section>
-        <section class="ruled">
-          <h2>Saw something good on social media?</h2>
-          <p>Paste the post, and we'll look for the event on a page we can check.</p>
-          <form method="post" action="/paste">
-            <label class="field" for="link">Link to the post</label>
-            <input id="link" name="link" type="url" required>
-            <label class="field" for="caption">Caption, or the event's name, date, and venue</label>
-            <textarea id="caption" name="caption" rows="3" required></textarea>
-            <button class="dark" type="submit">Add this event</button>
-          </form>
-        </section>
-      </div>
+      <details id="add" class="extra"{% if paste_message %} open{% endif %}>
+        <summary>Saw an event on social media? Add it</summary>
+        <p>Paste the post, and we'll look for the event on a page we can check.</p>
+        <form method="post" action="/paste#add">
+          {% if paste_message %}<p class="message" role="status">{{ paste_message }}</p>{% endif %}
+          <label class="field" for="link">Link to the post</label>
+          <input id="link" name="link" type="url" required>
+          <label class="field" for="caption">Caption, or the event's name, date, and venue</label>
+          <textarea id="caption" name="caption" rows="3" required></textarea>
+          <button class="dark" type="submit">Add this event</button>
+        </form>
+      </details>
     </div>
   </main>
   <script>
-    document.querySelectorAll(".starts button").forEach(function (button) {
-      button.addEventListener("click", function () {
-        var box = document.getElementById("interests");
-        box.value = button.dataset.text;
-        box.focus();
+    (function () {
+      var form = document.getElementById("make");
+      var box = document.getElementById("interests");
+      var steps = Array.prototype.slice.call(form.querySelectorAll(".step"));
+      var blocks = form.querySelectorAll(".progress li");
+      var count = form.querySelector(".progress .count");
+      var announce = document.getElementById("announce");
+      var stepping = form.classList.contains("stepping");
+      var at = 0;
+      form.noValidate = true; // this script shows its own messages; without JavaScript the browser checks the fields
+      // Only step numbers and names go to analytics, never what the reader typed.
+      var track = function () {};
+      {% if posthog_key %}
+      track = function (name, props, options) { if (window.posthog) window.posthog.capture(name, props, options); };
+      {% endif %}
+
+      var checks = {
+        interests: function () { return box.value.trim() ? "" : "Tell us a little about what you like, even a few words."; },
+        days: function () { return form.querySelector("input[name=days]:checked") ? "" : "Pick at least one day."; },
+        name: function () { return form.elements.name.value.trim() ? "" : "Add a name, so we know what to call you."; },
+        email: function () {
+          var email = form.elements.email;
+          if (!email.value.trim()) return "Add your email.";
+          return email.checkValidity() ? "" : "That email doesn't look complete yet.";
+        },
+        style: function () { return ""; },
+      };
+
+      function fieldOf(step) { return step.querySelector("textarea, input"); }
+
+      function problem(step) {
+        var text = checks[step.dataset.name]();
+        var oops = step.querySelector(".oops");
+        if (oops) oops.textContent = text;
+        var field = fieldOf(step);
+        if (step.dataset.name !== "days") field.setAttribute("aria-invalid", text ? "true" : "false");
+        return text;
+      }
+
+      function show(index) {
+        at = index;
+        steps.forEach(function (step, i) { step.classList.toggle("current", i === index); });
+        Array.prototype.forEach.call(blocks, function (block, i) {
+          block.className = i < index ? "done" : i === index ? "now" : "";
+        });
+        var label = "Step " + (index + 1) + " of " + steps.length;
+        count.textContent = label;
+        announce.textContent = label;
+        fieldOf(steps[index]).focus();
+        track("start_step_viewed", { step: index + 1, step_name: steps[index].dataset.name });
+      }
+
+      function next() {
+        if (problem(steps[at])) { fieldOf(steps[at]).focus(); return; }
+        if (at < steps.length - 1) show(at + 1);
+        else form.requestSubmit();
+      }
+
+      document.querySelectorAll(".chips button").forEach(function (chip) {
+        chip.addEventListener("click", function () {
+          box.value = chip.dataset.text;
+          document.querySelectorAll(".chips button").forEach(function (other) {
+            other.setAttribute("aria-pressed", other === chip ? "true" : "false");
+          });
+          problem(steps[0]);
+          box.focus();
+        });
       });
-    });
+      box.addEventListener("input", function () {
+        document.querySelectorAll(".chips button").forEach(function (chip) {
+          chip.setAttribute("aria-pressed", chip.dataset.text === box.value ? "true" : "false");
+        });
+      });
+
+      // Clear a step's message as soon as the reader fixes it.
+      form.addEventListener("input", function (event) {
+        var step = event.target.closest(".step");
+        if (step && step.querySelector(".oops") && step.querySelector(".oops").textContent) problem(step);
+      });
+
+      form.addEventListener("submit", function (event) {
+        for (var i = 0; i < steps.length; i++) {
+          if (problem(steps[i])) {
+            event.preventDefault();
+            if (stepping) show(i); else fieldOf(steps[i]).focus();
+            return;
+          }
+        }
+        track("start_form_submitted", {}, { transport: "sendBeacon" });
+      });
+
+      if (!stepping) return;
+
+      form.querySelectorAll(".next").forEach(function (button) { button.addEventListener("click", next); });
+      form.querySelectorAll(".back").forEach(function (button) {
+        button.addEventListener("click", function () { if (at > 0) show(at - 1); });
+      });
+      form.querySelector(".skip").addEventListener("click", function () {
+        form.elements.look_prompt.value = "";
+        form.requestSubmit();
+      });
+
+      // Enter moves on; Shift+Enter still adds a new line in the big box. Buttons keep their own Enter.
+      form.addEventListener("keydown", function (event) {
+        if (event.key !== "Enter" || event.isComposing || event.target.tagName === "BUTTON") return;
+        if (event.shiftKey && event.target === box) return;
+        event.preventDefault();
+        next();
+      });
+
+      track("start_step_viewed", { step: 1, step_name: "interests" });
+      blocks[0].className = "now";
+    })();
   </script>
 </body>
 </html>

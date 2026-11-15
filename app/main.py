@@ -82,8 +82,15 @@ def create_app(deps: AppDeps | None = None) -> FastAPI:
         d = get_deps()
         return _page(template, posthog_key=d.posthog_key, posthog_host=d.posthog_host, **context)
 
-    def start_page(message: str = "", status_code: int = 200) -> HTMLResponse:
-        html = page("index.html", days=DAYS, templates=TEMPLATES, message=message)
+    def start_page(
+        message: str = "", status_code: int = 200, paste_message: str = "", form: dict | None = None
+    ) -> HTMLResponse:
+        # message belongs to the sign-up form; paste_message shows beside the "add an event" form.
+        # form holds what the reader already typed, so a rejected form doesn't make them start over.
+        form = {"interests": "", "name": "", "email": "", "look_prompt": "", "days": [], **(form or {})}
+        html = page(
+            "index.html", days=DAYS, templates=TEMPLATES, message=message, paste_message=paste_message, form=form
+        )
         return HTMLResponse(html, status_code=status_code)
 
     def subscriber_for(token: str):
@@ -106,7 +113,9 @@ def create_app(deps: AppDeps | None = None) -> FastAPI:
     ):
         chosen = [day for day in days if day in DAYS]
         if not name.strip() or not email.strip() or not interests.strip() or not chosen:
-            return start_page("Please fill in a name, an email, what kind of event, and at least one day.", 400)
+            typed = {"interests": interests, "name": name, "email": email, "look_prompt": look_prompt, "days": chosen}
+            missing = "Please fill in a name, an email, what kind of event, and at least one day."
+            return start_page(missing, 400, form=typed)
         conn = get_deps().conn
         new_id = db.save_subscriber(conn, name.strip(), email.strip(), interests.strip(), look_prompt.strip(), chosen)
         return RedirectResponse(f"/newsletter/{db.subscriber_token(conn, new_id)}", status_code=303)
@@ -142,7 +151,7 @@ def create_app(deps: AppDeps | None = None) -> FastAPI:
         result = process_paste(link.strip(), caption, d.tavily, d.http, d.sites, d.ai, d.clock())
         if result.event:
             db.save_paste(d.conn, link.strip(), caption, result.event)
-        return start_page(result.message)
+        return start_page(paste_message=result.message)
 
     return app
 
