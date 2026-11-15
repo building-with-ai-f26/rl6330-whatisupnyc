@@ -3,23 +3,8 @@
 > **One-line pitch:** For people new to New York: a short, personal list of NYC events worth going to, on the days they choose, instead of checking a dozen sites.
 
 - **Builder:** Ryandri Lowell (`@rl6330`)
-- **Pod:** [Pod Name / 13]
 - **Product Page & Living PRD:** https://building-with-ai-f26.github.io/rl6330-whatisupnyc/
-- **App:** runs locally through Week 4; add a cloud URL in Build 5.
-
-## Start here: Build 1
-
-**Due Monday, November 9 at noon, New York time.** No class November 3; keep building that week.
-
-1. Join the [class organization](https://github.com/building-with-ai-f26), then use this template to create a **public** repo named `<netid>-<project-slug>`. Ask Christian or Hew if the organization is missing from the owner list.
-2. Set up Git and one coding agent during the week of October 27. Follow the [Icerynk setup guide](https://www.icerynk.com/c/fa26-tech-gb-2160-dm2-f2/content/pre-class-setup-github-openrouter-your-coding-agent).
-3. Publish [`docs/index.html`](./docs/index.html): **Settings → Pages → Deploy from a branch → main → /docs → Save**. When deployment finishes, open `https://building-with-ai-f26.github.io/<your-repo-name>/`.
-4. Fill in PRD v1: a reachable user, their painful before/after workflow, one core workflow, and three non-goals.
-5. Build a rough local prototype. Add a screenshot or GIF and an honest Build 1 log to the Product Page, including progress, learning, problems, costs, and hours.
-6. Push meaningful commits on **at least two separate days each week outside class**, including the November 3 break.
-7. Submit your **Product Page URL and repository URL in Icerynk**. Come ready to demo the prototype in two minutes on November 10.
-
-Create your PostHog account in Week 1. Install it on the Product Page and local app in **Build 2**, then verify events. The Product Page is public from Build 1; the app can stay local through Week 4.
+- **App:** live at https://whatisupnyc.com behind a pod password while it's tested; see the Product Page for screenshots.
 
 ## Repository map
 
