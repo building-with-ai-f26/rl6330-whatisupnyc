@@ -311,5 +311,13 @@
     "terms_url": null,
     "checked_on": "2026-11-15",
     "note": "National Park Service, a federal agency. Events come from its public data API (developer.nps.gov), which is made for apps and needs a free key (NPS_API_KEY). Only parks in New York City are kept; Sandy Hook in New Jersey is left out. Robots rules allow nps.gov event pages (checked 2026-11-15). The API's own terms page was not read. Builder chose this source on 2026-11-15."
+  },
+  {
+    "domain": "api.nyc.gov",
+    "automated_access": "allowed",
+    "reliable": true,
+    "terms_url": null,
+    "checked_on": "2026-11-15",
+    "note": "The city's NYC Events Calendar API on the NYC API Portal, made for apps and read with a free subscription key (NYC_EVENTS_CALENDAR_API_KEY). Event links point to www1.nyc.gov, covered by the nyc.gov entry. Only the Cultural, Featured, Free, General Events, Holidays, Tours and Environment categories are read; Parks & Recreation copies the NYC Parks feed, and Street and Neighborhood is mostly greenmarkets and traffic notices. The portal's own terms page was not read. Builder chose this source on 2026-11-15."
   }
 ]

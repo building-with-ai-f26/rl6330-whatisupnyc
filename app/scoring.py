@@ -15,6 +15,7 @@ OFFICIAL_FEED_POINTS = {
     "nyc_parks": 20,
     "nyu_engage": 10,
     "nps": 20,
+    "nyc_calendar": 20,
     # WordPress event feeds (app/sources/wp_events.py), one source per site.
     "wp:movingimage.org": 20,
     "wp:scandinaviahouse.org": 20,

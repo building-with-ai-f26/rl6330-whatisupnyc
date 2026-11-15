@@ -55,6 +55,14 @@ report(
     ),
 )
 report(
+    "nyc_events_calendar",
+    lambda key: httpx.get(
+        "https://api.nyc.gov/calendar/categories",
+        headers={"Ocp-Apim-Subscription-Key": key},
+        timeout=30,
+    ),
+)
+report(
     "minimax",
     lambda key: httpx.get(
         "https://api.minimax.io/v1/models",
