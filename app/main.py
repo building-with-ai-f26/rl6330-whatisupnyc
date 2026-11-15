@@ -6,13 +6,13 @@ from datetime import datetime, timezone
 import httpx
 from dotenv import load_dotenv
 from fastapi import FastAPI, Form, HTTPException, Request
-from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 
 from app import auth, db
 from app.ai import AIClient, AIUnavailable, backup_from_env
 from app.newsletter import _templates, choose_picks, render_newsletter
 from app.sites import Sites, load as load_sites
-from app.sources.pasted import process_paste
+from app.sources.pasted import paste_problem
 from app.sources.web import TavilyClient
 
 DAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
@@ -146,12 +146,16 @@ def create_app(deps: AppDeps | None = None) -> FastAPI:
         return RedirectResponse("/", status_code=303)
 
     @app.post("/paste", response_class=HTMLResponse)
-    def paste(link: str = Form(""), caption: str = Form("")):
-        d = get_deps()
-        result = process_paste(link.strip(), caption, d.tavily, d.http, d.sites, d.ai, d.clock())
-        if result.event:
-            db.save_paste(d.conn, link.strip(), caption, result.event)
-        return start_page(paste_message=result.message)
+    def paste(request: Request, link: str = Form(""), caption: str = Form("")):
+        # Only saved here, so the reader never waits. The next collection run checks it.
+        problem = paste_problem(link.strip(), caption)
+        if not problem:
+            db.save_waiting_paste(get_deps().conn, link.strip(), caption)
+        message = problem or "Thanks! We'll check it and add the event if we can confirm it on a page we can check."
+        if "application/json" in request.headers.get("accept", ""):
+            # The start page's script sends posts this way, so the reader keeps their place in the steps.
+            return JSONResponse({"added": not problem, "message": message}, status_code=400 if problem else 200)
+        return start_page(paste_message=message)
 
     return app
 

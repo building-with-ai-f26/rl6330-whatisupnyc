@@ -197,3 +197,28 @@ def test_rejected_form_keeps_what_the_reader_typed(conn, sites):
     assert 'value="Friday" aria-label="Friday" checked' in html
     assert 'value="Sunday" aria-label="Sunday" checked' in html
     assert 'value="Monday" aria-label="Monday" checked' not in html
+
+
+def test_paste_is_saved_for_later_without_waiting_on_the_ai(conn, sites):
+    ai = FakeAI()
+    client = client_for(conn, sites, ai=ai)
+    for n in (1, 2):
+        reply = client.post("/paste", data={"link": f"https://www.tiktok.com/@a/{n}", "caption": "Jazz, Nov 7"},
+                            headers={"Accept": "application/json"})
+        assert reply.status_code == 200 and reply.json()["added"] is True
+    assert [link for _, link, _ in db.list_waiting_pastes(conn)] == ["https://www.tiktok.com/@a/1", "https://www.tiktok.com/@a/2"]
+    assert ai.calls == 0
+
+
+def test_paste_with_bad_link_is_refused_and_not_saved(conn, sites):
+    reply = client_for(conn, sites).post("/paste", data={"link": "not a link", "caption": "x"},
+                                         headers={"Accept": "application/json"})
+    assert reply.status_code == 400
+    assert reply.json() == {"added": False, "message": "That link doesn't look right. Please paste the full link to the post."}
+    assert db.list_waiting_pastes(conn) == []
+
+
+def test_start_page_has_a_loading_screen_for_making_the_list(conn, sites):
+    html = client_for(conn, sites).get("/").text
+    assert '<div class="making" id="making" role="status" aria-live="polite" hidden>' in html
+    assert "Making your list" in html

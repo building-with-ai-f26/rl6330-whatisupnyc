@@ -61,6 +61,11 @@ CREATE TABLE IF NOT EXISTS pastes (
 CREATE TABLE IF NOT EXISTS ai_requests (
     day TEXT NOT NULL
 );
+CREATE TABLE IF NOT EXISTS waiting_pastes (
+    id INTEGER PRIMARY KEY,
+    link TEXT NOT NULL,
+    caption TEXT NOT NULL
+);
 """
 
 
@@ -128,6 +133,22 @@ def save_paste(conn: sqlite3.Connection, link: str, caption: str, event: Candida
         (link, caption, event.name, event.start.isoformat(), event.venue, event.city, event.url,
          event.source, event.organizer),
     )
+    conn.commit()
+
+
+def save_waiting_paste(conn: sqlite3.Connection, link: str, caption: str) -> None:
+    # A pasted post waits here until the next collection run checks it.
+    conn.execute("INSERT INTO waiting_pastes (link, caption) VALUES (?, ?)", (link, caption))
+    conn.commit()
+
+
+def list_waiting_pastes(conn: sqlite3.Connection) -> list[tuple[int, str, str]]:
+    rows = conn.execute("SELECT id, link, caption FROM waiting_pastes ORDER BY id").fetchall()
+    return [(row["id"], row["link"], row["caption"]) for row in rows]
+
+
+def delete_waiting_paste(conn: sqlite3.Connection, paste_id: int) -> None:
+    conn.execute("DELETE FROM waiting_pastes WHERE id = ?", (paste_id,))
     conn.commit()
 
 

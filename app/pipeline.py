@@ -18,6 +18,7 @@ from app.sources.nps import fetch_nps_events
 from app.sources.nyc_calendar import fetch_calendar_events
 from app.sources.nyc_parks import fetch_parks_events
 from app.sources.nyu_engage import fetch_engage_events
+from app.sources.pasted import process_paste
 from app.sources.ticketmaster import fetch_events
 from app.sources.web import TavilyClient, collect_web_events
 from app.sources.wp_events import fetch_wp_events
@@ -61,6 +62,7 @@ class Group:
 
 
 def run_pipeline(conn, deps: PipelineDeps, now: datetime) -> PipelineSummary:
+    _check_waiting_pastes(conn, deps, now)
     candidates = _collect(deps, now)
     pastes = db.list_pastes(conn)
     groups = _group(candidates, pastes)
@@ -94,6 +96,21 @@ def run_pipeline(conn, deps: PipelineDeps, now: datetime) -> PipelineSummary:
         db.save_event(conn, event, outcome)
         eligible += outcome.eligible
     return PipelineSummary(len(candidates) + len(pastes), passed, dropped, eligible)
+
+
+def _check_waiting_pastes(conn, deps: PipelineDeps, now: datetime) -> None:
+    """Find each post readers pasted since the last run on a page we can check."""
+    for paste_id, link, caption in db.list_waiting_pastes(conn):
+        try:
+            result = process_paste(link, caption, deps.tavily, deps.http, deps.sites, deps.ai, now)
+        except Exception:
+            log.exception("Could not check a pasted post")
+            continue
+        if result.try_again:
+            continue
+        if result.event:
+            db.save_paste(conn, link, caption, result.event)
+        db.delete_waiting_paste(conn, paste_id)
 
 
 def _collect(deps: PipelineDeps, now: datetime) -> list[CandidateEvent]:

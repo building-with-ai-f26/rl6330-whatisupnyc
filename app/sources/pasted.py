@@ -24,6 +24,18 @@ Only use details the caption states. Never guess. Use null for anything it does 
 class PasteResult:
     event: CandidateEvent | None
     message: str
+    # True when the AI was busy, so the post should be tried again on the next run.
+    try_again: bool = False
+
+
+def paste_problem(link: str, caption: str) -> str:
+    """What's wrong with a pasted post before any checking, or "" if nothing."""
+    # The link is only recorded. It is never fetched, because social apps don't allow it.
+    if urlparse(link).scheme not in ("http", "https") or not urlparse(link).netloc:
+        return "That link doesn't look right. Please paste the full link to the post."
+    if not caption.strip():
+        return "Please paste the post's caption or describe the event, so we can read the details."
+    return ""
 
 
 def process_paste(
@@ -35,15 +47,13 @@ def process_paste(
     ai: AIClient,
     now: datetime,
 ) -> PasteResult:
-    # The link is only recorded. It is never fetched, because social apps don't allow it.
-    if urlparse(link).scheme not in ("http", "https") or not urlparse(link).netloc:
-        return PasteResult(None, "That link doesn't look right. Please paste the full link to the post.")
-    if not caption.strip():
-        return PasteResult(None, "Please paste the post's caption or describe the event, so we can read the details.")
+    problem = paste_problem(link, caption)
+    if problem:
+        return PasteResult(None, problem)
     try:
         details = ai.complete_json(PASTE_SYSTEM.format(today=now.astimezone(NY).date().isoformat()), caption)
     except AIUnavailable:
-        return PasteResult(None, "The AI model is busy right now. Please try again in a little while.")
+        return PasteResult(None, "The AI model is busy right now. Please try again in a little while.", try_again=True)
     start = parse_ai_datetime(details.get("date"), details.get("time"))
     if start is None:
         return PasteResult(None, "We couldn't find the date in that caption. Please add the date and paste it again.")
