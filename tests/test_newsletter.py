@@ -1,3 +1,5 @@
+import json
+from collections import Counter
 from datetime import datetime
 
 import pytest
@@ -252,8 +254,10 @@ def test_instructions_forbid_unsupported_claims_and_repeating_the_date():
 def test_ai_sees_at_most_150_events_best_then_soonest():
     from datetime import timedelta
 
-    many = [scored(i, score=20, start=datetime(2026, 11, 7, 20, tzinfo=NY) + timedelta(hours=i)) for i in range(1, 200)]
-    many.append(scored(500, score=40, start=datetime(2026, 11, 20, 20, tzinfo=NY)))
+    # Spread over four sources, so the per-source limit of 50 doesn't cut any of them.
+    start = datetime(2026, 11, 7, 20, tzinfo=NY)
+    many = [scored(i, score=20, start=start + timedelta(hours=i), source=f"s{i % 4}") for i in range(1, 200)]
+    many.append(scored(500, score=40, start=datetime(2026, 11, 20, 20, tzinfo=NY), source="s0"))
     ai = FakeAI({"picks": []})
     choose(SUB, list(reversed(many)), ai)
     prompt = ai.prompts[0]
@@ -266,3 +270,22 @@ def test_parks_pick_gets_a_source_credit():
     parks = scored(1, source="nyc_parks", organizer="NYC Parks")
     assert "NYC Open Data" in render([Pick(parks, "Fun")])
     assert "NYC Open Data" not in render([Pick(scored(2), "Fun")])
+
+
+def test_one_source_cannot_fill_the_whole_list():
+    # 200 higher-scored events from one source must still leave room for another source's events.
+    big = [scored(i, score=20, source="big") for i in range(1, 201)]
+    small = [scored(i, score=10, source="small") for i in range(201, 211)]
+    ai = FakeAI({"picks": []})
+    choose(SUB, big + small, ai)
+    listing = json.loads(ai.prompts[0].split("Events: ", 1)[1])
+    sources = Counter("big" if item["id"] <= 200 else "small" for item in listing)
+    assert sources == {"big": 50, "small": 10}
+
+
+def test_cap_keeps_each_sources_best_events():
+    events = [scored(i, score=i, source="big") for i in range(1, 61)]
+    ai = FakeAI({"picks": []})
+    choose(SUB, events, ai)
+    listing = json.loads(ai.prompts[0].split("Events: ", 1)[1])
+    assert min(item["id"] for item in listing) == 11
