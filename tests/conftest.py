@@ -2,6 +2,7 @@ import json
 import os
 from datetime import datetime
 from pathlib import Path
+from urllib.parse import urlparse
 from zoneinfo import ZoneInfo
 
 import psycopg
@@ -30,9 +31,19 @@ def make_event(**overrides) -> CandidateEvent:
     return CandidateEvent(**fields)
 
 
+def require_local(url: str) -> None:
+    # The setup below wipes the whole database, so it must never reach Supabase.
+    if urlparse(url).hostname not in ("localhost", "127.0.0.1", None):
+        raise ValueError(f"TEST_DATABASE_URL must be a local Postgres, not {urlparse(url).hostname}")
+
+
 @pytest.fixture(scope="session")
 def fresh_schema():
     # Rebuild the tables from the migration files once per test run.
+    try:
+        require_local(TEST_URL)
+    except ValueError as refusal:
+        pytest.exit(str(refusal), returncode=2)
     try:
         admin = psycopg.connect(TEST_URL, autocommit=True)
     except psycopg.OperationalError:
