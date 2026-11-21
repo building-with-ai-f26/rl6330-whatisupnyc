@@ -1,13 +1,19 @@
 import json
+import os
 from datetime import datetime
+from pathlib import Path
 from zoneinfo import ZoneInfo
 
+import psycopg
 import pytest
 
 from app import db, sites as sites_module
 from app.models import CandidateEvent
 
 NY = ZoneInfo("America/New_York")
+# A local Postgres, never a Supabase project. See AGENTS.md for the one-time setup.
+TEST_URL = os.environ.get("TEST_DATABASE_URL", "postgresql://localhost/whatisupnyc_test")
+MIGRATIONS = Path(__file__).parent.parent / "supabase" / "migrations"
 
 
 def make_event(**overrides) -> CandidateEvent:
@@ -24,11 +30,27 @@ def make_event(**overrides) -> CandidateEvent:
     return CandidateEvent(**fields)
 
 
+@pytest.fixture(scope="session")
+def fresh_schema():
+    # Rebuild the tables from the migration files once per test run.
+    try:
+        admin = psycopg.connect(TEST_URL, autocommit=True)
+    except psycopg.OperationalError:
+        pytest.fail("Local Postgres isn't running. Start it with: brew services start postgresql@17 (see AGENTS.md)")
+    with admin:
+        admin.execute("drop schema public cascade")
+        admin.execute("create schema public")
+        for migration in sorted(MIGRATIONS.glob("*.sql")):
+            admin.execute(migration.read_text())
+
+
 @pytest.fixture
-def conn():
-    connection = db.connect(":memory:")
-    yield connection
-    connection.close()
+def conn(fresh_schema):
+    pool = db.connect(TEST_URL)
+    yield pool
+    with pool.connection() as c:
+        c.execute(f"truncate {', '.join(db.TABLES)} restart identity")
+    pool.close()
 
 
 @pytest.fixture

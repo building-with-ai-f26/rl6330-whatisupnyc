@@ -8,6 +8,7 @@ dependencies = [
     "fastapi",
     "httpx",
     "jinja2",
+    "psycopg[binary,pool]>=3.3.9",
     "python-dotenv",
     "python-multipart",
     "tzdata",
