@@ -4,7 +4,7 @@ import httpx
 import pytest
 from fastapi.testclient import TestClient
 
-from app import db
+from app import db, main
 from app.ai import AIUnavailable
 from app.main import AppDeps, create_app
 from app.models import Score
@@ -237,3 +237,10 @@ def test_paste_refused_when_too_many_are_waiting(conn, sites, monkeypatch):
     assert client.post("/paste", data=data, headers={"Accept": "application/json"}).status_code == 200
     assert client.post("/paste", data=data, headers={"Accept": "application/json"}).status_code == 400
     assert len(db.list_waiting_pastes(conn)) == 1
+
+
+def test_default_deps_need_database_url(monkeypatch):
+    monkeypatch.delenv("DATABASE_URL", raising=False)
+    monkeypatch.setattr("app.main.load_dotenv", lambda: None)
+    with pytest.raises(RuntimeError, match="DATABASE_URL"):
+        main._default_deps()

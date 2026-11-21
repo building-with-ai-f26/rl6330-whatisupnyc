@@ -1,3 +1,4 @@
+import os
 import secrets
 from datetime import date, datetime
 from zoneinfo import ZoneInfo
@@ -15,6 +16,13 @@ TABLES = ("events", "dropped_events", "subscribers", "sent_events", "pastes", "a
 
 # Each function borrows one connection from the pool for its query.
 Database = ConnectionPool
+
+
+def url_from_env() -> str:
+    url = os.environ.get("DATABASE_URL", "")
+    if not url:
+        raise RuntimeError("DATABASE_URL is not set: copy the Supabase session pooler connection string into .env")
+    return url
 
 
 def connect(url: str) -> Database:

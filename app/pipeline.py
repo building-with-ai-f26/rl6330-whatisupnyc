@@ -244,7 +244,7 @@ def _default_deps(conn) -> PipelineDeps:
 def main() -> None:
     logging.basicConfig(level=logging.WARNING)
     load_dotenv()
-    conn = db.connect(os.environ.get("DATABASE_PATH", "whatisupnyc.db"))
+    conn = db.connect(db.url_from_env())
     summary = run_pipeline(conn, _default_deps(conn), datetime.now(timezone.utc))
     print(
         f"Collected {summary.collected}, passed {summary.passed}, "

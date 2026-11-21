@@ -17,7 +17,7 @@ with open("tests/sentiment_examples.json") as f:
 if not examples:
     sys.exit("No labels yet. Fill in each example's label: positive, mixed, negative, or unknown.")
 
-conn = db.connect("whatisupnyc.db")
+conn = db.connect(db.url_from_env())
 ai = AIClient(httpx.Client(), os.environ["OPENROUTER_API_KEY"], os.environ["OPENROUTER_MODEL"], conn)
 correct = 0
 for example in examples:
