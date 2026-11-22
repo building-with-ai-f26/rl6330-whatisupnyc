@@ -1,0 +1,37 @@
+# Supabase sign-in settings, applied with: SITE_URL=... supabase config push --remote=<project ref>
+# Only the settings listed here are changed; everything else in the project is left alone.
+# SITE_URL is http://127.0.0.1:8000 for dev and https://whatisupnyc.com for production.
+project_id = "whatisupnyc"
+
+[auth]
+site_url = "env(SITE_URL)"
+minimum_password_length = 8
+
+[auth.email]
+# Without confirmation, anyone could sign up with someone else's email.
+enable_confirmations = true
+
+[auth.rate_limit]
+# Emails Supabase sends per hour, for the whole project. Our own rate limits per visitor come first.
+email_sent = 30
+
+# Our own sender (Resend). Supabase's built-in one mails only the project team, 2 an hour,
+# and the free plan allows custom email templates only with a custom sender.
+[auth.email.smtp]
+enabled = true
+host = "smtp.resend.com"
+port = 465
+user = "resend"
+pass = "env(RESEND_API_KEY)"
+admin_email = "accounts@whatisupnyc.com"
+sender_name = "whatisupnyc"
+
+# The links go to our server (/confirm, /reset), which trades the token for a login.
+# Supabase's default links log in inside the browser, where the server can't see it.
+[auth.email.template.confirmation]
+subject = "Confirm your whatisupnyc account"
+content_path = "./supabase/templates/confirm.html"
+
+[auth.email.template.recovery]
+subject = "Reset your whatisupnyc password"
+content_path = "./supabase/templates/reset.html"
