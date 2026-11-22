@@ -61,3 +61,23 @@ def test_forwarded_header_trusted_only_from_caddy():
     assert client_ip(request_from("127.0.0.1", "1.2.3.4, 5.6.7.8")) == "5.6.7.8"
     assert client_ip(request_from("9.9.9.9", "1.2.3.4")) == "9.9.9.9"
     assert client_ip(request_from("127.0.0.1")) == "127.0.0.1"
+
+
+def test_ipv6_visitors_count_by_their_slash_64(monkeypatch):
+    # One home gets a whole /64 of IPv6 addresses, so counting per address would barely limit anyone.
+    assert client_ip(request_from("2001:db8:1:2::1")) == client_ip(request_from("2001:db8:1:2:ffff::9"))
+    assert client_ip(request_from("2001:db8:1:2::1")) != client_ip(request_from("2001:db8:1:3::1"))
+    assert client_ip(request_from("127.0.0.1", "2001:db8:1:2::5")) == client_ip(request_from("2001:db8:1:2::1"))
+
+
+def test_memory_stays_bounded_and_cleanup_is_not_run_on_every_request(monkeypatch):
+    monkeypatch.setattr("app.limits.MAX_TRACKED", 100)
+    clock = Clock()
+    limiter = RateLimiter({"paste": (1, 3600)}, clock)
+    sweeps = []
+    original = limiter._sweep
+    limiter._sweep = lambda now: (sweeps.append(now), original(now))
+    for n in range(1000):
+        limiter.allow("paste", f"visitor-{n}")
+    assert len(limiter.tries) <= 100
+    assert len(sweeps) <= 10
