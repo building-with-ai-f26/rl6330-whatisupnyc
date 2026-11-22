@@ -1,8 +1,12 @@
+import json
 import os
 import secrets
-from datetime import date, datetime
+from collections.abc import Iterator
+from contextlib import contextmanager
+from datetime import date, datetime, timedelta
 from zoneinfo import ZoneInfo
 
+from psycopg import Connection
 from psycopg.rows import dict_row
 from psycopg_pool import ConnectionPool
 
@@ -11,8 +15,13 @@ from app.models import CandidateEvent, Score, ScoredEvent, Subscriber
 
 NY = ZoneInfo("America/New_York")
 
-# The schema lives in supabase/migrations/. Every table in it, for tests and the move script.
-TABLES = ("events", "dropped_events", "subscribers", "sent_events", "pastes", "ai_requests", "waiting_pastes")
+# The schema lives in supabase/migrations/. Every table in it, so tests can empty them.
+TABLES = (
+    "events", "dropped_events", "old_subscribers", "old_sent_events", "profiles", "sent_events",
+    "pastes", "ai_requests", "waiting_pastes",
+)
+# How long a brand-new reader can see their list before confirming their email.
+FIRST_LOOK = timedelta(hours=24)
 
 # Each function borrows one connection from the pool for its query.
 Database = ConnectionPool
@@ -174,49 +183,63 @@ def dropped_reasons(conn: Database) -> dict[str, int]:
     return {row["reason"]: row["n"] for row in rows}
 
 
-def save_subscriber(
-    conn: Database, name: str, email: str, interests: str, look_prompt: str, days: list[str]
-) -> int:
-    with conn.connection() as c:
-        return c.execute(
-            "INSERT INTO subscribers (name, email, interests, look_prompt, days, token)"
-            " VALUES (%s, %s, %s, %s, %s, %s) RETURNING id",
-            (name, email, interests, look_prompt, days, _new_token()),
-        ).fetchone()["id"]
+@contextmanager
+def as_reader(conn: Database, user_id: str) -> Iterator[Connection]:
+    """A connection limited to one reader's rows by the database's own policies.
+
+    Inside one transaction it switches to Supabase's "authenticated" role and sets the reader's
+    user ID where auth.uid() reads it. Both reset when the transaction ends.
+    """
+    with conn.connection() as c, c.transaction():
+        c.execute("set local role authenticated")
+        claims = json.dumps({"sub": user_id, "role": "authenticated"})
+        c.execute("select set_config('request.jwt.claims', %s, true)", (claims,))
+        yield c
 
 
-def get_subscriber(conn: Database, subscriber_id: int) -> Subscriber | None:
+def create_profile(
+    conn: Database, user_id: str, name: str, interests: str, look_prompt: str, days: list[str], now: datetime
+) -> str | None:
+    """Saves a new reader's preferences. Returns their first-look token, or None if they already have a profile."""
+    token = _new_token()
     with conn.connection() as c:
-        row = c.execute("SELECT * FROM subscribers WHERE id = %s", (subscriber_id,)).fetchone()
+        row = c.execute(
+            "INSERT INTO profiles (user_id, name, interests, look_prompt, days, first_look_token, first_look_until)"
+            " VALUES (%s, %s, %s, %s, %s, %s, %s) ON CONFLICT (user_id) DO NOTHING RETURNING user_id",
+            (user_id, name, interests, look_prompt, days, token, now + FIRST_LOOK),
+        ).fetchone()
+    return token if row else None
+
+
+def get_profile(conn: Database, user_id: str) -> Subscriber | None:
+    with as_reader(conn, user_id) as c:
+        row = c.execute("SELECT * FROM profiles WHERE user_id = %s", (user_id,)).fetchone()
     return _row_to_subscriber(row) if row else None
 
 
-def subscriber_token(conn: Database, subscriber_id: int) -> str:
+def profile_for_first_look(conn: Database, token: str, now: datetime) -> Subscriber | None:
     with conn.connection() as c:
-        return c.execute("SELECT token FROM subscribers WHERE id = %s", (subscriber_id,)).fetchone()["token"]
-
-
-def find_subscriber_by_token(conn: Database, token: str) -> Subscriber | None:
-    with conn.connection() as c:
-        row = c.execute("SELECT * FROM subscribers WHERE token = %s", (token,)).fetchone()
+        row = c.execute(
+            "SELECT * FROM profiles WHERE first_look_token = %s AND first_look_until > %s", (token, now)
+        ).fetchone()
     return _row_to_subscriber(row) if row else None
 
 
 def _row_to_subscriber(row: dict) -> Subscriber:
-    return Subscriber(row["id"], row["name"], row["email"], row["interests"], row["look_prompt"], row["days"])
+    return Subscriber(str(row["user_id"]), row["name"], row["interests"], row["look_prompt"], row["days"])
 
 
-def mark_sent(conn: Database, subscriber_id: int, event_ids: list[int]) -> None:
-    with conn.connection() as c:
+def mark_sent(conn: Database, user_id: str, event_ids: list[int]) -> None:
+    with as_reader(conn, user_id) as c:
         c.cursor().executemany(
-            "INSERT INTO sent_events (subscriber_id, event_id) VALUES (%s, %s) ON CONFLICT DO NOTHING",
-            [(subscriber_id, event_id) for event_id in event_ids],
+            "INSERT INTO sent_events (user_id, event_id) VALUES (%s, %s) ON CONFLICT DO NOTHING",
+            [(user_id, event_id) for event_id in event_ids],
         )
 
 
-def sent_event_ids(conn: Database, subscriber_id: int) -> set[int]:
-    with conn.connection() as c:
-        rows = c.execute("SELECT event_id FROM sent_events WHERE subscriber_id = %s", (subscriber_id,)).fetchall()
+def sent_event_ids(conn: Database, user_id: str) -> set[int]:
+    with as_reader(conn, user_id) as c:
+        rows = c.execute("SELECT event_id FROM sent_events WHERE user_id = %s", (user_id,)).fetchall()
     return {row["event_id"] for row in rows}
 
 

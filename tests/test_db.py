@@ -30,23 +30,84 @@ def test_eligible_events_keep_time_zone_and_highest_score_first(conn):
     assert events[0].event.start == datetime(2026, 11, 7, 20, tzinfo=NY)
 
 
-def test_subscriber_round_trip(conn):
-    new_id = db.save_subscriber(conn, "Ana", "ana@x.test", "jazz", "short", ["Mon", "Fri"])
-    saved = db.get_subscriber(conn, new_id)
-    assert (saved.name, saved.days) == ("Ana", ["Mon", "Fri"])
+def make_user(conn) -> str:
+    """An account in the stand-in auth.users table, as Supabase Auth would create it."""
+    with conn.connection() as c:
+        return str(c.execute("insert into auth.users default values returning id").fetchone()["id"])
 
 
-def test_each_subscriber_gets_a_long_random_link(conn):
-    first = db.subscriber_token(conn, db.save_subscriber(conn, "Ana", "a@x.test", "jazz", "", ["Fri"]))
-    second = db.subscriber_token(conn, db.save_subscriber(conn, "Bo", "b@x.test", "jazz", "", ["Fri"]))
-    assert first != second and len(first) >= 32
-    assert db.find_subscriber_by_token(conn, first).name == "Ana"
-    assert db.find_subscriber_by_token(conn, "guess") is None
+def test_profile_round_trip(conn):
+    user = make_user(conn)
+    db.create_profile(conn, user, "Ana", "jazz", "short", ["Monday", "Friday"], NOW)
+    saved = db.get_profile(conn, user)
+    assert (saved.id, saved.name, saved.interests, saved.look_prompt, saved.days) == (
+        user, "Ana", "jazz", "short", ["Monday", "Friday"]
+    )
+
+
+def test_reader_sees_only_their_own_profile(conn):
+    a, b = make_user(conn), make_user(conn)
+    db.create_profile(conn, a, "Ana", "jazz", "", ["Friday"], NOW)
+    db.create_profile(conn, b, "Bo", "comedy", "", ["Monday"], NOW)
+    with db.as_reader(conn, a) as c:
+        assert [r["name"] for r in c.execute("select name from profiles")] == ["Ana"]
+        assert c.execute("select 1 from profiles where user_id = %s", (b,)).fetchone() is None
+    assert db.get_profile(conn, b).name == "Bo"
+
+
+def test_reader_cannot_read_or_add_another_readers_sent_events(conn):
+    a, b = make_user(conn), make_user(conn)
+    for user in (a, b):
+        db.create_profile(conn, user, "R", "jazz", "", ["Friday"], NOW)
+    db.mark_sent(conn, b, [7])
+    assert db.sent_event_ids(conn, a) == set()
+    with pytest.raises(psycopg.errors.InsufficientPrivilege):
+        with db.as_reader(conn, a) as c:
+            c.execute("insert into sent_events (user_id, event_id) values (%s, 8)", (b,))
+    assert db.sent_event_ids(conn, b) == {7}
+
+
+@pytest.mark.parametrize("statement", [
+    "insert into profiles (user_id, name, interests, look_prompt, days) values (%s, 'x', 'x', '', '{}')",
+    "update profiles set name = 'x' where user_id = %s",
+    "delete from profiles where user_id = %s",
+])
+def test_reader_cannot_add_change_or_delete_profiles(conn, statement):
+    a = make_user(conn)
+    db.create_profile(conn, a, "Ana", "jazz", "", ["Friday"], NOW)
+    with pytest.raises(psycopg.errors.InsufficientPrivilege):
+        with db.as_reader(conn, a) as c:
+            c.execute(statement, (a,))
+    assert db.get_profile(conn, a).name == "Ana"
+
+
+def test_create_profile_twice_returns_none_and_keeps_the_first(conn):
+    a = make_user(conn)
+    assert db.create_profile(conn, a, "Ana", "jazz", "", ["Friday"], NOW)
+    assert db.create_profile(conn, a, "Eve", "taking over", "", ["Monday"], NOW) is None
+    assert db.get_profile(conn, a).interests == "jazz"
+
+
+def test_first_look_token_works_for_24_hours_only(conn):
+    a = make_user(conn)
+    token = db.create_profile(conn, a, "Ana", "jazz", "", ["Friday"], NOW)
+    assert db.profile_for_first_look(conn, token, NOW + timedelta(hours=23)).id == a
+    assert db.profile_for_first_look(conn, token, NOW + timedelta(hours=24)) is None
+    assert db.profile_for_first_look(conn, "guess", NOW) is None
+
+
+def test_first_look_token_is_long_and_random(conn):
+    first = db.create_profile(conn, make_user(conn), "Ana", "jazz", "", ["Friday"], NOW)
+    second = db.create_profile(conn, make_user(conn), "Bo", "jazz", "", ["Friday"], NOW)
+    assert first != second and len(first) >= 43
 
 
 def test_sent_ids_round_trip(conn):
-    db.mark_sent(conn, 1, [2, 3])
-    assert db.sent_event_ids(conn, 1) == {2, 3}
+    a = make_user(conn)
+    db.create_profile(conn, a, "Ana", "jazz", "", ["Friday"], NOW)
+    db.mark_sent(conn, a, [2, 3])
+    db.mark_sent(conn, a, [3])
+    assert db.sent_event_ids(conn, a) == {2, 3}
 
 
 def test_ai_requests_counted_for_today_only(conn):

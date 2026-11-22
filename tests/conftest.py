@@ -15,6 +15,7 @@ NY = ZoneInfo("America/New_York")
 # A local Postgres, never a Supabase project. See AGENTS.md for the one-time setup.
 TEST_URL = os.environ.get("TEST_DATABASE_URL", "postgresql://localhost/whatisupnyc_test")
 MIGRATIONS = Path(__file__).parent.parent / "supabase" / "migrations"
+AUTH_STUB = Path(__file__).parent / "fixtures" / "supabase_auth_stub.sql"
 
 
 def make_event(**overrides) -> CandidateEvent:
@@ -51,6 +52,7 @@ def fresh_schema():
     with admin:
         admin.execute("drop schema public cascade")
         admin.execute("create schema public")
+        admin.execute(AUTH_STUB.read_text())
         for migration in sorted(MIGRATIONS.glob("*.sql")):
             admin.execute(migration.read_text())
 
@@ -60,7 +62,7 @@ def conn(fresh_schema):
     pool = db.connect(TEST_URL)
     yield pool
     with pool.connection() as c:
-        c.execute(f"truncate {', '.join(db.TABLES)} restart identity")
+        c.execute(f"truncate {', '.join(db.TABLES)}, auth.users restart identity cascade")
     pool.close()
 
 
