@@ -2,7 +2,6 @@ import json
 import logging
 import os
 import re
-import sqlite3
 from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import datetime, timezone
@@ -45,7 +44,7 @@ class AIClient:
         http: httpx.Client,
         api_key: str,
         model: str,
-        conn: sqlite3.Connection,
+        conn: db.Database,
         daily_limit: int = 50,
         clock: Callable[[], datetime] = lambda: datetime.now(timezone.utc),
         backup: Provider | None = None,

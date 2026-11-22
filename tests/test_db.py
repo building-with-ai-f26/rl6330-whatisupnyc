@@ -1,10 +1,11 @@
 from datetime import datetime, timedelta
 
+import psycopg
 import pytest
 
 from app import db
 from app.models import CandidateEvent, Score
-from tests.conftest import NY, make_event
+from tests.conftest import NY, TEST_URL, make_event
 
 NOW = datetime(2026, 11, 2, 12, tzinfo=NY)
 
@@ -43,25 +44,6 @@ def test_each_subscriber_gets_a_long_random_link(conn):
     assert db.find_subscriber_by_token(conn, "guess") is None
 
 
-def test_older_database_gets_links_for_saved_people(tmp_path):
-    import sqlite3
-
-    path = tmp_path / "old.db"
-    old = sqlite3.connect(path)
-    old.execute(
-        "CREATE TABLE subscribers (id INTEGER PRIMARY KEY, name TEXT NOT NULL, email TEXT NOT NULL,"
-        " interests TEXT NOT NULL, look_prompt TEXT NOT NULL, days TEXT NOT NULL)"
-    )
-    old.execute("INSERT INTO subscribers VALUES (1, 'Ana', 'a@x.test', 'jazz', '', '[\"Fri\"]')")
-    old.commit()
-    old.close()
-    conn = db.connect(str(path))
-    token = db.subscriber_token(conn, 1)
-    assert len(token) >= 32
-    assert db.find_subscriber_by_token(conn, token).name == "Ana"
-    conn.close()
-
-
 def test_sent_ids_round_trip(conn):
     db.mark_sent(conn, 1, [2, 3])
     assert db.sent_event_ids(conn, 1) == {2, 3}
@@ -89,3 +71,32 @@ def test_paste_round_trip(conn):
     db.save_paste(conn, "https://www.tiktok.com/@a/1", "great night", make_event(source_type="pasted"))
     (link, caption, event), = db.list_pastes(conn)
     assert (link, caption, event.name, event.source_type) == ("https://www.tiktok.com/@a/1", "great night", "Show", "pasted")
+
+
+def test_every_table_has_row_level_security(conn):
+    with conn.connection() as c:
+        rows = c.execute(
+            "select relname, relrowsecurity from pg_class"
+            " where relnamespace = 'public'::regnamespace and relkind = 'r'"
+        ).fetchall()
+    assert {r["relname"] for r in rows} == set(db.TABLES)
+    assert all(r["relrowsecurity"] for r in rows)
+
+
+def test_waiting_pastes_listed_without_limit_by_default(conn):
+    for n in range(3):
+        db.save_waiting_paste(conn, f"https://www.tiktok.com/@a/{n}", "")
+    assert len(db.list_waiting_pastes(conn)) == 3
+    assert len(db.list_waiting_pastes(conn, 2)) == 2
+
+
+def test_pool_recovers_after_connection_is_killed(conn):
+    # Supabase can close an idle connection; the next request must still work.
+    db.save_waiting_paste(conn, "https://www.tiktok.com/@a/1", "")
+    with psycopg.connect(TEST_URL, autocommit=True) as killer:
+        killer.execute(
+            "select pg_terminate_backend(pid) from pg_stat_activity"
+            " where datname = current_database() and pid <> pg_backend_pid()"
+        )
+    assert db.count_waiting_pastes(conn) == 1
+    assert db.count_waiting_pastes(conn) == 1

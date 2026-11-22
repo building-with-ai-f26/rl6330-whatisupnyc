@@ -44,7 +44,7 @@ class AppDeps:
 
 def _default_deps() -> AppDeps:
     load_dotenv()
-    conn = db.connect(os.environ.get("DATABASE_PATH", "whatisupnyc.db"))
+    conn = db.connect(db.url_from_env())
     http = httpx.Client()
     return AppDeps(
         conn=conn,
