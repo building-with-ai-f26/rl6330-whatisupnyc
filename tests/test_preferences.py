@@ -2,7 +2,7 @@ from datetime import timedelta
 
 from app import db
 from tests.fakes import ChoosingAI
-from tests.test_main import GOOD, ana_id, client_for, sign_up_ana, signed_in_ana
+from tests.test_main import GOOD, ana_id, client_for, open_list, sign_up_ana, signed_in_ana
 from tests.test_saved_lists import Clock, add_events
 
 NEW = {"name": "Ana B", "interests": "stand-up comedy", "look_prompt": "keep it short", "days": ["Saturday", "Sunday"]}
@@ -26,7 +26,7 @@ def test_saving_preferences_makes_a_new_list(conn, sites):
     clock = Clock()
     client = client_for(conn, sites, ai, clock=clock)
     signed_in_ana(client)
-    client.get("/newsletter")
+    open_list(client)
     clock.now += timedelta(minutes=1)
     response = client.post("/preferences", data=NEW)
     assert (response.status_code, response.headers["location"]) == (303, "/newsletter")
@@ -34,8 +34,8 @@ def test_saving_preferences_makes_a_new_list(conn, sites):
     assert (saved.name, saved.interests, saved.look_prompt, saved.days) == (
         "Ana B", "stand-up comedy", "keep it short", ["Saturday", "Sunday"]
     )
-    client.get("/newsletter")
-    client.get("/newsletter")
+    open_list(client)
+    open_list(client)
     assert ai.calls == 2
 
 
@@ -87,8 +87,11 @@ def test_preferences_text_is_escaped(conn, sites):
     assert "<script>x" not in client.get("/preferences").text
 
 
-def test_pages_that_may_wait_show_the_making_screen(conn, sites):
+def test_only_pages_that_make_a_list_have_the_making_screen(conn, sites):
+    # Signing in or saving preferences is quick; when a new list follows, the list page shows the screen.
     client = client_for(conn, sites)
     signed_in_ana(client)
-    for path in ["/", "/signin", "/preferences", "/reset?token_hash=x&type=recovery", "/confirm?token_hash=x&type=email"]:
+    for path in ["/", "/newsletter"]:
         assert 'id="making"' in client.get(path).text, path
+    for path in ["/signin", "/preferences", "/reset?token_hash=x&type=recovery", "/confirm?token_hash=x&type=email"]:
+        assert 'id="making"' not in client.get(path).text, path

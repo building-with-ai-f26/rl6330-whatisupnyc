@@ -3,7 +3,7 @@ from datetime import timedelta
 from app import db
 from app.ai import AIUnavailable
 from app.main import AI_BUSY
-from tests.test_main import NOW, ana_id, client_for, signed_in_ana
+from tests.test_main import NOW, ana_id, client_for, open_list, signed_in_ana
 from tests.test_saved_lists import Clock, add_events
 from tests.fakes import ChoosingAI
 
@@ -16,7 +16,7 @@ def ready(conn, sites, clock=None, how_many=2):
     ai = ChoosingAI(how_many)
     client = client_for(conn, sites, ai, clock=clock)
     signed_in_ana(client)
-    client.get("/newsletter")
+    open_list(client)
     ids = {e.event.name: e.id for e in db.eligible_events(conn, NOW - timedelta(days=30))}
     return client, ai, ids
 
@@ -64,7 +64,7 @@ def test_rating_an_event_you_went_to(conn, sites):
     jazz = ids["Jazz Night"]
     assert client.post(f"/events/{jazz}/rate", data={"rating": "4"}).status_code == 400  # hasn't happened yet
     clock.now = NOW + timedelta(days=4)  # the events were 3 days out
-    html = client.get("/newsletter").text
+    html = open_list(client).text
     rate_section = html[html.index('id="rate"'):]
     assert f'id="rate-{jazz}"' in rate_section
     for bad in ("0", "6", "five", ""):
@@ -95,14 +95,14 @@ def test_busy_ai_still_shows_the_last_list_as_cards(conn, sites):
     client, ai, ids = ready(conn, sites, clock)
     clock.now += timedelta(days=1)
     ai.error = AIUnavailable("busy")
-    html = client.get("/newsletter").text
+    html = open_list(client).text
     assert AI_BUSY in html and f'id="event-{ids["Jazz Night"]}"' in html
 
 
 def test_nothing_new_today_says_what_to_do(conn, sites):
     client = client_for(conn, sites, ChoosingAI())
     signed_in_ana(client)
-    html = client.get("/newsletter").text
+    html = open_list(client).text
     assert "Nothing new to suggest today" in html and 'href="/preferences"' in html
 
 

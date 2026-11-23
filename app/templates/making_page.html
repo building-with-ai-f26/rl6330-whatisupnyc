@@ -1,0 +1,22 @@
+{#- The quick page that opens when a reader needs a new list. It shows the making screen and goes
+    straight on to /newsletter?make=1, which makes the list; the browser keeps this page on screen
+    until that answer arrives. Without JavaScript the meta refresh does the same. -#}
+<!doctype html>
+<html lang="en">
+<head>
+  {% include "partials/head.html" %}
+  <noscript><meta http-equiv="refresh" content="0; url={{ next_url }}"></noscript>
+  <title>Making your list | whatisupnyc</title>
+  <style>
+    {% include "partials/base.css" %}
+  </style>
+</head>
+<body>
+  {% set making_shown = True %}
+  {% include "partials/making.html" %}
+  <script>
+    // replace, so the browser's Back button skips this page.
+    location.replace({{ next_url|tojson }});
+  </script>
+</body>
+</html>

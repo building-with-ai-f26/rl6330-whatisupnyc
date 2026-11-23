@@ -7,7 +7,7 @@ from app.main import AI_BUSY
 from app.models import Score
 from tests.conftest import NY, make_event
 from tests.fakes import ChoosingAI
-from tests.test_main import GOOD, NOW, ana_id, client_for, sign_up_ana, signed_in_ana
+from tests.test_main import GOOD, NOW, ana_id, client_for, open_list, sign_up_ana, signed_in_ana
 
 
 class Clock:
@@ -34,8 +34,8 @@ def setup(conn, sites, clock=None, how_many=2):
 def test_reloading_the_same_day_makes_no_new_ai_call(conn, sites):
     client, ai = setup(conn, sites)
     sign_up_ana(client)
-    first = client.get("/newsletter").text
-    second = client.get("/newsletter").text
+    first = open_list(client).text
+    second = open_list(client).text
     assert ai.calls == 1
     assert "Jazz Night" in first and "Jazz Night" in second and "Fits: Comedy Cellar" in second
 
@@ -44,9 +44,9 @@ def test_a_new_new_york_day_makes_a_new_list(conn, sites):
     clock = Clock()
     client, ai = setup(conn, sites, clock)
     signed_in_ana(client)
-    client.get("/newsletter")
+    open_list(client)
     clock.now += timedelta(days=1)
-    client.get("/newsletter")
+    open_list(client)
     assert ai.calls == 2
 
 
@@ -54,12 +54,12 @@ def test_a_list_made_late_evening_counts_for_that_new_york_day(conn, sites):
     clock = Clock(datetime(2026, 11, 2, 23, 30, tzinfo=NY))  # 04:30 UTC on Nov 3
     client, ai = setup(conn, sites, clock)
     signed_in_ana(client)
-    client.get("/newsletter")
+    open_list(client)
     clock.now = datetime(2026, 11, 2, 23, 50, tzinfo=NY)
-    client.get("/newsletter")
+    open_list(client)
     assert ai.calls == 1
     clock.now = datetime(2026, 11, 3, 0, 10, tzinfo=NY)
-    client.get("/newsletter")
+    open_list(client)
     assert ai.calls == 2
 
 
@@ -67,9 +67,9 @@ def test_new_list_skips_events_on_earlier_lists(conn, sites):
     clock = Clock()
     client, ai = setup(conn, sites, clock)
     signed_in_ana(client)
-    client.get("/newsletter")
+    open_list(client)
     clock.now += timedelta(days=1)
-    html = client.get("/newsletter").text
+    html = open_list(client).text
     assert ai.offered[1] == ["Museum Late", "Park Walk"]
     assert "Museum Late" in html and "Jazz Night" not in html
 
@@ -77,10 +77,10 @@ def test_new_list_skips_events_on_earlier_lists(conn, sites):
 def test_saved_list_skips_events_that_no_longer_exist(conn, sites):
     client, ai = setup(conn, sites)
     signed_in_ana(client)
-    client.get("/newsletter")
+    open_list(client)
     with conn.connection() as c:
         c.execute("delete from events where name = 'Jazz Night'")
-    html = client.get("/newsletter").text
+    html = open_list(client).text
     assert "Comedy Cellar" in html and "Jazz Night" not in html and ai.calls == 1
 
 
@@ -88,10 +88,10 @@ def test_ai_busy_shows_the_previous_list_with_the_message(conn, sites):
     clock = Clock()
     client, ai = setup(conn, sites, clock)
     signed_in_ana(client)
-    client.get("/newsletter")
+    open_list(client)
     clock.now += timedelta(days=1)
     ai.error = AIUnavailable("busy")
-    response = client.get("/newsletter")
+    response = open_list(client)
     assert response.status_code == 200
     assert AI_BUSY in response.text and "Jazz Night" in response.text
 
@@ -100,39 +100,39 @@ def test_ai_busy_with_no_list_yet_shows_the_message(conn, sites):
     client, ai = setup(conn, sites)
     ai.error = AIUnavailable("busy")
     sign_up_ana(client)
-    response = client.get("/newsletter")
+    response = open_list(client)
     assert response.status_code == 200 and AI_BUSY in response.text
 
 
 def test_ai_busy_after_a_preferences_change_tries_again_next_time(conn, sites):
     client, ai = setup(conn, sites)
     signed_in_ana(client)
-    client.get("/newsletter")
+    open_list(client)
     db.update_profile(conn, ana_id(client), "Ana", "comedy", "", ["Friday"], NOW + timedelta(minutes=5))
     ai.error = AIUnavailable("busy")
-    client.get("/newsletter")
+    open_list(client)
     ai.error = None
-    client.get("/newsletter")
+    open_list(client)
     assert ai.calls == 3
-    client.get("/newsletter")
+    open_list(client)
     assert ai.calls == 3
 
 
 def test_signing_in_shows_the_saved_list_without_the_ai(conn, sites):
     client, ai = setup(conn, sites)
     sign_up_ana(client)
-    client.get("/newsletter")
+    open_list(client)
     client.supabase.confirm(GOOD["email"])
     client.cookies.clear()
     client.post("/signin", data={"email": GOOD["email"], "password": GOOD["password"]})
-    assert "Jazz Night" in client.get("/newsletter").text
+    assert "Jazz Night" in open_list(client).text
     assert ai.calls == 1
 
 
 def test_list_page_has_no_copy_or_mark_as_sent(conn, sites):
     client, ai = setup(conn, sites)
     signed_in_ana(client)
-    html = client.get("/newsletter").text
+    html = open_list(client).text
     assert 'id="copy"' not in html and "/newsletter/sent" not in html
     assert 'href="/preferences"' in html
 
@@ -141,7 +141,7 @@ def test_only_new_lists_count_toward_the_per_reader_limit(conn, sites):
     client, ai = setup(conn, sites)
     signed_in_ana(client)
     for _ in range(LIMITS["newsletter_account"][0] + 5):
-        assert client.get("/newsletter").status_code == 200
+        assert open_list(client).status_code == 200
     assert ai.calls == 1
 
 
@@ -149,10 +149,10 @@ def test_an_unusable_ai_answer_is_not_saved_for_the_day(conn, sites):
     client, ai = setup(conn, sites)
     signed_in_ana(client)
     ai.how_many = 0  # valid JSON, no picks, while events are on offer
-    response = client.get("/newsletter")
+    response = open_list(client)
     assert AI_BUSY in response.text
     ai.how_many = 2
-    assert "Jazz Night" in client.get("/newsletter").text
+    assert "Jazz Night" in open_list(client).text
     assert ai.calls == 2
 
 
@@ -169,10 +169,10 @@ def test_yesterdays_list_shown_when_busy_keeps_its_own_date(conn, sites):
     clock = Clock(datetime(2026, 11, 2, 12, tzinfo=NY))
     client, ai = setup(conn, sites, clock)
     signed_in_ana(client)
-    client.get("/newsletter")
+    open_list(client)
     clock.now = datetime(2026, 11, 3, 12, tzinfo=NY)
     ai.error = AIUnavailable("busy")
-    html = client.get("/newsletter").text
+    html = open_list(client).text
     assert "Monday, November 2" in html and "Tuesday, November 3" not in html
 
 
@@ -180,12 +180,12 @@ def test_saved_and_rated_events_shape_the_next_list(conn, sites):
     clock = Clock()
     client, ai = setup(conn, sites, clock)
     signed_in_ana(client)
-    client.get("/newsletter")
+    open_list(client)
     jazz, comedy = [e.id for e in db.eligible_events(conn, NOW) if e.event.name in ("Jazz Night", "Comedy Cellar")]
     db.save_for_later(conn, ana_id(client), jazz, NOW)
     db.rate_event(conn, ana_id(client), comedy, 5, NOW)
     clock.now += timedelta(days=1)
-    client.get("/newsletter")
+    open_list(client)
     assert ai.calls == 2
     assert 'Reader saved these for later (suggest similar): ["Jazz Night"]' in ai.prompts[1]
     assert 'Reader loved (4-5 stars): ["Comedy Cellar"]' in ai.prompts[1]
@@ -195,19 +195,19 @@ def test_saved_and_rated_events_shape_the_next_list(conn, sites):
 def test_more_like_these_makes_a_new_list_from_the_chosen_events(conn, sites):
     client, ai = setup(conn, sites)
     signed_in_ana(client)
-    client.get("/newsletter")
+    open_list(client)
     jazz = next(e.id for e in db.eligible_events(conn, NOW) if e.event.name == "Jazz Night")
     response = client.post("/newsletter/more", data={"event_ids": [jazz]})
     assert (response.status_code, response.headers["location"]) == (303, "/newsletter")
     assert ai.calls == 2
-    html = client.get("/newsletter").text
+    html = open_list(client).text
     assert "Museum Late" in html and ai.calls == 2
 
 
 def test_more_like_these_only_takes_events_from_the_readers_own_lists(conn, sites):
     client, ai = setup(conn, sites)
     signed_in_ana(client)
-    client.get("/newsletter")
+    open_list(client)
     never_listed = next(e.id for e in db.eligible_events(conn, NOW) if e.event.name == "Park Walk")
     assert client.post("/newsletter/more", data={"event_ids": [never_listed]}).status_code == 404
     assert client.post("/newsletter/more", data={"event_ids": []}).status_code == 400

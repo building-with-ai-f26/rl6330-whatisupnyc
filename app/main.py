@@ -35,6 +35,8 @@ TEMPLATES = {
 }
 AI_BUSY = "The AI model is busy right now. Your events are saved, so please try again in a little while."
 AUTH_DOWN = "Sign-in is down right now, please try again in a little while."
+# The list page's second step: it makes the new list while the reader sees "Making your list…".
+MAKE_LIST = "/newsletter?make=1"
 TOO_MANY = "Too many tries from your connection. Please wait a while and try again."
 CHECK_EMAIL = (
     "Check your email to confirm your account. If you already have an account with this email, "
@@ -295,7 +297,9 @@ def create_app(deps: AppDeps | None = None) -> FastAPI:
         return response
 
     @app.get("/newsletter", response_class=HTMLResponse)
-    def newsletter(request: Request):
+    def newsletter(request: Request, make: str = ""):
+        # make=1 is the request that may make a new list; plain /newsletter answers quickly either way.
+        here = MAKE_LIST if make else "/newsletter"
         if over_limit(request, "newsletter"):
             return too_many(request)
         try:
@@ -304,7 +308,7 @@ def create_app(deps: AppDeps | None = None) -> FastAPI:
             return notice("Please try again", AUTH_DOWN, [("/", "Back to the start")], 503)
         if reader.renewed:
             # Supabase refresh tokens work once, so store the new ones before the slow AI call.
-            return finish(RedirectResponse("/newsletter", status_code=303), reader)
+            return finish(RedirectResponse(here, status_code=303), reader)
         if reader.profile is None:
             # Signed in but no preferences saved yet: ask for them.
             return finish(RedirectResponse("/preferences" if reader.signed_in else "/signin", status_code=303), reader)
@@ -314,6 +318,11 @@ def create_app(deps: AppDeps | None = None) -> FastAPI:
         latest = db.latest_issue(d.conn, subscriber.id)
         if not saved_lists.needs_new_list(latest, subscriber, now):
             return finish(dashboard(request, reader, saved_lists.saved_picks(d.conn, latest), latest.made_at), reader)
+        if not make:
+            # Show "Making your list…" right away, and only now that a list really is being made.
+            # The page goes straight on to MAKE_LIST, which does the slow AI work below.
+            # It sends nothing to PostHog, so each list visit still counts as one page view.
+            return finish(HTMLResponse(_page("making_page.html", next_url=MAKE_LIST)), reader)
         # Only making a new list calls the AI, so only that counts toward the reader's limit.
         if over_account_limit("newsletter_account", subscriber.id):
             return too_many(request)
