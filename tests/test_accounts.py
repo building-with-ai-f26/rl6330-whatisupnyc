@@ -215,14 +215,47 @@ def test_confirm_post_signs_in_and_opens_newsletter(conn, sites):
     sign_up_ana(client)
     link = next(h for h, (_, kind) in client.supabase.links.items() if kind == "email")
     client.cookies.clear()
-    response = client.post("/confirm", data={"token_hash": link})
+    response = client.post("/confirm", data={"token_hash": link, "password": GOOD["password"]})
     assert (response.status_code, response.headers["location"]) == (303, "/newsletter")
     page = client.get("/newsletter")
     assert page.status_code == 200 and BANNER not in page.text
 
 
+def test_confirming_sets_the_password_and_ends_other_logins(conn, sites):
+    # Someone signs up with Ana's email and a password they chose. When Ana confirms from her inbox,
+    # her password replaces theirs and every other login on the account ends.
+    stranger = client_for(conn, sites)
+    sign_up_ana(stranger, password="strangers-password")
+    link = next(h for h, (_, kind) in stranger.supabase.links.items() if kind == "email")
+    ana = client_for(conn, sites, auth=stranger.supabase)
+    page = ana.get(f"/confirm?token_hash={link}&type=email")
+    assert 'type="password"' in page.text
+    assert ana.post("/confirm", data={"token_hash": link, "password": "anas-own-password"}).status_code == 303
+    assert stranger.supabase.accounts[GOOD["email"]]["password"] == "anas-own-password"
+    assert stranger.supabase.others_signed_out == [ana.cookies["wnyc_access"]]
+    refused = stranger.post("/signin", data={"email": GOOD["email"], "password": "strangers-password"})
+    assert refused.status_code == 400
+
+
+def test_confirm_with_short_password_keeps_the_link_usable(conn, sites):
+    client = client_for(conn, sites)
+    sign_up_ana(client)
+    link = next(h for h, (_, kind) in client.supabase.links.items() if kind == "email")
+    response = client.post("/confirm", data={"token_hash": link, "password": "short"})
+    assert response.status_code == 400 and f'value="{link}"' in response.text
+    assert client.supabase.verified == []
+
+
+def test_reset_ends_other_logins(conn, sites):
+    client = client_for(conn, sites)
+    signed_in_ana(client)
+    link = client.supabase.link_for(GOOD["email"], "recovery")
+    client.post("/reset", data={"token_hash": link, "password": "brand-new-password"})
+    assert client.supabase.others_signed_out == [client.cookies["wnyc_access"]]
+
+
 def test_used_confirm_link_points_to_sign_in(conn, sites):
-    response = client_for(conn, sites).post("/confirm", data={"token_hash": "used-up"})
+    response = client_for(conn, sites).post("/confirm", data={"token_hash": "used-up", "password": "long-enough-2"})
     assert response.status_code == 400 and 'href="/signin"' in response.text
 
 

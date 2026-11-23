@@ -137,3 +137,10 @@ def test_every_call_sends_the_publishable_key_not_a_secret():
     auth.sign_in("ana@x.test", "long-enough-1")
     auth.get_user("access-1")
     assert [request.headers["apikey"] for request in seen] == [KEY] * 3
+
+
+def test_sign_out_others_keeps_this_login():
+    seen = []
+    auth_replying("user_ok", seen=seen).sign_out_others("access-1")
+    assert seen[0].url == f"{URL}/auth/v1/logout?scope=others"
+    assert seen[0].headers["authorization"] == "Bearer access-1"

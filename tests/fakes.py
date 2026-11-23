@@ -46,6 +46,7 @@ class FakeAuth:
         self.resets_sent = []
         self.verified = []
         self.signed_out = []
+        self.others_signed_out = []
 
     def _up(self):
         if self.down:
@@ -133,3 +134,12 @@ class FakeAuth:
         self._up()
         self.signed_out.append(access_token)
         self.access.pop(access_token, None)
+
+    def sign_out_others(self, access_token):
+        self._up()
+        self.others_signed_out.append(access_token)
+        key = self.access[access_token]
+        for token in [t for t, k in self.access.items() if k == key and t != access_token]:
+            del self.access[token]
+        for token in [t for t, k in self.refreshes.items() if k == key]:
+            del self.refreshes[token]

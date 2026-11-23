@@ -22,7 +22,7 @@ def test_every_form_refuses_other_sites(conn, sites):
         ("/signout", {}),
         ("/forgot", {"email": GOOD["email"]}),
         ("/reset", {"token_hash": "x", "password": "long-enough-2"}),
-        ("/confirm", {"token_hash": "x"}),
+        ("/confirm", {"token_hash": "x", "password": "long-enough-2"}),
     ]
     for origin in ["https://evil.example", "null", "https://evil.example@testserver", "https://sub.testserver"]:
         for path, data in forms:

@@ -2,10 +2,12 @@
 {% block title %}Confirm your email{% endblock %}
 {% block content %}
 <h2>Confirm your email</h2>
-<p>One click and your account is ready. You'll go straight to your list.</p>
+<p>Type your password once more to finish. If you didn't make a whatisupnyc account, choose a password anyway: the account is yours now, and nobody else can sign in to it.</p>
 {% if message %}<p class="notice" role="status">{{ message }}</p>{% endif %}
 <form method="post" action="/confirm">
   <input type="hidden" name="token_hash" value="{{ token_hash }}">
+  <label for="password">Your password (at least 8 characters)</label>
+  <input id="password" name="password" type="password" required minlength="8" autocomplete="new-password">
   <button type="submit">Confirm my email</button>
 </form>
 {% endblock %}

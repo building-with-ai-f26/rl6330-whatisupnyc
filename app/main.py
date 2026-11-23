@@ -338,7 +338,38 @@ def create_app(deps: AppDeps | None = None) -> FastAPI:
             400,
         )
 
-    # Emailed links open a page with a button. Only the button uses the link's token, so a mail
+    def take_over_with_password(kind: str, token_hash: str, password: str, template: str) -> HTMLResponse:
+        """Uses an emailed link: signs the reader in, sets the password they typed, and ends every
+        other login on the account. A confirm link does this too, so whoever made an account with
+        someone else's email loses it the moment its real owner confirms."""
+        if len(password) < MIN_PASSWORD:
+            message = f"Please use a password of at least {MIN_PASSWORD} characters."
+            return HTMLResponse(page(template, token_hash=token_hash, message=message), status_code=400)
+        d = get_deps()
+        try:
+            session = d.auth.verify(token_hash, kind)
+        except AuthRefused:
+            return expired_link(kind)
+        except AuthUnavailable:
+            return HTMLResponse(page(template, token_hash=token_hash, message=AUTH_DOWN), status_code=503)
+        try:
+            try:
+                d.auth.set_password(session.access_token, password)
+            except AuthRefused as refused:
+                if refused.code != "same_password":
+                    raise
+            d.auth.sign_out_others(session.access_token)
+        except (AuthRefused, AuthUnavailable):
+            # The link is spent, so keep the reader signed in, and ask them to finish with a new one.
+            text = "You're signed in, but we couldn't set that password. Please ask for a new link and try another."
+            failed = notice("Password not set", text, [("/forgot", "Send me a new link")], 400)
+            set_session_cookies(failed, session)
+            return failed
+        response = RedirectResponse("/newsletter", status_code=303)
+        set_session_cookies(response, session)
+        return response
+
+    # Emailed links open a page with a form. Only the form's button uses the link's token, so a mail
     # scanner that opens links before the reader does can't use it up.
     @app.get("/reset", response_class=HTMLResponse)
     def reset_page(token_hash: str = ""):
@@ -350,31 +381,7 @@ def create_app(deps: AppDeps | None = None) -> FastAPI:
     def reset(request: Request, token_hash: str = Form(""), password: str = Form("")):
         if over_limit(request, "sign_in"):
             return too_many(request)
-        if len(password) < MIN_PASSWORD:
-            message = f"Please use a password of at least {MIN_PASSWORD} characters."
-            return HTMLResponse(page("reset.html", token_hash=token_hash, message=message), status_code=400)
-        d = get_deps()
-        try:
-            session = d.auth.verify(token_hash, "recovery")
-        except AuthRefused:
-            return expired_link("recovery")
-        except AuthUnavailable:
-            return HTMLResponse(page("reset.html", token_hash=token_hash, message=AUTH_DOWN), status_code=503)
-        response = RedirectResponse("/newsletter", status_code=303)
-        set_session_cookies(response, session)
-        try:
-            d.auth.set_password(session.access_token, password)
-        except AuthRefused as refused:
-            if refused.code != "same_password":
-                text = "You're signed in, but we couldn't set that password. Please ask for a new link and try another."
-                failed = notice("Password not changed", text, [("/forgot", "Send me a new link")], 400)
-                set_session_cookies(failed, session)
-                return failed
-        except AuthUnavailable:
-            failed = notice("Password not changed", AUTH_DOWN, [("/forgot", "Send me a new link")], 503)
-            set_session_cookies(failed, session)
-            return failed
-        return response
+        return take_over_with_password("recovery", token_hash, password, "reset.html")
 
     @app.get("/confirm", response_class=HTMLResponse)
     def confirm_page(token_hash: str = ""):
@@ -383,18 +390,10 @@ def create_app(deps: AppDeps | None = None) -> FastAPI:
         return page("confirm.html", token_hash=token_hash, message="")
 
     @app.post("/confirm")
-    def confirm(request: Request, token_hash: str = Form("")):
+    def confirm(request: Request, token_hash: str = Form(""), password: str = Form("")):
         if over_limit(request, "sign_in"):
             return too_many(request)
-        try:
-            session = get_deps().auth.verify(token_hash, "email")
-        except AuthRefused:
-            return expired_link("email")
-        except AuthUnavailable:
-            return HTMLResponse(page("confirm.html", token_hash=token_hash, message=AUTH_DOWN), status_code=503)
-        response = RedirectResponse("/newsletter", status_code=303)
-        set_session_cookies(response, session)
-        return response
+        return take_over_with_password("email", token_hash, password, "confirm.html")
 
     @app.post("/paste", response_class=HTMLResponse)
     def paste(request: Request, link: str = Form(""), caption: str = Form("")):

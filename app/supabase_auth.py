@@ -77,6 +77,10 @@ class SupabaseAuth:
         except AuthRefused:
             pass  # Already expired: nothing left to end.
 
+    def sign_out_others(self, access_token: str) -> None:
+        """Ends every other login on this account, keeping this one."""
+        self._call("POST", "/logout?scope=others", token=access_token)
+
     def _call(self, method: str, path: str, token: str | None = None, json: dict | None = None) -> dict:
         headers = {"apikey": self.key}
         if token:
