@@ -85,3 +85,24 @@ def _load_robots(client: httpx.Client, origin: str) -> RobotFileParser | None:
     parser = RobotFileParser()
     parser.parse(response.text.splitlines())
     return parser
+
+
+def clean_image_url(url, base: str | None = None) -> str | None:
+    """An image address safe to show: made absolute against base, and https only."""
+    if not isinstance(url, str) or not url.strip():
+        return None
+    url = urljoin(base, url.strip()) if base else url.strip()
+    parts = urlparse(url)
+    return url if parts.scheme == "https" and parts.netloc else None
+
+
+def page_image(html: str, page_url: str) -> str | None:
+    """The picture a page offers for link previews (og:image, then twitter:image)."""
+    if not html:
+        return None
+    soup = BeautifulSoup(html, "html.parser")
+    for attrs in ({"property": "og:image"}, {"name": "og:image"}, {"name": "twitter:image"}, {"property": "twitter:image"}):
+        tag = soup.find("meta", attrs=attrs)
+        if tag and (url := clean_image_url(tag.get("content"), page_url)):
+            return url
+    return None

@@ -7,7 +7,7 @@ from zoneinfo import ZoneInfo
 import httpx
 
 from app.models import CandidateEvent
-from app.pages import USER_AGENT
+from app.pages import USER_AGENT, clean_image_url
 from app.sources.web import NO_TIME
 
 log = logging.getLogger(__name__)
@@ -104,7 +104,16 @@ def _to_event(record: dict, now: datetime, end: datetime) -> CandidateEvent | No
         source_type="api",
         organizer=park,
         category=", ".join(_categories(record)[:MAX_CATEGORIES]) or None,
+        image_url=_image(record.get("images")),
     )
+
+
+def _image(images) -> str | None:
+    """The event's first picture. NPS lists them relative to nps.gov."""
+    for image in images or []:
+        if isinstance(image, dict) and (url := clean_image_url(image.get("url"), "https://www.nps.gov")):
+            return url
+    return None
 
 
 def _next_start(record: dict, now: datetime, end: datetime) -> datetime | None:

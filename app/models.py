@@ -17,6 +17,8 @@ class CandidateEvent:
     source_type: SourceType
     organizer: str | None = None
     category: str | None = None
+    # https only; None shows a plain block instead of a picture.
+    image_url: str | None = None
 
     def __post_init__(self):
         if self.start.tzinfo is None:

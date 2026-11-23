@@ -10,7 +10,7 @@ from app import db
 from app.ai import AIClient, backup_from_env
 from app.checks import check_event, dedupe_key, same_event
 from app.models import CandidateEvent, Signals
-from app.pages import PageResult, fetch_page
+from app.pages import PageResult, fetch_page, page_image
 from app.scoring import Reputable, brand_confirmed, domain_of, load_reputable, normalize, reliable_domains, score
 from app.sentiment import Opinion, gather_opinions, rate_sentiment
 from app.sites import Sites, load as load_sites
@@ -85,6 +85,9 @@ def run_pipeline(conn, deps: PipelineDeps, now: datetime) -> PipelineSummary:
             # Scored on an earlier run. Reusing it saves free AI and search requests.
             passed += 1
             eligible += saved[key]
+            image = next((m.image_url for m in group.members if m.image_url), None)
+            if image:
+                db.fill_event_image(conn, key, image)
             continue
         try:
             result = _check_group(conn, group, deps, now)
@@ -185,6 +188,11 @@ def _check_group(conn, group: Group, deps: PipelineDeps, now: datetime):
         db.log_dropped(conn, group.members[0], reasons[0])
         return None
     event = _best(good, deps.sites)
+    if not event.image_url:
+        # A picture from any copy's feed, else the preview image of a page we already fetched.
+        event.image_url = next((m.image_url for m in good if m.image_url), None) or next(
+            (image for m, p in zip(good, pages) if (image := page_image(p.html, m.url))), None
+        )
     signals = Signals(
         coverage_domains=reliable_domains([m.url for m in good if m.source_type != "api"], deps.sites),
         pasted_post_count=len({link for link, _ in group.captions}),

@@ -57,10 +57,12 @@ def save_event(conn: Database, event: CandidateEvent, score: Score) -> int:
     with conn.connection() as c:
         return c.execute(
             "INSERT INTO events (dedupe_key, name, start, venue, city, url, source, source_type, organizer,"
-            " category, score, eligible, score_reason) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)"
+            " category, score, eligible, score_reason, image_url)"
+            " VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)"
             " ON CONFLICT (dedupe_key) DO UPDATE SET url = excluded.url, source = excluded.source,"
             " source_type = excluded.source_type, score = excluded.score, eligible = excluded.eligible,"
-            " score_reason = excluded.score_reason RETURNING id",
+            " score_reason = excluded.score_reason, image_url = coalesce(excluded.image_url, events.image_url)"
+            " RETURNING id",
             (
                 dedupe_key(event),
                 event.name,
@@ -75,8 +77,15 @@ def save_event(conn: Database, event: CandidateEvent, score: Score) -> int:
                 score.total,
                 score.eligible,
                 score.reason,
+                event.image_url,
             ),
         ).fetchone()["id"]
+
+
+def fill_event_image(conn: Database, key: str, image_url: str) -> None:
+    """Gives an already-saved event a picture, if it has none yet."""
+    with conn.connection() as c:
+        c.execute("UPDATE events SET image_url = %s WHERE dedupe_key = %s AND image_url IS NULL", (image_url, key))
 
 
 def saved_event_keys(conn: Database) -> dict[str, bool]:
@@ -166,6 +175,7 @@ def _row_to_scored(row: dict) -> ScoredEvent:
         source_type=row["source_type"],
         organizer=row["organizer"],
         category=row["category"],
+        image_url=row.get("image_url"),
     )
     return ScoredEvent(row["id"], event, Score(row["score"], row["eligible"], row["score_reason"]))
 
