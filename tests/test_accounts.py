@@ -117,8 +117,7 @@ def test_expired_access_token_refreshes_and_sets_new_cookies(conn, sites):
     client = client_for(conn, sites)
     signed_in_ana(client)
     client.supabase.expire(client.cookies["wnyc_access"])
-    page = client.get("/newsletter")
-    assert page.status_code == 200
+    assert client.get("/newsletter").status_code == 303  # new cookies first, then the list
     assert client.cookies["wnyc_access"] in client.supabase.access
     assert client.get("/newsletter").status_code == 200
 
@@ -320,11 +319,32 @@ def test_password_that_cannot_be_set_ends_every_login(conn, sites):
     link = next(h for h, (_, kind) in stranger.supabase.links.items() if kind == "email")
     ana = client_for(conn, sites, auth=stranger.supabase)
 
-    def refuse(access_token, password):
-        raise AuthRefused("weak_password")
+    set_password = stranger.supabase.set_password
 
-    stranger.supabase.set_password = refuse
+    def refuse_hers(access_token, password):
+        # Her choice is refused (in practice: Supabase timed out); a random one still goes through.
+        if password == "anas-own-password":
+            raise AuthRefused("weak_password")
+        set_password(access_token, password)
+
+    stranger.supabase.set_password = refuse_hers
     response = ana.post("/confirm", data={"token_hash": link, "password": "anas-own-password"})
     assert response.status_code == 400 and 'href="/forgot"' in response.text
     assert "wnyc_access" not in ana.cookies
     assert stranger.supabase.access == {}  # every login on the account has ended
+    # And the stranger's own password no longer works: the account got one nobody knows.
+    assert stranger.post("/signin", data={"email": GOOD["email"], "password": "strangers-password"}).status_code == 400
+
+
+def test_renewed_login_is_saved_before_the_slow_ai_call(conn, sites):
+    # Supabase refresh tokens work once. If the new ones only reached the browser after the AI
+    # (about 40 seconds), a closed tab or an error would leave the reader signed out.
+    ai = FakeAI(error=RuntimeError("unexpected"))
+    client = client_for(conn, sites, ai)
+    signed_in_ana(client)
+    client.supabase.expire(client.cookies["wnyc_access"])
+    response = client.get("/newsletter")
+    assert (response.status_code, response.headers["location"]) == (303, "/newsletter")
+    assert ai.calls == 0
+    assert client.cookies["wnyc_access"] in client.supabase.access
+    assert client.cookies["wnyc_refresh"] in client.supabase.refreshes

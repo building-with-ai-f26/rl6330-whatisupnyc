@@ -1,4 +1,5 @@
 import os
+import secrets
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
@@ -263,6 +264,9 @@ def create_app(deps: AppDeps | None = None) -> FastAPI:
             reader = current_reader(request)
         except AuthUnavailable:
             return notice("Please try again", AUTH_DOWN, [("/", "Back to the start")], 503)
+        if reader.renewed:
+            # Supabase refresh tokens work once, so store the new ones before the slow AI call.
+            return finish(RedirectResponse("/newsletter", status_code=303), reader)
         if reader.profile is None:
             if reader.signed_in:
                 text = "We couldn't find your preferences. Please start again to tell us what you like."
@@ -362,12 +366,17 @@ def create_app(deps: AppDeps | None = None) -> FastAPI:
                     raise
             d.auth.sign_out_others(session.access_token)
         except (AuthRefused, AuthUnavailable):
-            # Fail closed: without the new password set, nobody stays signed in, this reader included.
-            try:
-                d.auth.sign_out(session.access_token, everywhere=True)
-            except AuthUnavailable:
-                pass
-            text = "We couldn't set that password. Please ask for a new link and choose another."
+            # Fail closed: the link has confirmed the email, so lock out whatever password the account
+            # had with one nobody knows, then end every login, this reader's included.
+            for step in (
+                lambda: d.auth.set_password(session.access_token, secrets.token_urlsafe(32)),
+                lambda: d.auth.sign_out(session.access_token, everywhere=True),
+            ):
+                try:
+                    step()
+                except (AuthRefused, AuthUnavailable):
+                    pass
+            text = "We couldn't set that password. Please reset your password now to finish."
             failed = notice("Password not set", text, [("/forgot", "Send me a new link")], 400)
             clear_session_cookies(failed)
             return failed
