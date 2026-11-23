@@ -168,7 +168,7 @@ def _sections(picks: list[Pick], now: datetime) -> list[dict]:
     ]
 
 
-def render_newsletter(picks: list[Pick], *, now: datetime) -> str:
+def render_newsletter(picks: list[Pick], *, now: datetime, site_url: str | None = None) -> str:
     return _templates.get_template("newsletter.html").render(
         sections=_sections(picks, now),
         issue_date=now.astimezone(NY).strftime("%A, %B %-d"),
@@ -177,6 +177,7 @@ def render_newsletter(picks: list[Pick], *, now: datetime) -> str:
         short=0 < len(picks) < SHORT_ISSUE_BELOW,
         # The Open Data Law lets the city ask apps to name the source of its data.
         parks_credit=any(pick.event.event.source == PARKS_SOURCE for pick in picks),
+        site_url=site_url,
     )
 
 
@@ -187,7 +188,8 @@ def _view(pick: Pick) -> dict:
     if local.time().replace(second=0, microsecond=0) != NO_TIME:
         when += local.strftime(", %-I:%M %p")
     url = event.url if urlparse(event.url).scheme in ("http", "https") else None
-    return {"name": event.name, "when": when, "venue": event.venue, "reason": pick.reason, "url": url}
+    return {"name": event.name, "when": when, "venue": event.venue, "reason": pick.reason, "url": url,
+            "image": event.image_url}
 
 
 def card(event: ScoredEvent, reason: str | None = None) -> dict:

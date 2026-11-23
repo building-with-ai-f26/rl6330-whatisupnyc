@@ -44,3 +44,9 @@ def test_share_page_shows_nothing_about_readers_or_scores(conn, sites):
     sign_up_ana(client, name="Ana Sharer")
     html = client.get(f"/e/{event_id}").text
     assert "Ana Sharer" not in html and "score" not in html.lower()
+
+
+def test_events_the_site_doesnt_recommend_are_not_shown(conn, sites):
+    # Event numbers count up, so anyone could walk them; only eligible events get a public page.
+    event_id = db.save_event(conn, make_event(name="Weak", url="https://reliable.example/w"), Score(0, False, "no credibility"))
+    assert client_for(conn, sites).get(f"/e/{event_id}").status_code == 404

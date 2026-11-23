@@ -10,6 +10,7 @@ from fastapi import FastAPI, Form, Request
 from fastapi.responses import HTMLResponse, JSONResponse, PlainTextResponse, RedirectResponse, Response
 
 from app import auth, db, saved_lists
+from app import emailer
 from app.ai import AIClient, AIUnavailable, backup_from_env
 from app.limits import LIMITS, RateLimiter, client_ip
 from app.models import Subscriber
@@ -60,6 +61,8 @@ class AppDeps:
     # PostHog analytics. The project key is public by design; no key means no tracking.
     posthog_key: str = ""
     posthog_host: str = "https://us.i.posthog.com"
+    # Resend key for emailing readers their own list; empty means preview only.
+    resend_key: str = ""
 
 
 @dataclass
@@ -69,6 +72,7 @@ class Reader:
     profile: Subscriber | None = None
     signed_in: bool = False
     user_id: str | None = None
+    email: str | None = None
     first_look: bool = False
     # A login renewed during this request, to store in new cookies.
     renewed: Session | None = None
@@ -90,6 +94,7 @@ def _default_deps() -> AppDeps:
         auth=auth_from_env(http),
         posthog_key=os.environ.get("POSTHOG_KEY", ""),
         posthog_host=os.environ.get("POSTHOG_HOST", "https://us.i.posthog.com"),
+        resend_key=os.environ.get("RESEND_API_KEY", ""),
     )
 
 
@@ -176,7 +181,9 @@ def create_app(deps: AppDeps | None = None) -> FastAPI:
             except AuthRefused:
                 pass  # The login has ended; treat them as signed out.
         if user is not None:
-            return Reader(db.get_profile(d.conn, user.id), signed_in=True, user_id=user.id, renewed=renewed)
+            return Reader(
+                db.get_profile(d.conn, user.id), signed_in=True, user_id=user.id, email=user.email, renewed=renewed
+            )
         token = request.cookies.get(FIRST_LOOK_COOKIE)
         profile = db.profile_for_first_look(d.conn, token, d.clock()) if token else None
         return Reader(profile, first_look=profile is not None)
@@ -473,11 +480,53 @@ def create_app(deps: AppDeps | None = None) -> FastAPI:
             db.create_profile(d.conn, reader.user_id, *values)
         return finish(RedirectResponse("/newsletter", status_code=303), reader)
 
+    def email_version(request: Request, reader: Reader) -> tuple[str | None, str]:
+        """The reader's latest list as the compact email, and its date. None when they have no list yet."""
+        d = get_deps()
+        latest = db.latest_issue(d.conn, reader.profile.id)
+        if latest is None:
+            return None, ""
+        site = str(request.base_url).rstrip("/")
+        html = render_newsletter(saved_lists.saved_picks(d.conn, latest), now=latest.made_at, site_url=site)
+        return html, latest.made_at.astimezone(NY).strftime("%A, %B %-d")
+
+    @app.get("/newsletter/email", response_class=HTMLResponse)
+    def email_preview(request: Request):
+        reader = listed_reader(request)
+        if not isinstance(reader, Reader):
+            return reader
+        body, _ = email_version(request, reader)
+        can_send = bool(get_deps().resend_key) and reader.signed_in
+        return finish(HTMLResponse(page("email_preview.html", body=body, can_send=can_send)), reader)
+
+    @app.post("/newsletter/email")
+    def email_me(request: Request):
+        d = get_deps()
+        if not d.resend_key:
+            return notice("Not available", "Emailing lists isn't switched on yet.", [("/newsletter", "Back to my list")], 404)
+        reader = signed_in_reader(request)
+        if not isinstance(reader, Reader):
+            return reader
+        if reader.profile is None:
+            return finish(RedirectResponse("/preferences", status_code=303), reader)
+        if over_account_limit("email_account", reader.profile.id):
+            return too_many(request)
+        body, day = email_version(request, reader)
+        if body is None:
+            return finish(RedirectResponse("/newsletter/email", status_code=303), reader)
+        # Always the signed-in reader's own address, never one from the form.
+        if not emailer.send_list(d.http, d.resend_key, reader.email, f"Your whatisupnyc list for {day}", body):
+            text = "We couldn't send the email just now. Please try again in a little while."
+            return finish(notice("Couldn't send", text, [("/newsletter", "Back to my list")], 502), reader)
+        text = f"Sent to {reader.email}. It can take a minute to arrive."
+        return finish(notice("On its way", text, [("/newsletter", "Back to my list")]), reader)
+
     @app.get("/e/{event_id}", response_class=HTMLResponse)
     def shared_event(event_id: int):
         """A public page for one event, for sharing with friends. Nothing about who shared it."""
         event = db.events_by_ids(get_deps().conn, [event_id]).get(event_id)
-        if event is None:
+        # Only events the site would recommend; event numbers can be walked.
+        if event is None or not event.score.eligible:
             return notice("Event not found", "That event isn't on whatisupnyc.", [("/", "Make your own list")], 404)
         return HTMLResponse(page("event.html", item=card(event)))
 

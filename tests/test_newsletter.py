@@ -156,8 +156,10 @@ def test_unsafe_link_is_not_rendered():
     assert "javascript:" not in render([pick(url="javascript:alert(1)")])
 
 
-def test_invites_reply_by_email():
-    assert "reply" in render([pick()]).lower()
+def test_footer_says_how_to_adjust_the_next_issue():
+    # Replies to the sending address go nowhere, so the footer points to the site instead.
+    html = render([pick()])
+    assert "Edit your preferences" in html and "reply" not in html.lower()
 
 
 def test_issue_carries_the_wordmark_as_text_for_email():

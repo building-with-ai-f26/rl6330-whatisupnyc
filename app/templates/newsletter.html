@@ -47,11 +47,20 @@
   {% for item in section["items"] %}
   <tr>
     <td style="padding: 16px 24px;{% if not loop.last %} border-bottom: 1px solid #000000;{% endif %}">
-      <h2 style="margin: 0 0 4px; font-family: {{ font }}; font-size: 21px; line-height: 1.2; font-weight: 500; letter-spacing: -0.015em;">
-        {% if item.url %}<a href="{{ item.url }}" style="color: #000000;">{{ item.name }}</a>{% else %}{{ item.name }}{% endif %}
-      </h2>
-      <p style="margin: 0 0 6px; font-size: 15px; line-height: 1.4; font-weight: 500;">{{ item.when }} at {{ item.venue }}</p>
-      <p style="margin: 0; font-size: 16px; line-height: 1.45;">{{ item.reason }}</p>
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="border-collapse: collapse;">
+        <tr>
+          {% if item.image %}
+          <td width="72" valign="top" style="width: 72px; padding: 2px 14px 0 0;"><img src="{{ item.image }}" width="72" height="72" alt="" style="display: block; width: 72px; height: 72px; object-fit: cover; border-radius: 2px;"></td>
+          {% endif %}
+          <td valign="top">
+            <h2 style="margin: 0 0 4px; font-family: {{ font }}; font-size: 21px; line-height: 1.2; font-weight: 500; letter-spacing: -0.015em;">
+              {% if item.url %}<a href="{{ item.url }}" style="color: #000000;">{{ item.name }}</a>{% else %}{{ item.name }}{% endif %}
+            </h2>
+            <p style="margin: 0 0 6px; font-size: 15px; line-height: 1.4; font-weight: 500;">{{ item.when }} at {{ item.venue }}</p>
+            <p style="margin: 0; font-size: 16px; line-height: 1.45;">{{ item.reason }}</p>
+          </td>
+        </tr>
+      </table>
     </td>
   </tr>
   {% endfor %}
@@ -59,7 +68,7 @@
   {% endif %}
   <tr>
     <td bgcolor="#000000" style="background-color: #000000; color: #ffffff; padding: 18px 24px; font-size: 14px; line-height: 1.45;">
-      Something not for you? Reply to this email and tell us, and we'll adjust your next issue.
+      {% if site_url %}<a href="{{ site_url }}/newsletter" style="color: #ffffff;">Open your list on whatisupnyc</a> to save events, share them with friends, or rate the ones you went to.{% else %}Something not for you? Edit your preferences on whatisupnyc, and we'll adjust your next issue.{% endif %}
       {% if parks_credit %}<br><span style="color: #bdbdbd; font-size: 12px;">Includes NYC Parks events from NYC Open Data.</span>{% endif %}
     </td>
   </tr>
