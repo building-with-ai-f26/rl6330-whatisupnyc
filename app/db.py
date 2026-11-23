@@ -8,17 +8,18 @@ from zoneinfo import ZoneInfo
 
 from psycopg import Connection
 from psycopg.rows import dict_row
+from psycopg.types.json import Jsonb
 from psycopg_pool import ConnectionPool
 
 from app.checks import dedupe_key
-from app.models import CandidateEvent, Score, ScoredEvent, Subscriber
+from app.models import CandidateEvent, Pick, SavedIssue, Score, ScoredEvent, Subscriber
 
 NY = ZoneInfo("America/New_York")
 
 # The schema lives in supabase/migrations/. Every table in it, so tests can empty them.
 TABLES = (
-    "events", "dropped_events", "old_subscribers", "old_sent_events", "profiles", "sent_events",
-    "pastes", "ai_requests", "waiting_pastes",
+    "events", "dropped_events", "profiles", "sent_events", "newsletter_issues", "pastes", "ai_requests",
+    "waiting_pastes",
 )
 # How long a brand-new reader can see their list before confirming their email.
 FIRST_LOOK = timedelta(hours=24)
@@ -234,7 +235,54 @@ def end_first_look(conn: Database, user_id: str) -> None:
 
 
 def _row_to_subscriber(row: dict) -> Subscriber:
-    return Subscriber(str(row["user_id"]), row["name"], row["interests"], row["look_prompt"], row["days"])
+    return Subscriber(
+        str(row["user_id"]), row["name"], row["interests"], row["look_prompt"], row["days"],
+        row.get("preferences_changed_at"),
+    )
+
+
+def update_profile(
+    conn: Database, user_id: str, name: str, interests: str, look_prompt: str, days: list[str], now: datetime
+) -> bool:
+    """Saves a reader's edited preferences, as that reader. Returns False if they have no profile."""
+    with as_reader(conn, user_id) as c:
+        return c.execute(
+            "UPDATE profiles SET name = %s, interests = %s, look_prompt = %s, days = %s, preferences_changed_at = %s"
+            " WHERE user_id = %s",
+            (name, interests, look_prompt, days, now, user_id),
+        ).rowcount == 1
+
+
+def save_issue(conn: Database, user_id: str, picks: list[Pick], now: datetime) -> None:
+    """Saves a list the AI just made, and marks its events as sent, together."""
+    saved = [{"event_id": pick.event.id, "reason": pick.reason} for pick in picks]
+    with as_reader(conn, user_id) as c:
+        c.execute(
+            "INSERT INTO newsletter_issues (user_id, made_on, made_at, picks) VALUES (%s, %s, %s, %s)",
+            (user_id, now.astimezone(NY).date(), now, Jsonb(saved)),
+        )
+        c.cursor().executemany(
+            "INSERT INTO sent_events (user_id, event_id) VALUES (%s, %s) ON CONFLICT DO NOTHING",
+            [(user_id, pick.event.id) for pick in picks],
+        )
+
+
+def latest_issue(conn: Database, user_id: str) -> SavedIssue | None:
+    with as_reader(conn, user_id) as c:
+        row = c.execute(
+            "SELECT made_on, made_at, picks FROM newsletter_issues WHERE user_id = %s ORDER BY made_at DESC LIMIT 1",
+            (user_id,),
+        ).fetchone()
+    if row is None:
+        return None
+    return SavedIssue(row["made_on"], row["made_at"], [(p["event_id"], p["reason"]) for p in row["picks"]])
+
+
+def events_by_ids(conn: Database, ids: list[int]) -> dict[int, ScoredEvent]:
+    """Events by ID, eligible or not. IDs with no event are left out."""
+    with conn.connection() as c:
+        rows = c.execute("SELECT * FROM events WHERE id = ANY(%s)", (list(ids),)).fetchall()
+    return {row["id"]: _row_to_scored(row) for row in rows}
 
 
 def mark_sent(conn: Database, user_id: str, event_ids: list[int]) -> None:

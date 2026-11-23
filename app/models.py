@@ -1,5 +1,5 @@
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import date, datetime
 from typing import Literal
 
 SourceType = Literal["api", "web", "pasted"]
@@ -62,9 +62,20 @@ class Subscriber:
     interests: str
     look_prompt: str
     days: list[str]
+    # When the reader last saved preferences; a list made before this is out of date.
+    changed_at: datetime | None = None
 
 
 @dataclass
 class Pick:
     event: ScoredEvent
     reason: str
+
+
+@dataclass
+class SavedIssue:
+    """A list the AI made for a reader, as saved: (event ID, reason) in the AI's order."""
+
+    made_on: date
+    made_at: datetime
+    picks: list[tuple[int, str]]
