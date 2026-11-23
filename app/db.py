@@ -18,8 +18,8 @@ NY = ZoneInfo("America/New_York")
 
 # The schema lives in supabase/migrations/. Every table in it, so tests can empty them.
 TABLES = (
-    "events", "dropped_events", "profiles", "sent_events", "newsletter_issues", "pastes", "ai_requests",
-    "waiting_pastes",
+    "events", "dropped_events", "profiles", "sent_events", "newsletter_issues", "saved_for_later",
+    "event_ratings", "pastes", "ai_requests", "waiting_pastes",
 )
 # How long a brand-new reader can see their list before confirming their email.
 FIRST_LOOK = timedelta(hours=24)
@@ -290,6 +290,55 @@ def latest_issue(conn: Database, user_id: str) -> SavedIssue | None:
     if row is None:
         return None
     return SavedIssue(row["made_on"], row["made_at"], [(p["event_id"], p["reason"]) for p in row["picks"]])
+
+
+def history_event_ids(conn: Database, user_id: str) -> set[int]:
+    """Every event that was on one of the reader's lists."""
+    with as_reader(conn, user_id) as c:
+        rows = c.execute(
+            "SELECT DISTINCT (pick ->> 'event_id')::bigint AS event_id"
+            " FROM newsletter_issues, jsonb_array_elements(picks) AS pick WHERE user_id = %s",
+            (user_id,),
+        ).fetchall()
+    return {row["event_id"] for row in rows}
+
+
+def save_for_later(conn: Database, user_id: str, event_id: int, now: datetime) -> None:
+    with as_reader(conn, user_id) as c:
+        c.execute(
+            "INSERT INTO saved_for_later (user_id, event_id, saved_at) VALUES (%s, %s, %s)"
+            " ON CONFLICT (user_id, event_id) DO UPDATE SET saved_at = excluded.saved_at",
+            (user_id, event_id, now),
+        )
+
+
+def unsave(conn: Database, user_id: str, event_id: int) -> None:
+    with as_reader(conn, user_id) as c:
+        c.execute("DELETE FROM saved_for_later WHERE user_id = %s AND event_id = %s", (user_id, event_id))
+
+
+def saved_for_later_ids(conn: Database, user_id: str) -> list[int]:
+    """The reader's saved events, most recently saved first."""
+    with as_reader(conn, user_id) as c:
+        rows = c.execute(
+            "SELECT event_id FROM saved_for_later WHERE user_id = %s ORDER BY saved_at DESC, event_id", (user_id,)
+        ).fetchall()
+    return [row["event_id"] for row in rows]
+
+
+def rate_event(conn: Database, user_id: str, event_id: int, rating: int, now: datetime) -> None:
+    with as_reader(conn, user_id) as c:
+        c.execute(
+            "INSERT INTO event_ratings (user_id, event_id, rating, rated_at) VALUES (%s, %s, %s, %s)"
+            " ON CONFLICT (user_id, event_id) DO UPDATE SET rating = excluded.rating, rated_at = excluded.rated_at",
+            (user_id, event_id, rating, now),
+        )
+
+
+def ratings(conn: Database, user_id: str) -> dict[int, int]:
+    with as_reader(conn, user_id) as c:
+        rows = c.execute("SELECT event_id, rating FROM event_ratings WHERE user_id = %s", (user_id,)).fetchall()
+    return {row["event_id"]: row["rating"] for row in rows}
 
 
 def events_by_ids(conn: Database, ids: list[int]) -> dict[int, ScoredEvent]:
