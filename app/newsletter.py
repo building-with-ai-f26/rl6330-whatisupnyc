@@ -188,3 +188,16 @@ def _view(pick: Pick) -> dict:
         when += local.strftime(", %-I:%M %p")
     url = event.url if urlparse(event.url).scheme in ("http", "https") else None
     return {"name": event.name, "when": when, "venue": event.venue, "reason": pick.reason, "url": url}
+
+
+def card(event: ScoredEvent, reason: str | None = None) -> dict:
+    """One event as the dashboard shows it: no scores, only what a reader needs."""
+    view = _view(Pick(event, reason or ""))
+    local = event.event.start.astimezone(NY)
+    return {
+        **view,
+        "id": event.id,
+        "image": event.event.image_url,
+        "plate": local.strftime("%a %b %-d"),
+        "start": event.event.start,
+    }

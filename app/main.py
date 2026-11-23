@@ -13,7 +13,8 @@ from app import auth, db, saved_lists
 from app.ai import AIClient, AIUnavailable, backup_from_env
 from app.limits import LIMITS, RateLimiter, client_ip
 from app.models import Subscriber
-from app.newsletter import _templates, choose_picks, render_newsletter
+from app.newsletter import NY
+from app.newsletter import _templates, card, choose_picks, render_newsletter
 from app.sites import Sites, load as load_sites
 from app.sources.pasted import paste_problem
 from app.sources.web import TavilyClient
@@ -298,14 +299,10 @@ def create_app(deps: AppDeps | None = None) -> FastAPI:
             return finish(RedirectResponse("/preferences" if reader.signed_in else "/signin", status_code=303), reader)
         d = get_deps()
         subscriber = reader.profile
-        context = {"subscriber": subscriber, "banner": SIGNED_UP_BANNER if reader.first_look else ""}
         now = d.clock()
         latest = db.latest_issue(d.conn, subscriber.id)
         if not saved_lists.needs_new_list(latest, subscriber, now):
-            picks = saved_lists.saved_picks(d.conn, latest)
-            # A saved list keeps the date it was made, grouped as of that day.
-            body = render_newsletter(picks, now=latest.made_at)
-            return finish(HTMLResponse(page("view.html", error=None, body=body, **context)), reader)
+            return finish(dashboard(request, reader, saved_lists.saved_picks(d.conn, latest), latest.made_at), reader)
         # Only making a new list calls the AI, so only that counts toward the reader's limit.
         if over_account_limit("newsletter_account", subscriber.id):
             return too_many(request)
@@ -313,9 +310,86 @@ def create_app(deps: AppDeps | None = None) -> FastAPI:
             picks = saved_lists.make_list(d.conn, d.ai, subscriber, now)
         except AIUnavailable:
             # Their last list, if any, still shows under the message.
-            body = render_newsletter(saved_lists.saved_picks(d.conn, latest), now=latest.made_at) if latest else None
-            return finish(HTMLResponse(page("view.html", error=AI_BUSY, body=body, **context)), reader)
-        return finish(HTMLResponse(page("view.html", error=None, body=render_newsletter(picks, now=now), **context)), reader)
+            old = saved_lists.saved_picks(d.conn, latest) if latest else []
+            return finish(dashboard(request, reader, old, latest.made_at if latest else now, error=AI_BUSY), reader)
+        return finish(dashboard(request, reader, picks, now), reader)
+
+    def dashboard(request: Request, reader: Reader, picks, made_at, error: str | None = None) -> HTMLResponse:
+        """The website version of the list: today's picks, saved events, and events to rate."""
+        d = get_deps()
+        now, user_id = d.clock(), reader.profile.id
+        saved_ids = db.saved_for_later_ids(d.conn, user_id)
+        rated = db.ratings(d.conn, user_id)
+        history = db.history_event_ids(d.conn, user_id)
+        events = db.events_by_ids(d.conn, list(set(saved_ids) | history))
+        saved = [card(events[i]) for i in saved_ids if i in events and events[i].event.start > now]
+        went = sorted((events[i] for i in history if i in events and events[i].event.start <= now),
+                      key=lambda e: e.event.start, reverse=True)[:12]
+        base = str(request.base_url).rstrip("/")
+        html = page(
+            "dashboard.html",
+            subscriber=reader.profile,
+            banner=SIGNED_UP_BANNER if reader.first_look else "",
+            error=error,
+            list_day=made_at.astimezone(NY).strftime("%A, %B %-d"),
+            picks=[card(p.event, p.reason) for p in picks],
+            saved=saved,
+            to_rate=[card(e) for e in went],
+            saved_ids=set(saved_ids),
+            ratings=rated,
+            share_base=base,
+        )
+        return HTMLResponse(html)
+
+    def event_on_readers_lists(reader: Reader, event_id: int):
+        """The event, if it was on one of this reader's lists; otherwise None."""
+        d = get_deps()
+        if event_id not in db.history_event_ids(d.conn, reader.profile.id):
+            return None
+        return db.events_by_ids(d.conn, [event_id]).get(event_id)
+
+    def not_on_your_lists(reader: Reader) -> HTMLResponse:
+        return finish(notice("Not found", "That event isn't on your lists.", [("/newsletter", "Back to my list")], 404), reader)
+
+    @app.post("/events/{event_id}/save")
+    def save_event_for_later(request: Request, event_id: int):
+        reader = listed_reader(request)
+        if not isinstance(reader, Reader):
+            return reader
+        if over_limit(request, "event_actions"):
+            return too_many(request)
+        if event_on_readers_lists(reader, event_id) is None:
+            return not_on_your_lists(reader)
+        db.save_for_later(get_deps().conn, reader.profile.id, event_id, get_deps().clock())
+        return finish(RedirectResponse(f"/newsletter#event-{event_id}", status_code=303), reader)
+
+    @app.post("/events/{event_id}/unsave")
+    def unsave_event(request: Request, event_id: int):
+        reader = listed_reader(request)
+        if not isinstance(reader, Reader):
+            return reader
+        if over_limit(request, "event_actions"):
+            return too_many(request)
+        db.unsave(get_deps().conn, reader.profile.id, event_id)
+        return finish(RedirectResponse(f"/newsletter#event-{event_id}", status_code=303), reader)
+
+    @app.post("/events/{event_id}/rate")
+    def rate_event(request: Request, event_id: int, rating: str = Form("")):
+        reader = listed_reader(request)
+        if not isinstance(reader, Reader):
+            return reader
+        if over_limit(request, "event_actions"):
+            return too_many(request)
+        event = event_on_readers_lists(reader, event_id)
+        if event is None:
+            return not_on_your_lists(reader)
+        d = get_deps()
+        stars = int(rating) if rating.isdigit() else 0
+        if not 1 <= stars <= 5 or event.event.start > d.clock():
+            text = "Ratings go from 1 to 5, for events that have already happened."
+            return finish(notice("Can't rate that", text, [("/newsletter", "Back to my list")], 400), reader)
+        db.rate_event(d.conn, reader.profile.id, event_id, stars, d.clock())
+        return finish(RedirectResponse(f"/newsletter#rate-{event_id}", status_code=303), reader)
 
     def listed_reader(request: Request) -> Reader | Response:
         """A reader with preferences, signed in or on their first look; anyone else goes to sign in."""
@@ -329,6 +403,8 @@ def create_app(deps: AppDeps | None = None) -> FastAPI:
 
     @app.post("/newsletter/more")
     def more_like_these(request: Request, event_ids: list[int] = Form([])):
+        if over_limit(request, "newsletter"):
+            return too_many(request)
         reader = listed_reader(request)
         if not isinstance(reader, Reader):
             return reader

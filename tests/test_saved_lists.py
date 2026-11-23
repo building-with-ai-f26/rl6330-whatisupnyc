@@ -218,3 +218,14 @@ def test_more_like_these_needs_a_reader(conn, sites):
     client, ai = setup(conn, sites)
     response = client.post("/newsletter/more", data={"event_ids": [1]})
     assert (response.status_code, response.headers["location"]) == (303, "/signin")
+
+
+def test_more_like_these_counts_toward_the_per_address_limit(conn, sites):
+    from app.limits import LIMITS
+
+    client, ai = setup(conn, sites)
+    signed_in_ana(client)
+    client.get("/newsletter")
+    for _ in range(LIMITS["newsletter"][0] - 1):
+        client.get("/newsletter")
+    assert client.post("/newsletter/more", data={"event_ids": [1]}).status_code == 429
