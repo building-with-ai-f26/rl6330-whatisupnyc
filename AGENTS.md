@@ -38,6 +38,8 @@
 4. **Verify changes:** Run relevant checks. For a reproducible logic bug, use a failing test to demonstrate the fix when practical. Record manual checks and known limitations; follow the selected Build 4 evaluation track.
 5. **Zero secrets in code:** Never hardcode API keys, tokens, or credentials. Always read from environment variables (`.env`) and update `.env.example` when new variables are needed.
 6. **Stop when looping:** If a fix fails twice in a row, stop, summarize what failed, and ask the human before trying a third approach.
+7. **Secrets stay unprinted, even "masked":** check a connection string by parsing it (`urlparse`) and printing only host, port and user; check a key by its prefix and length. Read key lists as JSON and keep only the field you need. *From a real mistake (2026-11-21/22): a `sed` mask stopped at the first `@` inside a database password and printed the rest, and a key listing printed Supabase's legacy `service_role` key in full; the password was reset and the legacy keys disabled.*
+8. **Watch the test fail before the fix:** run each new test and see it go red before writing the code that makes it pass, and say so only when it happened. *From a real mistake (2026-11-23): tests were written and the fix applied in one go, then reported as red-to-green; they were checked afterwards against the old code in a separate worktree.*
 
 ## 4. Project Rules
 - **Sources:** `data/sites.json` records each site's terms finding and the builder's decision. Secret NYC, doNYC, and Eventbrite are prohibited, because their terms ban automated collection. The other listed sites are allowed for this class project; review them before any commercial use. Respect robots rules and blocks. Never fetch TikTok, Instagram, or RedNote links, and don't add login bots, proxies, or block workarounds.
@@ -45,7 +47,8 @@
 - **Readers never see** scores, sentiment ratings, or that an event was discovered on a social app.
 - **Design doc:** `docs/superpowers/specs/2026-11-02-nyc-events-newsletter-design.md`
 
-## 5. Deploy (whatisupnyc.com)
+## 5. Shipping (deploy to whatisupnyc.com)
+The agent ships a change in this order, and stops at anything on the "Ask me first" list below: branch from `main` → small commits with tests (`uv run pytest` green) → dev check (migrations and settings on the dev project first) → push and open a PR → merge → the deploy steps below → verify the live site → the build log line.
 - **Where:** a VPS reached with the SSH host alias `ryandri` (in the builder's `~/.ssh/config`). Caddy serves whatisupnyc.com and passes requests to the app on `127.0.0.1:8310`. The server also runs unrelated projects, so touch only whatisupnyc's files and services.
 - **Pieces:** code in `/opt/whatisupnyc/app` (a git clone of `main`), Python environment `/opt/whatisupnyc/venv`, settings in `/etc/whatisupnyc/env` (root-only; the server's own keys, separate from the local `.env`; never `SUPABASE_SECRET_KEY`), database: the production Supabase project (`DATABASE_URL` in the server env; the old SQLite file `/var/lib/whatisupnyc/whatisupnyc.db` stays as a backup from before the move), web app `whatisupnyc.service`, daily collector `whatisupnyc-pipeline.timer` (06:30 New York time).
 - **Update after merging a PR:**
@@ -68,3 +71,11 @@
   8. `systemctl start whatisupnyc whatisupnyc-pipeline.timer`. Then check: sign up, confirm from the inbox, sign in, sign out, and reset a password.
 - **Undo:** copy the backup's `app` folder back over `/opt/whatisupnyc/app` and restart. To undo data changes, restore the `pg_dump` file with `psql "$PROD_DATABASE_URL" -f FILE` into an emptied database.
 - **Scoring changes apply only to newly collected events.** The collector skips events it already scored, so deploy scoring changes before the 06:30 run.
+
+## 6. Ask me first
+Stop and get the builder's OK, for each one, before:
+- **Deleting data or changing a database:** migrations, `truncate`/`delete`, the one-time move scripts, restoring a backup. Production most of all; dev only for data the agent didn't create in this session.
+- **Keys, secrets and permissions:** creating, rotating or disabling keys; editing `.env` or `/etc/whatisupnyc/env`; Supabase Auth settings (`supabase config push`); SSH keys and `authorized_keys`; grants and Row Level Security policies.
+- **Anything that costs money:** paid AI models or plans, upgrades, new paid services.
+- **Production and anything outward-facing:** deploys, stopping or restarting services, merging, pushing, sending email to real readers.
+

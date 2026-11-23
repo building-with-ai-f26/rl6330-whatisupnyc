@@ -71,7 +71,7 @@
     <section id="live-demo">
       <h2>The product</h2>
       <p>
-        <strong>Current Status:</strong> Build 2 working slice, live at whatisupnyc.com behind a pod password. A reader answers one question at a time, and the AI picks their list from events collected and checked each morning.<br />
+        <strong>Current Status:</strong> Build 3: live at <a href="https://whatisupnyc.com">whatisupnyc.com</a> for anyone, with reader accounts (email and password) instead of the pod password. A reader answers one question at a time, chooses a password, and sees their first list right away; the AI picks it from events collected and checked each morning. Security audit: <a href="https://github.com/building-with-ai-f26/rl6330-whatisupnyc/blob/main/SECURITY.md">SECURITY.md</a>.<br />
         <strong>Demo:</strong> The start page, the "Making your list…" screen while the AI picks, and a real list made on November 15.
       </p>
       <div class="shots">
@@ -104,11 +104,22 @@
       <p><strong>How this build tests it:</strong> For now, the main number is how many people sign up for the newsletter. Sign-up is now one step at a time, so PostHog shows the step where people leave. Clicks on events are tracked on the newsletter page, but not yet from the email; that's next, by sending email links through whatisupnyc.com first. Whether people actually go is hard to measure at scale, so for now I'll ask my pod, and later add a one-click "Did you go?" question to each issue.</p>
       <p><strong>Simple Architecture:</strong> Each morning: event feeds (Ticketmaster, NYC Parks, NYU Engage, National Park Service, the NYC Events Calendar, 13 museum and venue calendars), allowed web pages, and pasted posts → plain-code checks → scoring (official feeds, events on several feeds, coverage) → saved. When a reader asks: the best 150 upcoming events, at most 50 from one source → AI picks from those only → code confirms each pick → newsletter</p>
 
-      <h3>4. Unit Economics & Analytics Snapshot (Updated Weekly)</h3>
+      <h3>4. Hosting, Database & Security (Build 3)</h3>
+      <ul>
+        <li><strong>Hosting:</strong> a VPS (virtual private server) running the FastAPI app behind Caddy, which handles HTTPS. Chosen over Render or Vercel because the daily collector runs for about 10 minutes every morning, and the server was already set up. Deploys follow written steps in <code>AGENTS.md</code>, each starting with a backup, and can be rolled back.</li>
+        <li><strong>Database:</strong> Supabase Postgres, moved from a SQLite file on 2026-11-22. Two projects keep testing apart from the live site: dev and production. Table changes are SQL migration files in git, tried on dev before production. The free plan has no automatic backups, so every deploy starts with a database dump.</li>
+        <li><strong>Accounts:</strong> Supabase Auth with email and password, called only by our server; the browser never talks to Supabase. The login is kept in cookies that page scripts can't read. Confirm and reset emails come from our own address through Resend.</li>
+        <li><strong>Who can see what:</strong> Row Level Security is on for every table. A reader can read only their own preferences, and the server reads them under that reader's identity, so a bug in our code still can't show one reader another's list. Tested on production by signing in as one account and trying to read another's data through Supabase's public API: blocked.</li>
+        <li><strong>Keys:</strong> secret keys live only in the server's settings file and the builder's <code>.env</code>; a search of the repo, its history, and the live site found none. The site uses only Supabase's public key.</li>
+        <li><strong>Abuse and cost limits:</strong> per-visitor and per-account rate limits on sign-up, sign-in, password resets, pasted posts and the list page (which calls the AI), sized so a whole class on one Wi-Fi network can sign up. The AI stays capped at 50 requests a day.</li>
+        <li><strong>Choice I made:</strong> a new reader sees their first list before confirming their email, because waiting for an email loses people. The cost is that sign-up shows whether an email already has an account; that's acceptable for an events list.</li>
+      </ul>
+
+      <h3>5. Unit Economics & Analytics Snapshot (Updated Weekly)</h3>
       <div class="grid-2">
         <div class="stat-box">
           <div class="stat-label">Cumulative Build Spend</div>
-          <div class="stat-value">$62.80</div>
+          <div class="stat-value">$100.64</div>
         </div>
         <div class="stat-box">
           <div class="stat-label">Est. Cost Per User Run</div>
@@ -136,6 +147,26 @@
         <ul>
           <li><strong>What shipped:</strong> The data moved from a SQLite file on the server to Supabase Postgres on 2026-11-22, the first step toward reader accounts. Two Supabase projects keep testing apart from the live site: dev and production. Row Level Security is on for every table, with no rules that let the public API in, and a test with the public key confirmed it could not read or change anything. All 1041 events, 151 dropped events, 15 readers and their private newsletter links moved over unchanged; the site was down about five minutes. Tests now run on a local Postgres and refuse to run against any other database, because their setup wipes it. Supabase's free plan has no automatic backups, so each deploy now starts with a database dump.</li>
           <li><strong>What shipped (accounts):</strong> On 2026-11-23 the shared site password came off. Anyone can open whatisupnyc.com, and readers make an account with email and password through Supabase Auth, which only our server talks to. Each reader's preferences sit in a table whose Row Level Security lets only that reader read them; a test on production, signed in as account B through Supabase's public API, could not read, change or add to account A's data. Confirm and reset emails come from our own sender (Resend) and open a page with a button, so mail scanners can't use the link up; confirming also sets the password and ends every other login, so nobody can take over an account by signing up with someone else's email. Every route that calls the AI or saves data has a per-visitor rate limit, sized for a classroom on one Wi-Fi network, with tighter limits per account. The 5 readers from before accounts got confirmed accounts and keep their preferences; they set a password with "Forgot password".</li>
+          <li><strong>Security audit:</strong> All seven checks are written up in <a href="https://github.com/building-with-ai-f26/rl6330-whatisupnyc/blob/main/SECURITY.md">SECURITY.md</a>.
+            <ul>
+              <li>Signed in as account B, Supabase's public API refused every attempt to read or change account A's data.</li>
+              <li>No secret keys turned up in the repo, its history, or the live site.</li>
+              <li>The app stores no files.</li>
+              <li>The deploy started with backups, and the agent works on the dev database.</li>
+              <li>Rate limits cover every route that calls the AI or saves data, and the AI stays capped at 50 requests a day.</li>
+              <li><code>pip-audit</code> is clean after one upgrade.</li>
+              <li>An agent review found an account-takeover path, fixed before launch: someone could sign up with your email and their own password, and keep it after you confirmed.</li>
+            </ul></li>
+          <li><strong>Things learned with AI:</strong> Moving off a shared password is mostly about the cases nobody plans for: an email already taken, a confirm link a mail scanner opens first, a login that expires halfway through a slow page, a whole class on one Wi-Fi address. Row Level Security is worth testing the way an attacker would, through the public API with the public key, not just trusted because it's switched on. A free Supabase project's settings can live in git and be pushed to dev and production the same way, which beats clicking through two dashboards.</li>
+          <li><strong>What broke / changed in PRD:</strong>
+            <ul>
+              <li>My database password had symbols that broke the connection string, and the agent's attempt to hide it printed part of it, so I reset it. It also printed an old-style Supabase admin key, so those keys are now off on both projects.</li>
+              <li>SSH to the server failed after I switched MacBooks, until a new Touch ID key was added.</li>
+              <li>Supabase won't let free projects change their email templates without your own email sender, so Resend had to be set up before sign-up could work at all.</li>
+              <li>The first rate limits would have blocked the sixth classmate signing up from campus Wi-Fi.</li>
+              <li>PRD: a new Hosting, Database & Security section, and the status now says the site is open with accounts.</li>
+            </ul></li>
+          <li><strong>Cost & time this week:</strong> $37.84 of Claude Code usage as reported by /usage, $0.00 on Supabase, Resend and hosting (free plans), about $0 on the AI backup · around 3 hours</li>
         </ul>
       </div>
 
