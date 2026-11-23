@@ -473,6 +473,14 @@ def create_app(deps: AppDeps | None = None) -> FastAPI:
             db.create_profile(d.conn, reader.user_id, *values)
         return finish(RedirectResponse("/newsletter", status_code=303), reader)
 
+    @app.get("/e/{event_id}", response_class=HTMLResponse)
+    def shared_event(event_id: int):
+        """A public page for one event, for sharing with friends. Nothing about who shared it."""
+        event = db.events_by_ids(get_deps().conn, [event_id]).get(event_id)
+        if event is None:
+            return notice("Event not found", "That event isn't on whatisupnyc.", [("/", "Make your own list")], 404)
+        return HTMLResponse(page("event.html", item=card(event)))
+
     @app.get("/newsletter/{token}", response_class=HTMLResponse)
     def old_newsletter_link(token: str):
         text = "Lists now open when you sign in. If you never set a password, reset it with the email you signed up with."
