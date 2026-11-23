@@ -5,7 +5,7 @@
 ## 1. Project Overview
 - **What this repo builds:** whatisupnyc, a personalized NYC events newsletter. It collects events automatically, checks and scores them, and has AI choose picks for each person only from checked events.
 - **Primary user & core workflow:** People new to NYC, starting with NYU classmates and friends. They say what they like and pick their days, then get a short list of events. See the living PRD in `docs/index.html`.
-- **Tech stack:** Python 3.12 / uv / FastAPI / Supabase Postgres (through `psycopg`; two projects, dev and production, connection string in `DATABASE_URL`) / OpenRouter free model / Tavily / Ticketmaster Discovery API / PostHog analytics (`POSTHOG_KEY`; empty turns it off). Live at whatisupnyc.com on a VPS since 2026-11-09 (see Deploy below); the design doc's Vercel plan came first.
+- **Tech stack:** Python 3.12 / uv / FastAPI / Supabase Postgres (through `psycopg`; two projects, dev and production, connection string in `DATABASE_URL`) / Supabase Auth for reader accounts (called only from the server with `httpx`; `SUPABASE_URL`, `SUPABASE_PUBLISHABLE_KEY`) / Resend for sign-up and password emails / OpenRouter free model / Tavily / Ticketmaster Discovery API / PostHog analytics (`POSTHOG_KEY`; empty turns it off). Live at whatisupnyc.com on a VPS since 2026-11-09 (see Deploy below); the design doc's Vercel plan came first.
 - **AI model:** `nvidia/nemotron-3.5-super-vl:free` through OpenRouter, set by `OPENROUTER_MODEL`. Chosen on 2026-11-02: it returned valid JSON and ignored an injected instruction, while `google/gemma-4-26b-a4b-it:free` returned HTTP 429 and `thinkingmachines/inkling:free` returned HTTP 403. It is slow, about 40 seconds for one extraction. **Backup:** `MiniMax-M3` through MiniMax's own API (`MINIMAX_API_KEY`, `MINIMAX_MODEL`), tried once when OpenRouter fails. It is paid, answers in about a second, and writes `<think>` reasoning before its JSON, which the app removes.
 - **Optional source keys:** `NPS_API_KEY` (National Park Service events) and `NYC_EVENTS_CALENDAR_API_KEY` (the city's NYC Events Calendar). An empty key skips that source.
 - **Project structure:**
@@ -14,18 +14,19 @@
   - `app/sources/`: one file per event source (Ticketmaster, NYC Parks, NYU Engage, NPS, NYC Events Calendar, WordPress event calendars, web pages, pasted posts).
   - `app/checks.py`, `app/scoring.py`, `app/sentiment.py`: the plain-code checks, the points, and the review-tone rating.
   - `app/newsletter.py`: picks the 150 events the AI sees, asks the AI to choose, confirms each pick, and builds the list.
-  - `app/ai.py`: OpenRouter with the MiniMax backup and the 50-a-day limit. `app/db.py`: every database query. `supabase/migrations/`: the tables, as SQL files applied in name order, with Row Level Security on every table. `app/auth.py`: the site password.
+  - `app/ai.py`: OpenRouter with the MiniMax backup and the 50-a-day limit. `app/db.py`: every database query. `supabase/migrations/`: the tables, as SQL files applied in name order, with Row Level Security on every table. `app/supabase_auth.py`: sign-up, sign-in, email links and sign-out through Supabase Auth. `app/limits.py`: per-visitor rate limits. `app/auth.py`: refuses forms posted from other sites. Readers' rows are read through `db.as_reader`, which switches to the `authenticated` role so Row Level Security limits each reader to their own rows.
   - `app/templates/`: the pages (`index.html` is the start page, `view.html` the newsletter page, `newsletter.html` the list itself).
   - `data/sites.json`: each site's terms finding and whether we may collect from it. `data/reputable.json`: venues worth reputation points.
-  - `tests/`: `uv run pytest`, with saved API responses in `tests/fixtures/`. `scripts/`: key check, the sentiment eval, and `move_to_supabase.py` (one-time copy of the old SQLite file into Postgres).
+  - `tests/`: `uv run pytest`, with saved API responses in `tests/fixtures/`. `scripts/`: key check, the sentiment eval, and `move_readers_to_accounts.py` (one-time: gives readers from before accounts a confirmed account; the only user of `SUPABASE_SECRET_KEY`).
   - `docs/index.html`: the Product Page (living PRD and build log), published with GitHub Pages.
 
 ## 2. Commands
 - **Install dependencies:** `uv sync`
 - **Local Postgres for tests (one time):** `brew install postgresql@17 && brew services start postgresql@17 && /opt/homebrew/opt/postgresql@17/bin/createdb whatisupnyc_test`. Tests use `TEST_DATABASE_URL` (default `postgresql://localhost/whatisupnyc_test`) and never touch Supabase.
 - **Apply database changes:** add a new file in `supabase/migrations/`, then `supabase db push --db-url "$DATABASE_URL"` (Supabase CLI: `brew install supabase/tap/supabase`). Dev first, production when deploying.
+- **Apply sign-in settings and email templates:** edit `supabase/config.toml` or `supabase/templates/`, preview with `SITE_URL=http://127.0.0.1:8000 supabase config diff --remote=<project ref>`, then `config push` the same way (`RESEND_API_KEY` must be in the shell). `SITE_URL` is `http://127.0.0.1:8000` for dev and `https://whatisupnyc.com` for production. Needs `supabase login`, run once in the Terminal app.
 - **Collect events:** `uv run python -m app.pipeline` (takes about 10 minutes on the free model)
-- **Run locally:** `uv run uvicorn app.main:app --host 127.0.0.1 --port 8000`, then open http://127.0.0.1:8000 and enter `SITE_PASSWORD` from `.env` (any name works). Every page needs that password, and the site stays closed without one. Newsletters open only by their private link.
+- **Run locally:** `uv run uvicorn app.main:app --host 127.0.0.1 --port 8000`, then open http://127.0.0.1:8000 and make an account (the dev project's emails arrive through Resend). The login cookies are `Secure`; Chrome and Firefox keep them on `127.0.0.1`.
 - **Run deterministic tests:** `uv run pytest`
 - **Run model evals:** `uv run python -m scripts.eval_sentiment`, after labeling `tests/sentiment_examples.json`
 - **Check API keys:** `uv run python scripts/check_keys.py`
@@ -46,14 +47,24 @@
 
 ## 5. Deploy (whatisupnyc.com)
 - **Where:** a VPS reached with the SSH host alias `ryandri` (in the builder's `~/.ssh/config`). Caddy serves whatisupnyc.com and passes requests to the app on `127.0.0.1:8310`. The server also runs unrelated projects, so touch only whatisupnyc's files and services.
-- **Pieces:** code in `/opt/whatisupnyc/app` (a git clone of `main`), Python environment `/opt/whatisupnyc/venv`, settings in `/etc/whatisupnyc/env` (root-only; the server's own keys and site password, separate from the local `.env`), database: the production Supabase project (`DATABASE_URL` in the server env; the old SQLite file `/var/lib/whatisupnyc/whatisupnyc.db` stays as a backup from before the move), web app `whatisupnyc.service`, daily collector `whatisupnyc-pipeline.timer` (06:30 New York time).
+- **Pieces:** code in `/opt/whatisupnyc/app` (a git clone of `main`), Python environment `/opt/whatisupnyc/venv`, settings in `/etc/whatisupnyc/env` (root-only; the server's own keys, separate from the local `.env`; never `SUPABASE_SECRET_KEY`), database: the production Supabase project (`DATABASE_URL` in the server env; the old SQLite file `/var/lib/whatisupnyc/whatisupnyc.db` stays as a backup from before the move), web app `whatisupnyc.service`, daily collector `whatisupnyc-pipeline.timer` (06:30 New York time).
 - **Update after merging a PR:**
   1. Back up: on the server, `B=/root/backups/whatisupnyc-$(date +%F) && mkdir -p $B && cp -a /opt/whatisupnyc/app /etc/whatisupnyc/env $B/`. On the Mac, dump the production database (Supabase's free plan has no automatic backups): `pg_dump "$PROD_DATABASE_URL" > ~/backups/whatisupnyc-$(date +%F).sql` (Homebrew's `/opt/homebrew/opt/postgresql@17/bin/pg_dump`).
   2. `cd /opt/whatisupnyc/app && git pull --ff-only`
-  2b. Only if the PR added a file in `supabase/migrations/`: from the Mac, `supabase db push --db-url "$PROD_DATABASE_URL"`.
+  2b. Only if the PR added a file in `supabase/migrations/`: from the Mac, `supabase db push --db-url "$PROD_DATABASE_URL"`. If the migration renames or drops anything the running code reads, first `systemctl stop whatisupnyc whatisupnyc-pipeline.timer` (the old code breaks the moment it runs), and start both again in step 5.
+  2c. Only if the PR changed `supabase/config.toml` or `supabase/templates/`: `SITE_URL=https://whatisupnyc.com supabase config diff --remote=<production ref>`, then the same with `config push`.
   3. Only if `pyproject.toml` or `uv.lock` changed: `UV_CACHE_DIR=/opt/whatisupnyc/.uv-cache UV_PROJECT_ENVIRONMENT=/opt/whatisupnyc/venv /opt/whatisupnyc/bin/uv sync --frozen --no-dev`
   4. If the PR added an environment variable, add it to `/etc/whatisupnyc/env` as well as `.env.example`.
   5. `systemctl restart whatisupnyc && systemctl is-active whatisupnyc`
-  6. Check: the site loads with the password, and PostHog's Activity page shows a `$pageview` from host `whatisupnyc.com`.
+  6. Check: the start page loads, sign-in works, and PostHog's Activity page shows a `$pageview` from host `whatisupnyc.com`.
+- **One time, for the reader-accounts PR (the move off the site password), in this order:**
+  1. Resend shows whatisupnyc.com as Verified. Then `SITE_URL=https://whatisupnyc.com supabase config diff --remote=<production ref>` and `config push`, with `RESEND_API_KEY` in the shell. Without this push, production emails use Supabase's default links, which skip our confirm page, where the owner sets their password.
+  2. Back up (step 1 above), and count readers: `select count(*), count(distinct lower(trim(email))) from subscribers`.
+  3. `systemctl stop whatisupnyc whatisupnyc-pipeline.timer`. The migration renames `subscribers`, which the old code reads.
+  4. From the Mac: `supabase db push --db-url "$PROD_DATABASE_URL"`.
+  5. On the server: `git pull --ff-only` and `uv sync` (step 3 above).
+  6. In `/etc/whatisupnyc/env`: add `SUPABASE_URL` and `SUPABASE_PUBLISHABLE_KEY` (the production project's; without them every page returns 500), and remove `SITE_PASSWORD`.
+  7. From the Mac, with the production values set only for this one command: `DATABASE_URL="$PROD_DATABASE_URL" SUPABASE_URL=<production URL> SUPABASE_SECRET_KEY=<production secret key> uv run python -m scripts.move_readers_to_accounts`. Its `readers` count must match the distinct emails from step 2.
+  8. `systemctl start whatisupnyc whatisupnyc-pipeline.timer`. Then check: sign up, confirm from the inbox, sign in, sign out, and reset a password.
 - **Undo:** copy the backup's `app` folder back over `/opt/whatisupnyc/app` and restart. To undo data changes, restore the `pg_dump` file with `psql "$PROD_DATABASE_URL" -f FILE` into an emptied database.
 - **Scoring changes apply only to newly collected events.** The collector skips events it already scored, so deploy scoring changes before the 06:30 run.

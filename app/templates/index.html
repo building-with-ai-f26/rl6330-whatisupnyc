@@ -14,6 +14,8 @@
     .sign { padding-bottom: clamp(40px, 6vw, 72px); }
     .js .stepping-sign { min-height: 100svh; }
     .flow { max-width: 860px; }
+    .top { display: flex; justify-content: space-between; align-items: flex-end; gap: 16px; }
+    .top a { font-size: 15px; color: var(--white); }
     .intro { margin: clamp(20px, 3.5vw, 36px) 0 0; max-width: 40ch; font-size: clamp(18px, 2vw, 22px); line-height: 1.4; color: var(--white); }
     .message { background: var(--taxi); color: var(--black); border-radius: 4px; padding: 12px 16px; margin: 28px 0 0; max-width: 60ch; }
 
@@ -104,12 +106,15 @@
   {%- set stepping = not message %}
   <header class="sign{% if stepping %} stepping-sign{% endif %}">
     <div class="inner">
-      <div class="logo">{% include "partials/logo.svg" %}</div>
+      <div class="top">
+        <div class="logo">{% include "partials/logo.svg" %}</div>
+        {% if has_login %}<a href="/newsletter">My list</a>{% else %}<a href="/signin">Sign in</a>{% endif %}
+      </div>
       <form id="make" class="flow{% if stepping %} stepping{% endif %}" method="post" action="/subscribers">
         {% if message %}<p class="message" role="status">{{ message }}</p>{% endif %}
         <div class="progress" aria-hidden="true">
-          <ol>{% for _ in range(5) %}<li></li>{% endfor %}</ol>
-          <span class="count">Step 1 of 5</span>
+          <ol>{% for _ in range(6) %}<li></li>{% endfor %}</ol>
+          <span class="count">Step 1 of 6</span>
         </div>
         <p id="announce" class="sr-only" aria-live="polite"></p>
 
@@ -156,8 +161,20 @@
 
         <div class="step" data-name="email">
           <label class="ask" for="email">What's your email?</label>
-          <input id="email" class="plate" name="email" type="email" required autocomplete="off" inputmode="email" aria-describedby="email-oops" value="{{ form.email }}">
+          <input id="email" class="plate" name="email" type="email" required autocomplete="email" inputmode="email" aria-describedby="email-oops" value="{{ form.email }}">
           <p class="oops" id="email-oops" role="alert"></p>
+          <div class="nav">
+            <button type="button" class="next">Continue</button>
+            <button type="button" class="back">Back</button>
+            <span class="enter">or press Enter</span>
+          </div>
+        </div>
+
+        <div class="step" data-name="password">
+          <label class="ask" for="password">Choose a password</label>
+          <p class="note" id="password-note">At least 8 characters. You'll use it with your email to come back and see your list.</p>
+          <input id="password" class="plate" name="password" type="password" required minlength="8" autocomplete="new-password" aria-describedby="password-note password-oops">
+          <p class="oops" id="password-oops" role="alert"></p>
           <div class="nav">
             <button type="button" class="next">Continue</button>
             <button type="button" class="back">Back</button>
@@ -225,6 +242,9 @@
           var email = form.elements.email;
           if (!email.value.trim()) return "Add your email.";
           return email.checkValidity() ? "" : "That email doesn't look complete yet.";
+        },
+        password: function () {
+          return form.elements.password.value.length >= 8 ? "" : "Use at least 8 characters.";
         },
         style: function () { return ""; },
       };
