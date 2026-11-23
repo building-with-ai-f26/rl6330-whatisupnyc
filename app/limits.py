@@ -10,12 +10,14 @@ from collections.abc import Callable
 from fastapi import Request
 
 # bucket: (tries allowed, per this many seconds), per visitor IP.
+# Generous on purpose: a classroom of readers on campus Wi-Fi shares one address. Supabase's own
+# limits and the 50-a-day AI limit sit behind these.
 LIMITS: dict[str, tuple[int, int]] = {
-    "sign_up": (5, 3600),
-    "sign_in": (10, 900),
-    "reset": (3, 3600),
-    "paste": (10, 3600),
-    "newsletter": (20, 3600),
+    "sign_up": (30, 3600),
+    "sign_in": (60, 900),
+    "reset": (10, 3600),
+    "paste": (30, 3600),
+    "newsletter": (60, 3600),
 }
 # The most visitors tracked at once. Past it, stale ones are forgotten first, then the oldest.
 MAX_TRACKED = 10_000

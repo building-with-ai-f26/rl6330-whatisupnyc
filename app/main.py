@@ -191,8 +191,6 @@ def create_app(deps: AppDeps | None = None) -> FastAPI:
         look_prompt: str = Form(""),
         days: list[str] = Form([]),
     ):
-        if over_limit(request, "sign_up"):
-            return too_many(request)
         chosen = [day for day in days if day in DAYS]
         typed = {"interests": interests, "name": name, "email": email, "look_prompt": look_prompt, "days": chosen}
         if not name.strip() or not email.strip() or not interests.strip() or not chosen or not password:
@@ -200,6 +198,9 @@ def create_app(deps: AppDeps | None = None) -> FastAPI:
             return start_page(request, missing, 400, form=typed)
         if len(password) < MIN_PASSWORD:
             return start_page(request, f"Please use a password of at least {MIN_PASSWORD} characters.", 400, form=typed)
+        # Counted only once the form is complete, so fixing a typo doesn't use up anyone's tries.
+        if over_limit(request, "sign_up"):
+            return too_many(request)
         d = get_deps()
         try:
             user = d.auth.sign_up(email.strip(), password)

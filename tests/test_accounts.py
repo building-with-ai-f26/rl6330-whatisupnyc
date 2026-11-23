@@ -348,3 +348,16 @@ def test_renewed_login_is_saved_before_the_slow_ai_call(conn, sites):
     assert ai.calls == 0
     assert client.cookies["wnyc_access"] in client.supabase.access
     assert client.cookies["wnyc_refresh"] in client.supabase.refreshes
+
+
+def test_a_class_on_one_wifi_can_all_sign_up(conn, sites):
+    client = client_for(conn, sites)
+    for n in range(25):
+        assert sign_up_ana(client, email=f"classmate{n}@nyu.test").status_code == 303
+
+
+def test_incomplete_sign_up_forms_do_not_count_toward_the_limit(conn, sites):
+    client = client_for(conn, sites)
+    for _ in range(LIMITS["sign_up"][0] + 5):
+        assert sign_up_ana(client, email="").status_code == 400
+    assert sign_up_ana(client).status_code == 303
