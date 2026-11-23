@@ -1,0 +1,23 @@
+{% extends "partials/account_page.html" %}
+{% block title %}Your preferences{% endblock %}
+{% block content %}
+<h2>Your preferences</h2>
+<p>Change anything, and your next list is picked fresh from it.</p>
+{% if message %}<p class="notice" role="status">{{ message }}</p>{% endif %}
+<form method="post" action="/preferences" data-making>
+  <label for="name">What should we call you?</label>
+  <input id="name" name="name" type="text" required value="{{ form.name }}">
+  <label for="interests">What kind of events do you like?</label>
+  <textarea id="interests" name="interests" rows="3" required>{{ form.interests }}</textarea>
+  <label for="look_prompt">How should your list read? (optional)</label>
+  <input id="look_prompt" name="look_prompt" type="text" value="{{ form.look_prompt }}">
+  <fieldset>
+    <legend>Which days do you want your list?</legend>
+    <div class="days">
+      {% for day in days %}<label><input type="checkbox" name="days" value="{{ day }}"{% if day in form.days %} checked{% endif %}>{{ day }}</label>{% endfor %}
+    </div>
+  </fieldset>
+  <button type="submit">Save and see my list</button>
+</form>
+<p class="links"><a href="/newsletter">Back to my list</a></p>
+{% endblock %}

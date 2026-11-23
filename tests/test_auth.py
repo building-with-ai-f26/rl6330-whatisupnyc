@@ -16,7 +16,7 @@ def test_every_form_refuses_other_sites(conn, sites):
     sign_up_ana(client)
     forms = [
         ("/subscribers", {**GOOD, "email": "bo@x.test"}),
-        ("/newsletter/sent", {"event_ids": [1]}),
+        ("/preferences", {**GOOD, "interests": "taking over"}),
         ("/paste", {"link": "x", "caption": "x"}),
         ("/signin", {"email": GOOD["email"], "password": GOOD["password"]}),
         ("/signout", {}),
@@ -29,7 +29,7 @@ def test_every_form_refuses_other_sites(conn, sites):
             assert client.post(path, data=data, headers={"Origin": origin}).status_code == 403, (path, origin)
     assert client.supabase.signups == [GOOD["email"]]
     assert client.supabase.resets_sent == [] and client.supabase.signed_out == []
-    assert db.sent_event_ids(conn, ana_id(client)) == set()
+    assert db.get_profile(conn, ana_id(client)).interests == GOOD["interests"]
 
 
 def test_form_with_same_site_referer_is_allowed(conn, sites):

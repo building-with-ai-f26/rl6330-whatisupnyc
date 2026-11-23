@@ -1,0 +1,24 @@
+{#- Covers the wait while the AI makes a list. Forms marked data-making show it when sent.
+    Set making_title / making_text before including to change the words. #}
+<style>
+  .making { position: fixed; inset: 0; z-index: 10; display: flex; flex-direction: column; justify-content: center; gap: 24px; padding: 0 var(--gutter); background: var(--black); color: var(--white); }
+  .making[hidden] { display: none; }
+  .making strong { font-weight: 500; font-size: clamp(40px, 7.6vw, 96px); line-height: 1; letter-spacing: -0.035em; }
+  .making p { margin: 0; max-width: 40ch; color: var(--fog, #b3b3b3); font-size: clamp(17px, 2vw, 21px); }
+  .making .bar { position: relative; overflow: hidden; height: 6px; max-width: 640px; background: #3a3a3a; border-radius: 1px; }
+  .making .bar::after { content: ""; position: absolute; inset: 0; width: 30%; background: var(--taxi); animation: slide 1.4s ease-in-out infinite; }
+  @keyframes slide { from { transform: translateX(-100%); } to { transform: translateX(340%); } }
+  @media (prefers-reduced-motion: reduce) { .making .bar::after { animation: none; width: 100%; } }
+</style>
+<div class="making" id="making" role="status" aria-live="polite" hidden>
+  <strong>{{ making_title|default("Getting your list…") }}</strong>
+  <div class="bar" aria-hidden="true"></div>
+  <p>{{ making_text|default("If it's your first list today, we're picking events for you now. That can take up to a minute.") }}</p>
+</div>
+<script>
+  document.querySelectorAll("form[data-making]").forEach(function (form) {
+    form.addEventListener("submit", function () { document.getElementById("making").hidden = false; });
+  });
+  // Coming back with the browser's Back button shows the page again, not the loading screen.
+  window.addEventListener("pageshow", function () { document.getElementById("making").hidden = true; });
+</script>

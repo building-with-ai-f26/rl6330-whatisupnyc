@@ -17,7 +17,7 @@ An **AI app with sign-in and a database**. Readers make an account with email an
 Every table has Row Level Security on.
 
 - **The event tables:** no policies at all, so Supabase's public API can read or write nothing in them.
-- **`profiles` and `sent_events`:** a signed-in reader sees only rows whose `user_id` is their own (`auth.uid()`). They can add only their own sent events, and they can't add, change or delete profiles at all.
+- **`profiles`, `sent_events` and `newsletter_issues` (saved lists):** a signed-in reader sees only rows whose `user_id` is their own (`auth.uid()`). They can add only their own sent events and saved lists, and they can change only the preference columns of their own profile (name, interests, extra wishes, days), never the first-look token. They can't add or delete profiles.
 - **Inside the server:** reader queries switch to the `authenticated` role with the reader's ID (`db.as_reader`). So even a bug in our code can't hand one reader another's rows.
 
 **Test, run on production on 2026-11-23:** I created two test accounts, A and B. Signed in as B, I used Supabase's public API with the publishable key, the way any outsider could:
@@ -78,7 +78,7 @@ The app stores no files: no Supabase Storage buckets, and no uploads.
 | Sign-in | 60 per 15 min | Wrong passwords: 10 per 15 min per account and address; 50 per 15 min per account overall |
 | Forgot password | 10 an hour | 3 emails an hour; past that the page looks the same and nothing is sent |
 | Pasted posts | 30 an hour | |
-| Newsletter (calls the AI) | 60 an hour | 10 an hour per reader |
+| Newsletter (calls the AI only for a new list) | 60 an hour | 10 new lists an hour per reader; saved lists don't count |
 
 - **Why the per-address limits are generous:** a classroom on campus Wi-Fi shares one public address.
 - **How addresses are counted:** the address comes from Caddy's `X-Forwarded-For` header, trusted only from `127.0.0.1`. IPv6 visitors count by their /64 block.
@@ -131,8 +131,4 @@ Also checked, with tests:
 - **The account-existence hint:** sign-up shows whether an email already has an account. A new email goes straight to its first list, while an existing one gets "check your email". The design needs the instant first list, so this is accepted. Sign-ups are rate limited, and each probe creates only an unconfirmed account.
 - **Clearing every device:** "Sign out" ends only that device's login. Readers sign out everywhere by resetting their password.
 - **Email-link tokens in the server log:** the access log records them, and only root can read it.
-- **Reloading the list calls the AI again.** The per-reader limit caps it; saved lists, the next PR, fix it.
-- **Small fixes left for the next PR:**
-  - a confirmed account with no preferences loops back to the start page;
-  - one rare path drops a renewed login;
-  - a failed login renewal doesn't clear the cookies.
+- **Small fixes left:** a failed login renewal doesn't clear the cookies. (Fixed since the first audit: reloading the list no longer calls the AI, because lists are saved; an account with no preferences is sent to fill them in; "Mark as sent", whose redirect could drop a renewed login, is gone.)

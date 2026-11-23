@@ -1,10 +1,10 @@
-from datetime import datetime, timedelta
+from datetime import date, datetime, timedelta
 
 import psycopg
 import pytest
 
 from app import db
-from app.models import CandidateEvent, Score
+from app.models import CandidateEvent, Pick, Score
 from tests.conftest import NY, TEST_URL, make_event
 
 NOW = datetime(2026, 11, 2, 12, tzinfo=NY)
@@ -69,10 +69,9 @@ def test_reader_cannot_read_or_add_another_readers_sent_events(conn):
 
 @pytest.mark.parametrize("statement", [
     "insert into profiles (user_id, name, interests, look_prompt, days) values (%s, 'x', 'x', '', '{}')",
-    "update profiles set name = 'x' where user_id = %s",
     "delete from profiles where user_id = %s",
 ])
-def test_reader_cannot_add_change_or_delete_profiles(conn, statement):
+def test_reader_cannot_add_or_delete_profiles(conn, statement):
     a = make_user(conn)
     db.create_profile(conn, a, "Ana", "jazz", "", ["Friday"], NOW)
     with pytest.raises(psycopg.errors.InsufficientPrivilege):
@@ -169,3 +168,85 @@ def test_end_first_look_stops_the_token(conn):
     db.end_first_look(conn, a)
     assert db.profile_for_first_look(conn, token, NOW) is None
     assert db.get_profile(conn, a).name == "Ana"
+
+
+def reader(conn) -> str:
+    user = make_user(conn)
+    db.create_profile(conn, user, "Ana", "jazz", "", ["Friday"], NOW)
+    return user
+
+
+def picks_for(conn, *names_and_reasons) -> list[Pick]:
+    events = []
+    for name, reason in names_and_reasons:
+        event_id = db.save_event(conn, make_event(name=name, url=f"https://reliable.example/{name}"), Score(40, True))
+        events.append(Pick(db.events_by_ids(conn, [event_id])[event_id], reason))
+    return events
+
+
+def test_saved_issue_round_trip_and_marks_events_sent(conn):
+    a = reader(conn)
+    picks = picks_for(conn, ("Jazz", "a"), ("Comedy", "b"))
+    db.save_issue(conn, a, picks, datetime(2026, 11, 23, 20, tzinfo=NY))
+    issue = db.latest_issue(conn, a)
+    assert issue.made_on == date(2026, 11, 23)
+    assert issue.picks == [(picks[0].event.id, "a"), (picks[1].event.id, "b")]
+    assert db.sent_event_ids(conn, a) == {p.event.id for p in picks}
+
+
+def test_latest_issue_is_the_newest(conn):
+    a = reader(conn)
+    first, second = picks_for(conn, ("One", "x")), picks_for(conn, ("Two", "y"))
+    db.save_issue(conn, a, first, NOW)
+    db.save_issue(conn, a, second, NOW + timedelta(days=1))
+    assert db.latest_issue(conn, a).picks == [(second[0].event.id, "y")]
+    assert db.latest_issue(conn, make_user(conn)) is None
+
+
+def test_reader_cannot_read_another_readers_lists_or_add_any(conn):
+    a, b = reader(conn), reader(conn)
+    db.save_issue(conn, b, picks_for(conn, ("B's", "z")), NOW)
+    with db.as_reader(conn, a) as c:
+        assert c.execute("select * from newsletter_issues").fetchall() == []
+    # Only the server writes lists, so a reader can't add one even to their own account.
+    for owner in (a, b):
+        with pytest.raises(psycopg.errors.InsufficientPrivilege):
+            with db.as_reader(conn, a) as c:
+                c.execute(
+                    "insert into newsletter_issues (user_id, made_on, made_at, picks) values (%s, %s, %s, '[]')",
+                    (owner, NOW.date(), NOW),
+                )
+    assert db.latest_issue(conn, a) is None and db.latest_issue(conn, b) is not None
+
+
+def test_reader_can_update_only_their_own_preferences(conn):
+    a, b = reader(conn), reader(conn)
+    assert db.update_profile(conn, a, "Ana B", "comedy", "short", ["Monday"], NOW)
+    saved = db.get_profile(conn, a)
+    assert (saved.name, saved.interests, saved.look_prompt, saved.days, saved.changed_at) == (
+        "Ana B", "comedy", "short", ["Monday"], NOW
+    )
+    with db.as_reader(conn, a) as c:
+        assert c.execute("update profiles set name = 'x' where user_id = %s", (b,)).rowcount == 0
+    assert db.get_profile(conn, b).name == "Ana"
+
+
+def test_reader_cannot_change_first_look_columns(conn):
+    a = reader(conn)
+    with pytest.raises(psycopg.errors.InsufficientPrivilege):
+        with db.as_reader(conn, a) as c:
+            c.execute("update profiles set first_look_token = 'x' where user_id = %s", (a,))
+
+
+def test_events_by_ids_includes_ineligible_and_skips_missing(conn):
+    good = db.save_event(conn, make_event(name="Good"), Score(40, True))
+    weak = db.save_event(conn, make_event(name="Weak", url="https://reliable.example/w"), Score(0, False, "x"))
+    found = db.events_by_ids(conn, [good, weak, 99999])
+    assert sorted(found) == sorted([good, weak])
+    assert found[weak].event.name == "Weak"
+
+
+def test_old_reader_tables_are_gone(conn):
+    with conn.connection() as c:
+        assert c.execute("select to_regclass('old_subscribers') as t").fetchone()["t"] is None
+        assert c.execute("select to_regclass('old_sent_events') as t").fetchone()["t"] is None

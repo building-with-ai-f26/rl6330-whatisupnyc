@@ -136,15 +136,6 @@ def test_first_look_cookie_expires_after_24_hours(conn, sites):
     assert (response.status_code, response.headers["location"]) == (303, "/signin")
 
 
-def test_signed_in_without_profile_gets_pointed_to_start(conn, sites):
-    client = client_for(conn, sites)
-    signed_in_ana(client)
-    with conn.connection() as c:
-        c.execute("delete from profiles")
-    page = client.get("/newsletter")
-    assert page.status_code == 200 and 'href="/"' in page.text and "preferences" in page.text.lower()
-
-
 def test_old_token_link_points_to_sign_in(conn, sites):
     page = client_for(conn, sites).get("/newsletter/abc123")
     assert page.status_code == 410
@@ -256,19 +247,6 @@ def test_reset_ends_other_logins(conn, sites):
 def test_used_confirm_link_points_to_sign_in(conn, sites):
     response = client_for(conn, sites).post("/confirm", data={"token_hash": "used-up", "password": "long-enough-2"})
     assert response.status_code == 400 and 'href="/signin"' in response.text
-
-
-def test_mark_sent_uses_the_signed_in_reader(conn, sites):
-    event_id = db.save_event(conn, make_event(name="Jazz Night"), Score(40, True))
-    client = client_for(conn, sites, FakeAI())
-    signed_in_ana(client)
-    assert client.post("/newsletter/sent", data={"event_ids": [event_id]}).status_code == 303
-    assert db.sent_event_ids(conn, ana_id(client)) == {event_id}
-
-
-def test_mark_sent_signed_out_redirects_to_sign_in(conn, sites):
-    response = client_for(conn, sites).post("/newsletter/sent", data={"event_ids": [1]})
-    assert (response.status_code, response.headers["location"]) == (303, "/signin")
 
 
 @pytest.mark.parametrize("method, path, data, bucket", [
@@ -408,12 +386,16 @@ def test_too_many_reset_requests_look_the_same_but_send_nothing(conn, sites):
     assert client.supabase.resets_sent == [GOOD["email"]] * LIMITS["reset_account"][0]
 
 
-def test_list_loads_are_limited_per_reader_too(conn, sites):
-    ai = FakeAI()
-    client = client_for(conn, sites, ai)
-    sign_up_ana(client)
-    for _ in range(LIMITS["newsletter_account"][0]):
+def test_new_lists_are_limited_per_reader_too(conn, sites):
+    from datetime import timedelta
+
+    client = client_for(conn, sites, FakeAI())
+    signed_in_ana(client)
+    for n in range(LIMITS["newsletter_account"][0]):
+        # Each preferences change means the next load makes a new list.
+        db.update_profile(conn, ana_id(client), "Ana", f"jazz {n}", "", ["Friday"], NOW + timedelta(minutes=n + 1))
         assert client.get("/newsletter").status_code == 200
+    db.update_profile(conn, ana_id(client), "Ana", "jazz again", "", ["Friday"], NOW + timedelta(hours=1))
     assert client.get("/newsletter").status_code == 429
 
 
