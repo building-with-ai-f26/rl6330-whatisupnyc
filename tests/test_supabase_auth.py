@@ -144,3 +144,9 @@ def test_sign_out_others_keeps_this_login():
     auth_replying("user_ok", seen=seen).sign_out_others("access-1")
     assert seen[0].url == f"{URL}/auth/v1/logout?scope=others"
     assert seen[0].headers["authorization"] == "Bearer access-1"
+
+
+def test_sign_out_everywhere_ends_every_login():
+    seen = []
+    auth_replying("user_ok", seen=seen).sign_out("access-1", everywhere=True)
+    assert seen[0].url == f"{URL}/auth/v1/logout?scope=global"

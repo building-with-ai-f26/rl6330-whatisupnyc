@@ -71,9 +71,10 @@ class SupabaseAuth:
     def set_password(self, access_token: str, password: str) -> None:
         self._call("PUT", "/user", token=access_token, json={"password": password})
 
-    def sign_out(self, access_token: str) -> None:
+    def sign_out(self, access_token: str, everywhere: bool = False) -> None:
+        """Ends this login, or with everywhere=True every login on the account."""
         try:
-            self._call("POST", "/logout", token=access_token)
+            self._call("POST", "/logout?scope=global" if everywhere else "/logout?scope=local", token=access_token)
         except AuthRefused:
             pass  # Already expired: nothing left to end.
 

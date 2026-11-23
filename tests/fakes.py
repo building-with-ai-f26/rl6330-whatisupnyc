@@ -130,10 +130,13 @@ class FakeAuth:
         self._up()
         self.accounts[self.access[access_token]]["password"] = password
 
-    def sign_out(self, access_token):
+    def sign_out(self, access_token, everywhere=False):
         self._up()
         self.signed_out.append(access_token)
-        self.access.pop(access_token, None)
+        key = self.access.pop(access_token, None)
+        if everywhere and key:
+            self.access = {t: k for t, k in self.access.items() if k != key}
+            self.refreshes = {t: k for t, k in self.refreshes.items() if k != key}
 
     def sign_out_others(self, access_token):
         self._up()

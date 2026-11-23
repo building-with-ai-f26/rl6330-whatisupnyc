@@ -225,6 +225,14 @@ def profile_for_first_look(conn: Database, token: str, now: datetime) -> Subscri
     return _row_to_subscriber(row) if row else None
 
 
+def end_first_look(conn: Database, user_id: str) -> None:
+    """Stops a just-signed-up preview, once the account's owner has used an emailed link."""
+    with conn.connection() as c:
+        c.execute(
+            "UPDATE profiles SET first_look_token = NULL, first_look_until = NULL WHERE user_id = %s", (user_id,)
+        )
+
+
 def _row_to_subscriber(row: dict) -> Subscriber:
     return Subscriber(str(row["user_id"]), row["name"], row["interests"], row["look_prompt"], row["days"])
 

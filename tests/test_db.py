@@ -161,3 +161,11 @@ def test_pool_recovers_after_connection_is_killed(conn):
         )
     assert db.count_waiting_pastes(conn) == 1
     assert db.count_waiting_pastes(conn) == 1
+
+
+def test_end_first_look_stops_the_token(conn):
+    a = make_user(conn)
+    token = db.create_profile(conn, a, "Ana", "jazz", "", ["Friday"], NOW)
+    db.end_first_look(conn, a)
+    assert db.profile_for_first_look(conn, token, NOW) is None
+    assert db.get_profile(conn, a).name == "Ana"

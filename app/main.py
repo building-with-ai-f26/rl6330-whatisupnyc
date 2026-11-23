@@ -352,6 +352,8 @@ def create_app(deps: AppDeps | None = None) -> FastAPI:
             return expired_link(kind)
         except AuthUnavailable:
             return HTMLResponse(page(template, token_hash=token_hash, message=AUTH_DOWN), status_code=503)
+        # Only the email's owner gets here, so anything someone else started on this account ends now.
+        db.end_first_look(d.conn, session.user.id)
         try:
             try:
                 d.auth.set_password(session.access_token, password)
@@ -360,10 +362,14 @@ def create_app(deps: AppDeps | None = None) -> FastAPI:
                     raise
             d.auth.sign_out_others(session.access_token)
         except (AuthRefused, AuthUnavailable):
-            # The link is spent, so keep the reader signed in, and ask them to finish with a new one.
-            text = "You're signed in, but we couldn't set that password. Please ask for a new link and try another."
+            # Fail closed: without the new password set, nobody stays signed in, this reader included.
+            try:
+                d.auth.sign_out(session.access_token, everywhere=True)
+            except AuthUnavailable:
+                pass
+            text = "We couldn't set that password. Please ask for a new link and choose another."
             failed = notice("Password not set", text, [("/forgot", "Send me a new link")], 400)
-            set_session_cookies(failed, session)
+            clear_session_cookies(failed)
             return failed
         response = RedirectResponse("/newsletter", status_code=303)
         set_session_cookies(response, session)

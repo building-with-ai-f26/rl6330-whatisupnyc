@@ -302,3 +302,29 @@ def test_analytics_never_sees_email_link_tokens_or_records_private_pages(conn, s
     pages = html[html.index("var privatePages"):html.index("posthog.init(")]
     for private in ['"/newsletter"', '"/reset"', '"/confirm"']:
         assert private in pages
+
+
+def test_confirming_ends_the_strangers_first_look(conn, sites):
+    stranger = client_for(conn, sites)
+    sign_up_ana(stranger, password="strangers-password")
+    assert stranger.get("/newsletter").status_code == 200
+    link = next(h for h, (_, kind) in stranger.supabase.links.items() if kind == "email")
+    ana = client_for(conn, sites, auth=stranger.supabase)
+    ana.post("/confirm", data={"token_hash": link, "password": "anas-own-password"})
+    assert stranger.get("/newsletter").status_code == 303
+
+
+def test_password_that_cannot_be_set_ends_every_login(conn, sites):
+    stranger = client_for(conn, sites)
+    sign_up_ana(stranger, password="strangers-password")
+    link = next(h for h, (_, kind) in stranger.supabase.links.items() if kind == "email")
+    ana = client_for(conn, sites, auth=stranger.supabase)
+
+    def refuse(access_token, password):
+        raise AuthRefused("weak_password")
+
+    stranger.supabase.set_password = refuse
+    response = ana.post("/confirm", data={"token_hash": link, "password": "anas-own-password"})
+    assert response.status_code == 400 and 'href="/forgot"' in response.text
+    assert "wnyc_access" not in ana.cookies
+    assert stranger.supabase.access == {}  # every login on the account has ended
