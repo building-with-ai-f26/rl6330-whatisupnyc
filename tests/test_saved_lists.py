@@ -143,3 +143,34 @@ def test_only_new_lists_count_toward_the_per_reader_limit(conn, sites):
     for _ in range(LIMITS["newsletter_account"][0] + 5):
         assert client.get("/newsletter").status_code == 200
     assert ai.calls == 1
+
+
+def test_an_unusable_ai_answer_is_not_saved_for_the_day(conn, sites):
+    client, ai = setup(conn, sites)
+    signed_in_ana(client)
+    ai.how_many = 0  # valid JSON, no picks, while events are on offer
+    response = client.get("/newsletter")
+    assert AI_BUSY in response.text
+    ai.how_many = 2
+    assert "Jazz Night" in client.get("/newsletter").text
+    assert ai.calls == 2
+
+
+def test_with_nothing_new_to_offer_the_empty_list_is_saved(conn, sites):
+    ai = ChoosingAI()
+    client = client_for(conn, sites, ai)
+    signed_in_ana(client)
+    client.get("/newsletter")
+    client.get("/newsletter")
+    assert ai.calls == 0  # no events at all: nothing to ask, and nothing to ask again
+
+
+def test_yesterdays_list_shown_when_busy_keeps_its_own_date(conn, sites):
+    clock = Clock(datetime(2026, 11, 2, 12, tzinfo=NY))
+    client, ai = setup(conn, sites, clock)
+    signed_in_ana(client)
+    client.get("/newsletter")
+    clock.now = datetime(2026, 11, 3, 12, tzinfo=NY)
+    ai.error = AIUnavailable("busy")
+    html = client.get("/newsletter").text
+    assert "Monday, November 2" in html and "Tuesday, November 3" not in html

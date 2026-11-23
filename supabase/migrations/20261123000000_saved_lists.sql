@@ -17,15 +17,14 @@ create table newsletter_issues (
 );
 create index newsletter_issues_latest on newsletter_issues (user_id, made_at desc);
 
+-- Readers may only read their own lists. Only the server writes them, so the picks in a list
+-- always came from the AI's checked choices, never from a reader writing through the public API.
 alter table newsletter_issues enable row level security;
 revoke all on newsletter_issues from anon, authenticated;
-grant select, insert on newsletter_issues to authenticated;
-grant usage on sequence newsletter_issues_id_seq to authenticated;
+grant select on newsletter_issues to authenticated;
 
 create policy "Readers see their own lists" on newsletter_issues
     for select to authenticated using (user_id = (select auth.uid()));
-create policy "Readers add only their own lists" on newsletter_issues
-    for insert to authenticated with check (user_id = (select auth.uid()));
 
 -- Readers may change only these columns of their own profile; the first-look token stays server-only.
 grant update (name, interests, look_prompt, days, preferences_changed_at) on profiles to authenticated;

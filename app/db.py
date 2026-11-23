@@ -254,9 +254,13 @@ def update_profile(
 
 
 def save_issue(conn: Database, user_id: str, picks: list[Pick], now: datetime) -> None:
-    """Saves a list the AI just made, and marks its events as sent, together."""
+    """Saves a list the AI just made, and marks its events as sent, together.
+
+    Written as the server's own role: readers can't write lists, so every saved pick came from code
+    that confirmed it. user_id is always the signed-in reader Supabase verified.
+    """
     saved = [{"event_id": pick.event.id, "reason": pick.reason} for pick in picks]
-    with as_reader(conn, user_id) as c:
+    with conn.connection() as c, c.transaction():
         c.execute(
             "INSERT INTO newsletter_issues (user_id, made_on, made_at, picks) VALUES (%s, %s, %s, %s)",
             (user_id, now.astimezone(NY).date(), now, Jsonb(saved)),

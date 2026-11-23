@@ -303,7 +303,9 @@ def create_app(deps: AppDeps | None = None) -> FastAPI:
         latest = db.latest_issue(d.conn, subscriber.id)
         if not saved_lists.needs_new_list(latest, subscriber, now):
             picks = saved_lists.saved_picks(d.conn, latest)
-            return finish(HTMLResponse(page("view.html", error=None, body=render_newsletter(picks, now=now), **context)), reader)
+            # A saved list keeps the date it was made, grouped as of that day.
+            body = render_newsletter(picks, now=latest.made_at)
+            return finish(HTMLResponse(page("view.html", error=None, body=body, **context)), reader)
         # Only making a new list calls the AI, so only that counts toward the reader's limit.
         if over_account_limit("newsletter_account", subscriber.id):
             return too_many(request)
@@ -311,7 +313,7 @@ def create_app(deps: AppDeps | None = None) -> FastAPI:
             picks = saved_lists.make_list(d.conn, d.ai, subscriber, now)
         except AIUnavailable:
             # Their last list, if any, still shows under the message.
-            body = render_newsletter(saved_lists.saved_picks(d.conn, latest), now=now) if latest else None
+            body = render_newsletter(saved_lists.saved_picks(d.conn, latest), now=latest.made_at) if latest else None
             return finish(HTMLResponse(page("view.html", error=AI_BUSY, body=body, **context)), reader)
         return finish(HTMLResponse(page("view.html", error=None, body=render_newsletter(picks, now=now), **context)), reader)
 

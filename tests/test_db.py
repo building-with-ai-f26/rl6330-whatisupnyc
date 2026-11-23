@@ -203,17 +203,19 @@ def test_latest_issue_is_the_newest(conn):
     assert db.latest_issue(conn, make_user(conn)) is None
 
 
-def test_reader_cannot_read_or_add_another_readers_lists(conn):
+def test_reader_cannot_read_another_readers_lists_or_add_any(conn):
     a, b = reader(conn), reader(conn)
     db.save_issue(conn, b, picks_for(conn, ("B's", "z")), NOW)
     with db.as_reader(conn, a) as c:
         assert c.execute("select * from newsletter_issues").fetchall() == []
-    with pytest.raises(psycopg.errors.InsufficientPrivilege):
-        with db.as_reader(conn, a) as c:
-            c.execute(
-                "insert into newsletter_issues (user_id, made_on, made_at, picks) values (%s, %s, %s, '[]')",
-                (b, NOW.date(), NOW),
-            )
+    # Only the server writes lists, so a reader can't add one even to their own account.
+    for owner in (a, b):
+        with pytest.raises(psycopg.errors.InsufficientPrivilege):
+            with db.as_reader(conn, a) as c:
+                c.execute(
+                    "insert into newsletter_issues (user_id, made_on, made_at, picks) values (%s, %s, %s, '[]')",
+                    (owner, NOW.date(), NOW),
+                )
     assert db.latest_issue(conn, a) is None and db.latest_issue(conn, b) is not None
 
 
