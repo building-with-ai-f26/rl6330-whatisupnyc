@@ -1,3 +1,6 @@
+import hashlib
+import hmac
+import json
 import os
 from pathlib import Path
 import secrets
@@ -10,8 +13,9 @@ from dotenv import load_dotenv
 from fastapi import FastAPI, Form, Request
 from fastapi.responses import HTMLResponse, JSONResponse, PlainTextResponse, RedirectResponse, Response
 from fastapi.staticfiles import StaticFiles
+from starlette.concurrency import run_in_threadpool
 
-from app import auth, db, saved_lists
+from app import auth, db, intake, saved_lists
 from app import emailer
 from app.ai import AIClient, AIUnavailable, backup_from_env
 from app.limits import LIMITS, RateLimiter, client_ip
@@ -67,6 +71,8 @@ class AppDeps:
     posthog_host: str = "https://us.i.posthog.com"
     # Resend key for emailing readers their own list; empty means preview only.
     resend_key: str = ""
+    # SHA-256 of the key another tool uses for POST /api/intake; empty turns intake off.
+    intake_hash: str = ""
 
 
 @dataclass
@@ -99,6 +105,7 @@ def _default_deps() -> AppDeps:
         posthog_key=os.environ.get("POSTHOG_KEY", ""),
         posthog_host=os.environ.get("POSTHOG_HOST", "https://us.i.posthog.com"),
         resend_key=os.environ.get("RESEND_API_KEY", ""),
+        intake_hash=os.environ.get("INTAKE_TOKEN_SHA256", ""),
     )
 
 
@@ -134,7 +141,8 @@ def create_app(deps: AppDeps | None = None) -> FastAPI:
     @app.middleware("http")
     async def forms_from_this_site_only(request: Request, call_next):
         # The login is in cookies, so another site's form must not be able to act as the reader.
-        if not auth.sent_from_this_site(request):
+        # /api/ routes use their own key, never cookies, so this check doesn't apply to them.
+        if not request.url.path.startswith("/api/") and not auth.sent_from_this_site(request):
             return PlainTextResponse("Forms must be sent from this site.", 403)
         return await call_next(request)
 
@@ -535,6 +543,51 @@ def create_app(deps: AppDeps | None = None) -> FastAPI:
             return finish(notice("Couldn't send", text, [("/newsletter", "Back to my list")], 502), reader)
         text = f"Sent to {reader.email}. It can take a minute to arrive."
         return finish(notice("On its way", text, [("/newsletter", "Back to my list")]), reader)
+
+    @app.post("/api/intake")
+    async def intake_events(request: Request):
+        """Events another tool found, stored for the morning collection to check on their own pages."""
+        d = get_deps()
+        if not d.intake_hash:
+            return JSONResponse({"error": "intake is not switched on"}, status_code=404)
+        if over_limit(request, "intake"):
+            return JSONResponse({"error": "too many requests from this address"}, status_code=429)
+        given = request.headers.get("authorization", "")
+        token = given[7:] if given.lower().startswith("bearer ") else ""
+        if not token or not hmac.compare_digest(hashlib.sha256(token.encode()).hexdigest(), d.intake_hash):
+            return JSONResponse({"error": "wrong or missing key"}, status_code=401)
+        declared = request.headers.get("content-length", "")
+        if declared.isdigit() and int(declared) > intake.MAX_BODY_BYTES:
+            # Refused before reading, so a huge upload never sits in memory.
+            return JSONResponse({"error": f"body larger than {intake.MAX_BODY_BYTES} bytes"}, status_code=413)
+        body = await request.body()
+        if len(body) > intake.MAX_BODY_BYTES:
+            return JSONResponse({"error": f"body larger than {intake.MAX_BODY_BYTES} bytes"}, status_code=413)
+        try:
+            items = json.loads(body).get("events")
+        except (ValueError, AttributeError):
+            items = None
+        if not isinstance(items, list):
+            return JSONResponse({"error": "send a JSON object with an events list"}, status_code=400)
+        return await run_in_threadpool(store_intake, items)
+
+    def store_intake(items: list) -> JSONResponse:
+        d = get_deps()
+        now = d.clock()
+        room = intake.MAX_PER_DAY - db.count_intake_today(d.conn, now)
+        if room <= 0:
+            return JSONResponse({"error": f"the daily limit of {intake.MAX_PER_DAY} events is reached"}, status_code=429)
+        usable, rejected = [], []
+        for index, item in enumerate(items):
+            found, reason = intake.check(item, now)
+            if found is None:
+                rejected.append({"index": index, "reason": reason})
+            elif len(usable) >= room:
+                rejected.append({"index": index, "reason": f"over the daily limit of {intake.MAX_PER_DAY} events"})
+            else:
+                usable.append(found)
+        accepted, duplicates = db.save_intake(d.conn, usable, now)
+        return JSONResponse({"accepted": accepted, "duplicates": duplicates, "rejected": rejected})
 
     @app.get("/e/{event_id}", response_class=HTMLResponse)
     def shared_event(request: Request, event_id: int):

@@ -19,7 +19,7 @@ NY = ZoneInfo("America/New_York")
 # The schema lives in supabase/migrations/. Every table in it, so tests can empty them.
 TABLES = (
     "events", "dropped_events", "profiles", "sent_events", "newsletter_issues", "saved_for_later",
-    "event_ratings", "pastes", "ai_requests", "waiting_pastes",
+    "event_ratings", "pastes", "ai_requests", "waiting_pastes", "intake_events",
 )
 # How long a brand-new reader can see their list before confirming their email.
 FIRST_LOOK = timedelta(hours=24)
@@ -86,6 +86,46 @@ def fill_event_image(conn: Database, key: str, image_url: str) -> None:
     """Gives an already-saved event a picture, if it has none yet."""
     with conn.connection() as c:
         c.execute("UPDATE events SET image_url = %s WHERE dedupe_key = %s AND image_url IS NULL", (image_url, key))
+
+
+def save_intake(conn: Database, items: list[tuple[str, CandidateEvent, str]], now: datetime) -> tuple[int, int]:
+    """Stores events sent to /api/intake. Returns (accepted, duplicates); a post already sent is a duplicate."""
+    accepted = 0
+    with conn.connection() as c:
+        for post_url, event, caption in items:
+            accepted += c.execute(
+                "INSERT INTO intake_events (post_url, name, start, venue, official_url, caption, category,"
+                " received_at, received_day) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)"
+                " ON CONFLICT (post_url) DO NOTHING",
+                (post_url, event.name, event.start, event.venue, event.url or None, caption, event.category,
+                 now, now.astimezone(NY).date()),
+            ).rowcount
+    return accepted, len(items) - accepted
+
+
+def count_intake_today(conn: Database, now: datetime) -> int:
+    with conn.connection() as c:
+        return c.execute(
+            "SELECT COUNT(*) AS n FROM intake_events WHERE received_day = %s", (now.astimezone(NY).date(),)
+        ).fetchone()["n"]
+
+
+def waiting_intake(conn: Database) -> list[tuple[int, CandidateEvent]]:
+    """Events sent in and not yet handled by the morning collection."""
+    with conn.connection() as c:
+        rows = c.execute("SELECT * FROM intake_events WHERE checked_at IS NULL ORDER BY id").fetchall()
+    return [
+        (row["id"], CandidateEvent(
+            name=row["name"], start=row["start"].astimezone(NY), venue=row["venue"], city="New York",
+            url=row["official_url"] or "", source="intake", source_type="web", category=row["category"],
+        ))
+        for row in rows
+    ]
+
+
+def mark_intake_checked(conn: Database, ids: list[int], now: datetime) -> None:
+    with conn.connection() as c:
+        c.execute("UPDATE intake_events SET checked_at = %s WHERE id = ANY(%s)", (now, ids))
 
 
 def fill_event_image_by_id(conn: Database, event_id: int, image_url: str) -> None:

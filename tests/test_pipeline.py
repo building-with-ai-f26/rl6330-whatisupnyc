@@ -300,3 +300,20 @@ def test_saved_event_seen_again_picks_up_a_feed_image(conn, sites):
         record["images"] = [{"ratio": "16_9", "url": "https://s1.ticketm.net/wide.jpg", "width": 1024}]
     run_pipeline(conn, deps(sites, ticketmaster=pictured), NOW)
     assert db.eligible_events(conn, NOW)[0].event.image_url == "https://s1.ticketm.net/wide.jpg"
+
+
+def test_events_sent_to_intake_are_checked_on_their_official_page(conn, sites):
+    from app.models import CandidateEvent
+
+    page = jsonld("Intake Show", venue="Beacon Theatre")
+    found = CandidateEvent(name="Intake Show", start=datetime(2026, 11, 7, 20, tzinfo=NY), venue="Beacon Theatre",
+                           city="New York", url="https://reliable.example/intake", source="intake", source_type="web")
+    no_page = CandidateEvent(name="No Page", start=datetime(2026, 11, 7, 20, tzinfo=NY), venue="Somewhere",
+                             city="New York", url="", source="intake", source_type="web")
+    db.save_intake(conn, [("https://www.instagram.com/p/A/", found, "caption"), ("https://www.instagram.com/p/B/", no_page, "")], NOW)
+    run_pipeline(conn, deps(sites, {"https://reliable.example/intake": page}, EMPTY_TM), NOW)
+    with conn.connection() as c:
+        checked = {r["name"] for r in c.execute("select name from events").fetchall()}
+    assert "Intake Show" in checked  # confirmed on its page and scored like any other event
+    assert db.waiting_intake(conn) == []  # every waiting event was handled
+    assert db.dropped_reasons(conn).get("no official page to check", 0) == 1
