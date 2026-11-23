@@ -136,15 +136,6 @@ def test_first_look_cookie_expires_after_24_hours(conn, sites):
     assert (response.status_code, response.headers["location"]) == (303, "/signin")
 
 
-def test_signed_in_without_profile_gets_pointed_to_start(conn, sites):
-    client = client_for(conn, sites)
-    signed_in_ana(client)
-    with conn.connection() as c:
-        c.execute("delete from profiles")
-    page = client.get("/newsletter")
-    assert page.status_code == 200 and 'href="/"' in page.text and "preferences" in page.text.lower()
-
-
 def test_old_token_link_points_to_sign_in(conn, sites):
     page = client_for(conn, sites).get("/newsletter/abc123")
     assert page.status_code == 410

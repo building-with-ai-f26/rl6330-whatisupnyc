@@ -15,6 +15,11 @@
     input[type=email], input[type=password] { width: 100%; font: inherit; padding: 12px 14px; border: 1px solid var(--black); border-radius: 4px; }
     form button { margin-top: 24px; }
     .links { display: flex; flex-wrap: wrap; gap: 8px 20px; margin-top: 24px; }
+    input[type=text], textarea { width: 100%; font: inherit; padding: 12px 14px; border: 1px solid var(--black); border-radius: 4px; }
+    fieldset { border: 0; padding: 0; margin: 20px 0 0; }
+    legend { font-weight: 600; margin-bottom: 6px; }
+    .days { display: flex; flex-wrap: wrap; gap: 8px 16px; }
+    .days label { display: inline-flex; gap: 6px; align-items: center; font-weight: 400; margin: 0; }
   </style>
 </head>
 <body>
@@ -29,5 +34,6 @@
       {% block content %}{% endblock %}
     </div>
   </main>
+  {% include "partials/making.html" %}
 </body>
 </html>

@@ -88,16 +88,8 @@
     .added li::before { content: "Added: "; font-weight: 500; }
 
     /* Shown while the AI picks the list, which can take up to a minute. */
-    .making { position: fixed; inset: 0; z-index: 10; display: flex; flex-direction: column; justify-content: center; gap: 24px; padding: 0 var(--gutter); background: var(--black); color: var(--white); }
-    .making[hidden] { display: none; }
-    .making strong { font-weight: 500; font-size: clamp(40px, 7.6vw, 96px); line-height: 1; letter-spacing: -0.035em; }
-    .making p { margin: 0; max-width: 40ch; color: var(--fog); font-size: clamp(17px, 2vw, 21px); }
-    .making .bar { position: relative; overflow: hidden; height: 6px; max-width: 640px; background: #3a3a3a; border-radius: 1px; }
-    .making .bar::after { content: ""; position: absolute; inset: 0; width: 30%; background: var(--taxi); animation: slide 1.4s ease-in-out infinite; }
-    @keyframes slide { from { transform: translateX(-100%); } to { transform: translateX(340%); } }
     @media (prefers-reduced-motion: reduce) {
       .js .stepping .step.current { animation: none; }
-      .making .bar::after { animation: none; width: 100%; }
     }
   </style>
 </head>
@@ -212,11 +204,9 @@
       </details>
     </div>
   </main>
-  <div class="making" id="making" role="status" aria-live="polite" hidden>
-    <strong>Making your list…</strong>
-    <div class="bar" aria-hidden="true"></div>
-    <p>We're picking events for you from everything we've checked. This can take up to a minute.</p>
-  </div>
+  {% set making_title = "Making your list…" %}
+  {% set making_text = "We're picking events for you from everything we've checked. This can take up to a minute." %}
+  {% include "partials/making.html" %}
   <script>
     (function () {
       var form = document.getElementById("make");

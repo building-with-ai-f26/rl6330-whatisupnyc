@@ -7,7 +7,7 @@ from datetime import datetime, timezone
 import httpx
 from dotenv import load_dotenv
 from fastapi import FastAPI, Form, Request
-from fastapi.responses import HTMLResponse, JSONResponse, PlainTextResponse, RedirectResponse
+from fastapi.responses import HTMLResponse, JSONResponse, PlainTextResponse, RedirectResponse, Response
 
 from app import auth, db, saved_lists
 from app.ai import AIClient, AIUnavailable, backup_from_env
@@ -67,6 +67,7 @@ class Reader:
 
     profile: Subscriber | None = None
     signed_in: bool = False
+    user_id: str | None = None
     first_look: bool = False
     # A login renewed during this request, to store in new cookies.
     renewed: Session | None = None
@@ -174,7 +175,7 @@ def create_app(deps: AppDeps | None = None) -> FastAPI:
             except AuthRefused:
                 pass  # The login has ended; treat them as signed out.
         if user is not None:
-            return Reader(db.get_profile(d.conn, user.id), signed_in=True, renewed=renewed)
+            return Reader(db.get_profile(d.conn, user.id), signed_in=True, user_id=user.id, renewed=renewed)
         token = request.cookies.get(FIRST_LOOK_COOKIE)
         profile = db.profile_for_first_look(d.conn, token, d.clock()) if token else None
         return Reader(profile, first_look=profile is not None)
@@ -293,10 +294,8 @@ def create_app(deps: AppDeps | None = None) -> FastAPI:
             # Supabase refresh tokens work once, so store the new ones before the slow AI call.
             return finish(RedirectResponse("/newsletter", status_code=303), reader)
         if reader.profile is None:
-            if reader.signed_in:
-                text = "We couldn't find your preferences. Please start again to tell us what you like."
-                return finish(notice("Almost there", text, [("/", "Back to the start")]), reader)
-            return RedirectResponse("/signin", status_code=303)
+            # Signed in but no preferences saved yet: ask for them.
+            return finish(RedirectResponse("/preferences" if reader.signed_in else "/signin", status_code=303), reader)
         d = get_deps()
         subscriber = reader.profile
         context = {"subscriber": subscriber, "banner": SIGNED_UP_BANNER if reader.first_look else ""}
@@ -315,6 +314,56 @@ def create_app(deps: AppDeps | None = None) -> FastAPI:
             body = render_newsletter(saved_lists.saved_picks(d.conn, latest), now=now) if latest else None
             return finish(HTMLResponse(page("view.html", error=AI_BUSY, body=body, **context)), reader)
         return finish(HTMLResponse(page("view.html", error=None, body=render_newsletter(picks, now=now), **context)), reader)
+
+    def signed_in_reader(request: Request) -> Reader | Response:
+        """The signed-in reader, or the response that sends anyone else to sign in."""
+        try:
+            reader = current_reader(request)
+        except AuthUnavailable:
+            return notice("Please try again", AUTH_DOWN, [("/", "Back to the start")], 503)
+        if not reader.signed_in:
+            # A just-signed-up reader confirms their email first; the banner on their list says so.
+            return RedirectResponse("/signin", status_code=303)
+        return reader
+
+    def preferences_page(reader: Reader, form: dict, message: str = "", status_code: int = 200) -> HTMLResponse:
+        html = page("preferences.html", days=DAYS, form=form, message=message)
+        return finish(HTMLResponse(html, status_code=status_code), reader)
+
+    @app.get("/preferences", response_class=HTMLResponse)
+    def preferences(request: Request):
+        reader = signed_in_reader(request)
+        if not isinstance(reader, Reader):
+            return reader
+        p = reader.profile
+        form = {"name": p.name, "interests": p.interests, "look_prompt": p.look_prompt, "days": p.days} if p else {
+            "name": "", "interests": "", "look_prompt": "", "days": []
+        }
+        return preferences_page(reader, form)
+
+    @app.post("/preferences")
+    def save_preferences(
+        request: Request,
+        name: str = Form(""),
+        interests: str = Form(""),
+        look_prompt: str = Form(""),
+        days: list[str] = Form([]),
+    ):
+        reader = signed_in_reader(request)
+        if not isinstance(reader, Reader):
+            return reader
+        chosen = [day for day in days if day in DAYS]
+        form = {"name": name, "interests": interests, "look_prompt": look_prompt, "days": chosen}
+        if not name.strip() or not interests.strip() or not chosen:
+            message = "Please fill in a name, what kind of event, and at least one day."
+            return preferences_page(reader, form, message, 400)
+        d = get_deps()
+        values = (name.strip(), interests.strip(), look_prompt.strip(), chosen, d.clock())
+        if reader.profile is not None:
+            db.update_profile(d.conn, reader.profile.id, *values)
+        else:
+            db.create_profile(d.conn, reader.user_id, *values)
+        return finish(RedirectResponse("/newsletter", status_code=303), reader)
 
     @app.get("/newsletter/{token}", response_class=HTMLResponse)
     def old_newsletter_link(token: str):
