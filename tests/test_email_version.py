@@ -7,7 +7,7 @@ from app.newsletter import render_newsletter
 from app.models import Pick, Score, ScoredEvent
 from tests.conftest import make_event
 from tests.fakes import ChoosingAI
-from tests.test_main import GOOD, NOW, client_for, sign_up_ana, signed_in_ana
+from tests.test_main import GOOD, NOW, client_for, open_list, sign_up_ana, signed_in_ana
 from tests.test_saved_lists import add_events
 
 
@@ -35,7 +35,7 @@ def listed_client(conn, sites, **options):
     add_events(conn, "Jazz Night", "Comedy Cellar")
     client = client_for(conn, sites, ChoosingAI(), **options)
     signed_in_ana(client)
-    client.get("/newsletter")
+    open_list(client)
     return client
 
 

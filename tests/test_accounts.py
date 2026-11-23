@@ -8,7 +8,7 @@ from app.models import Score
 from app.supabase_auth import AuthRefused
 from tests.conftest import make_event
 from tests.fakes import FakeAI
-from tests.test_main import GOOD, NOW, ana_id, client_for, sign_up_ana, signed_in_ana
+from tests.test_main import GOOD, NOW, ana_id, client_for, open_list, sign_up_ana, signed_in_ana
 
 CHECK_EMAIL = "Check your email to confirm your account"
 BANNER = "Confirm your email to come back and edit your picks."
@@ -33,7 +33,7 @@ def test_sign_up_creates_account_and_profile_and_shows_list_now(conn, sites):
     first_look = cookie_header(response, "wnyc_first_look").lower()
     assert "httponly" in first_look and "secure" in first_look and "samesite=lax" in first_look
     assert db.get_profile(conn, ana_id(client)).interests == "jazz"
-    page = client.get("/newsletter")
+    page = open_list(client)
     assert page.status_code == 200 and BANNER in page.text
 
 
@@ -90,7 +90,7 @@ def test_sign_in_sets_cookies_and_opens_newsletter(conn, sites):
     for name in ("wnyc_access", "wnyc_refresh"):
         header = cookie_header(response, name).lower()
         assert "httponly" in header and "secure" in header and "samesite=lax" in header
-    page = client.get("/newsletter")
+    page = open_list(client)
     assert page.status_code == 200 and BANNER not in page.text
     assert "Sign out" in page.text
 
@@ -394,9 +394,9 @@ def test_new_lists_are_limited_per_reader_too(conn, sites):
     for n in range(LIMITS["newsletter_account"][0]):
         # Each preferences change means the next load makes a new list.
         db.update_profile(conn, ana_id(client), "Ana", f"jazz {n}", "", ["Friday"], NOW + timedelta(minutes=n + 1))
-        assert client.get("/newsletter").status_code == 200
+        assert open_list(client).status_code == 200
     db.update_profile(conn, ana_id(client), "Ana", "jazz again", "", ["Friday"], NOW + timedelta(hours=1))
-    assert client.get("/newsletter").status_code == 429
+    assert open_list(client).status_code == 429
 
 
 def test_guesses_sent_at_the_same_moment_are_all_counted(conn, sites):

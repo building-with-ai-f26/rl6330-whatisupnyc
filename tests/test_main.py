@@ -49,6 +49,15 @@ def signed_in_ana(client):
     return client.post("/signin", data={"email": GOOD["email"], "password": GOOD["password"]})
 
 
+def open_list(client):
+    """Opens /newsletter as a browser would: when it answers with the quick "Making your list…"
+    page, goes on to the request that makes the list, and returns that answer."""
+    response = client.get("/newsletter")
+    if f'location.replace("{main.MAKE_LIST}")' in response.text:
+        return client.get(main.MAKE_LIST)
+    return response
+
+
 def ana_id(client) -> str:
     return client.supabase.accounts[GOOD["email"]]["id"]
 
@@ -135,7 +144,7 @@ def test_newsletter_shows_picks(conn, sites):
     ai = FakeAI({"picks": [{"id": event_id, "reason": "You like jazz"}]})
     client = client_for(conn, sites, ai)
     sign_up_ana(client)
-    html = client.get("/newsletter").text
+    html = open_list(client).text
     assert "Jazz Night" in html and "You like jazz" in html
 
 
@@ -143,7 +152,7 @@ def test_ai_down_shows_plain_message(conn, sites):
     db.save_event(conn, make_event(), Score(40, True))
     client = client_for(conn, sites, FakeAI(error=AIUnavailable("busy")))
     sign_up_ana(client)
-    response = client.get("/newsletter")
+    response = open_list(client)
     assert response.status_code == 200
     assert "try again" in response.text.lower()
 
@@ -182,7 +191,7 @@ def test_start_page_lists_nobody(conn, sites):
 def test_newsletter_page_shows_the_logo(conn, sites):
     client = client_for(conn, sites)
     sign_up_ana(client)
-    assert 'aria-label="whatisupnyc"' in client.get("/newsletter").text
+    assert 'aria-label="whatisupnyc"' in open_list(client).text
 
 
 def test_no_posthog_key_means_no_tracking(conn, sites):
@@ -192,6 +201,9 @@ def test_no_posthog_key_means_no_tracking(conn, sites):
 def test_posthog_loads_on_every_page_when_key_set(conn, sites):
     client = client_for(conn, sites, posthog_key="phc_test")
     sign_up_ana(client)
+    # The quick "Making your list…" page sends nothing, so each visit to the list is one page view.
+    assert "posthog" not in client.get("/newsletter").text
+    client.get(main.MAKE_LIST)
     for path in ["/", "/newsletter", "/signin", "/forgot"]:
         html = client.get(path).text
         assert 'posthog.init("phc_test"' in html, path

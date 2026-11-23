@@ -34,6 +34,23 @@
       {% block content %}{% endblock %}
     </div>
   </main>
-  {% include "partials/making.html" %}
+  {#- These pages never cover the screen while they wait: signing in is quick, and when a new list
+      is needed the list page itself shows the making screen. #}
+  <script>
+    // Forms marked data-busy say they're working on their button while the request runs.
+    document.querySelectorAll("form[data-busy]").forEach(function (form) {
+      var button = form.querySelector('button[type="submit"]');
+      var label = button.textContent;
+      form.addEventListener("submit", function () {
+        button.disabled = true;
+        button.textContent = form.dataset.busy;
+      });
+      // Coming back with the browser's Back button shows the form ready to use again.
+      window.addEventListener("pageshow", function () {
+        button.disabled = false;
+        button.textContent = label;
+      });
+    });
+  </script>
 </body>
 </html>

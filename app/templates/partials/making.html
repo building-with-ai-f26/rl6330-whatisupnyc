@@ -1,5 +1,7 @@
-{#- Covers the wait while the AI makes a list. Forms marked data-making show it when sent.
-    Set making_title / making_text before including to change the words. #}
+{#- Covers the wait while the AI makes a list. Forms marked data-making show it when sent, so mark
+    only forms whose request really makes a new list. Set making_title / making_text before
+    including to change the words, and making_shown to show it from the start (the quick page
+    that opens while a list is made). #}
 <style>
   .making { position: fixed; inset: 0; z-index: 10; display: flex; flex-direction: column; justify-content: center; gap: 24px; padding: 0 var(--gutter); background: var(--black); color: var(--white); }
   .making[hidden] { display: none; }
@@ -10,11 +12,12 @@
   @keyframes slide { from { transform: translateX(-100%); } to { transform: translateX(340%); } }
   @media (prefers-reduced-motion: reduce) { .making .bar::after { animation: none; width: 100%; } }
 </style>
-<div class="making" id="making" role="status" aria-live="polite" hidden>
-  <strong>{{ making_title|default("Getting your list…") }}</strong>
+<div class="making" id="making" role="status" aria-live="polite"{% if not making_shown %} hidden{% endif %}>
+  <strong>{{ making_title|default("Making your list…") }}</strong>
   <div class="bar" aria-hidden="true"></div>
-  <p>{{ making_text|default("If it's your first list today, we're picking events for you now. That can take up to a minute.") }}</p>
+  <p>{{ making_text|default("We're picking events for you from everything we've checked. This can take up to a minute.") }}</p>
 </div>
+{% if not making_shown %}
 <script>
   document.querySelectorAll("form[data-making]").forEach(function (form) {
     form.addEventListener("submit", function () { document.getElementById("making").hidden = false; });
@@ -22,3 +25,4 @@
   // Coming back with the browser's Back button shows the page again, not the loading screen.
   window.addEventListener("pageshow", function () { document.getElementById("making").hidden = true; });
 </script>
+{% endif %}
