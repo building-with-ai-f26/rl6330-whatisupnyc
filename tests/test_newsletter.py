@@ -21,7 +21,7 @@ def render(picks):
     return render_newsletter(picks, now=NOW)
 
 
-SUB = Subscriber(7, "Ana", "ana@x.test", "jazz and free things", "keep it short", ["Fri"])
+SUB = Subscriber("7", "Ana", "jazz and free things", "keep it short", ["Fri"])
 
 
 def scored(id_, score=40, **overrides):

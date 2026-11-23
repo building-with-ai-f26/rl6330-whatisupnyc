@@ -4,7 +4,7 @@
 
 - **Builder:** Ryandri Lowell (`@rl6330`)
 - **Product Page & Living PRD:** https://building-with-ai-f26.github.io/rl6330-whatisupnyc/
-- **App:** live at https://whatisupnyc.com behind a pod password while it's tested; see the Product Page for screenshots.
+- **App:** live at https://whatisupnyc.com, where readers make an account with email and password; see the Product Page for screenshots.
 
 ## Repository map
 
@@ -25,13 +25,13 @@ You need [uv](https://docs.astral.sh/uv/), free API keys from OpenRouter, Ticket
 ```bash
 git clone https://github.com/building-with-ai-f26/rl6330-whatisupnyc.git
 cd rl6330-whatisupnyc
-cp .env.example .env      # then add your keys and SITE_PASSWORD
+cp .env.example .env      # then add your keys and the Supabase dev project's
 uv sync
 uv run python scripts/check_keys.py
 uv run python -m app.pipeline    # collects events, takes about 10 minutes
 uv run uvicorn app.main:app --host 127.0.0.1 --port 8000
 ```
 
-Then open http://127.0.0.1:8000 and enter your `SITE_PASSWORD` (any name works). Each newsletter has a private link, so bookmark it after you save your preferences. Run the tests with `uv run pytest`.
+Then open http://127.0.0.1:8000 and make an account; sign in later to see your list again. Run the tests with `uv run pytest`.
 
 If your app needs API keys, use a local environment file such as `.env`. Keep private keys out of source code, browser code, screenshots, and commits. The template ignores `.env`; `.env.example` contains placeholders only.

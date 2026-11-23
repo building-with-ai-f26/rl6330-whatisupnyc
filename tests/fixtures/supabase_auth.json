@@ -1,0 +1,172 @@
+{
+  "_about": "Supabase Auth (GoTrue) replies, shaped like the real API. With email confirmation on, sign-up returns the user itself; an email that already has an account returns a look-alike user with no identities.",
+  "signup_new": {
+    "status": 200,
+    "body": {
+      "id": "8d2f1c3e-5b7a-4c1d-9e2f-0a1b2c3d4e5f",
+      "aud": "authenticated",
+      "role": "authenticated",
+      "email": "ana@x.test",
+      "confirmation_sent_at": "2026-11-22T20:00:00Z",
+      "identities": [
+        {
+          "identity_id": "1f0e2d3c-4b5a-6978-8a9b-0c1d2e3f4a5b",
+          "provider": "email",
+          "id": "8d2f1c3e-5b7a-4c1d-9e2f-0a1b2c3d4e5f",
+          "user_id": "8d2f1c3e-5b7a-4c1d-9e2f-0a1b2c3d4e5f"
+        }
+      ],
+      "created_at": "2026-11-22T20:00:00Z",
+      "updated_at": "2026-11-22T20:00:00Z",
+      "is_anonymous": false
+    }
+  },
+  "signup_existing": {
+    "status": 200,
+    "body": {
+      "id": "00000000-1111-2222-3333-444444444444",
+      "aud": "authenticated",
+      "role": "authenticated",
+      "email": "ana@x.test",
+      "confirmation_sent_at": "2026-11-22T20:00:00Z",
+      "identities": [],
+      "created_at": "2026-11-22T20:00:00Z",
+      "updated_at": "2026-11-22T20:00:00Z",
+      "is_anonymous": false
+    }
+  },
+  "token_ok": {
+    "status": 200,
+    "body": {
+      "access_token": "access-1",
+      "token_type": "bearer",
+      "expires_in": 3600,
+      "expires_at": 1795371600,
+      "refresh_token": "refresh-1",
+      "user": {
+        "id": "8d2f1c3e-5b7a-4c1d-9e2f-0a1b2c3d4e5f",
+        "aud": "authenticated",
+        "role": "authenticated",
+        "email": "ana@x.test",
+        "confirmation_sent_at": "2026-11-22T20:00:00Z",
+        "identities": [
+          {
+            "identity_id": "1f0e2d3c-4b5a-6978-8a9b-0c1d2e3f4a5b",
+            "provider": "email",
+            "id": "8d2f1c3e-5b7a-4c1d-9e2f-0a1b2c3d4e5f",
+            "user_id": "8d2f1c3e-5b7a-4c1d-9e2f-0a1b2c3d4e5f"
+          }
+        ],
+        "created_at": "2026-11-22T20:00:00Z",
+        "updated_at": "2026-11-22T20:00:00Z",
+        "is_anonymous": false,
+        "email_confirmed_at": "2026-11-22T20:05:00Z"
+      }
+    }
+  },
+  "token_invalid": {
+    "status": 400,
+    "body": {
+      "code": 400,
+      "error_code": "invalid_credentials",
+      "msg": "Invalid login credentials"
+    }
+  },
+  "token_unconfirmed": {
+    "status": 400,
+    "body": {
+      "code": 400,
+      "error_code": "email_not_confirmed",
+      "msg": "Email not confirmed"
+    }
+  },
+  "refresh_expired": {
+    "status": 400,
+    "body": {
+      "code": 400,
+      "error_code": "refresh_token_not_found",
+      "msg": "Invalid Refresh Token: Refresh Token Not Found"
+    }
+  },
+  "user_ok": {
+    "status": 200,
+    "body": {
+      "id": "8d2f1c3e-5b7a-4c1d-9e2f-0a1b2c3d4e5f",
+      "aud": "authenticated",
+      "role": "authenticated",
+      "email": "ana@x.test",
+      "confirmation_sent_at": "2026-11-22T20:00:00Z",
+      "identities": [
+        {
+          "identity_id": "1f0e2d3c-4b5a-6978-8a9b-0c1d2e3f4a5b",
+          "provider": "email",
+          "id": "8d2f1c3e-5b7a-4c1d-9e2f-0a1b2c3d4e5f",
+          "user_id": "8d2f1c3e-5b7a-4c1d-9e2f-0a1b2c3d4e5f"
+        }
+      ],
+      "created_at": "2026-11-22T20:00:00Z",
+      "updated_at": "2026-11-22T20:00:00Z",
+      "is_anonymous": false,
+      "email_confirmed_at": "2026-11-22T20:05:00Z"
+    }
+  },
+  "user_expired": {
+    "status": 403,
+    "body": {
+      "code": 403,
+      "error_code": "bad_jwt",
+      "msg": "invalid JWT: unable to parse or verify signature, token has invalid claims: token is expired"
+    }
+  },
+  "verify_ok": {
+    "status": 200,
+    "body": {
+      "access_token": "access-1",
+      "token_type": "bearer",
+      "expires_in": 3600,
+      "expires_at": 1795371600,
+      "refresh_token": "refresh-1",
+      "user": {
+        "id": "8d2f1c3e-5b7a-4c1d-9e2f-0a1b2c3d4e5f",
+        "aud": "authenticated",
+        "role": "authenticated",
+        "email": "ana@x.test",
+        "confirmation_sent_at": "2026-11-22T20:00:00Z",
+        "identities": [
+          {
+            "identity_id": "1f0e2d3c-4b5a-6978-8a9b-0c1d2e3f4a5b",
+            "provider": "email",
+            "id": "8d2f1c3e-5b7a-4c1d-9e2f-0a1b2c3d4e5f",
+            "user_id": "8d2f1c3e-5b7a-4c1d-9e2f-0a1b2c3d4e5f"
+          }
+        ],
+        "created_at": "2026-11-22T20:00:00Z",
+        "updated_at": "2026-11-22T20:00:00Z",
+        "is_anonymous": false,
+        "email_confirmed_at": "2026-11-22T20:05:00Z"
+      }
+    }
+  },
+  "verify_expired": {
+    "status": 403,
+    "body": {
+      "code": 403,
+      "error_code": "otp_expired",
+      "msg": "Email link is invalid or has expired"
+    }
+  },
+  "weak_password": {
+    "status": 422,
+    "body": {
+      "code": 422,
+      "error_code": "weak_password",
+      "msg": "Password should be at least 8 characters."
+    }
+  },
+  "server_error": {
+    "status": 503,
+    "body": {
+      "message": "upstream unavailable"
+    }
+  }
+}

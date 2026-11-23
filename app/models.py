@@ -56,9 +56,9 @@ class ScoredEvent:
 
 @dataclass
 class Subscriber:
-    id: int
+    # The reader's account ID (a UUID, as text). Their email stays in Supabase Auth.
+    id: str
     name: str
-    email: str
     interests: str
     look_prompt: str
     days: list[str]
