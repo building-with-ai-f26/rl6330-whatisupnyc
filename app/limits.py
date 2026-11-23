@@ -18,10 +18,13 @@ LIMITS: dict[str, tuple[int, int]] = {
     "reset": (10, 3600),
     "paste": (30, 3600),
     "newsletter": (60, 3600),
-    # Per account (email or reader), so one address's generous limit can't be spent on one account:
-    # guessing its password, flooding its inbox, or using up the day's AI requests on its list.
-    "sign_in_account": (10, 900),
+    # Wrong passwords only, per account and address, so a stranger's guesses lock out only the stranger;
+    # and a looser cap per account for guesses spread over many addresses.
+    "failed_sign_in": (10, 900),
+    "failed_sign_in_account": (50, 900),
+    # Reset emails per account. Past it the page looks the same and nothing is sent.
     "reset_account": (3, 3600),
+    # List loads per reader, so one account can't use up the day's AI requests.
     "newsletter_account": (10, 3600),
 }
 # The most visitors tracked at once. Past it, stale ones are forgotten first, then the oldest.
@@ -51,6 +54,19 @@ class RateLimiter:
             return False
         tries.append(now)
         return True
+
+    def full(self, bucket: str, key: str) -> bool:
+        """Whether the next try would be over the limit, without counting one."""
+        count, seconds = self.limits[bucket]
+        tries = self.tries.get((bucket, key))
+        now = self.clock()
+        while tries and tries[0] <= now - seconds:
+            tries.popleft()
+        return bool(tries) and len(tries) >= count
+
+    def count(self, bucket: str, key: str) -> None:
+        """Counts a try that already happened, such as a wrong password."""
+        self.allow(bucket, key)
 
     def _make_room(self, now: float) -> None:
         if now - self.last_sweep >= SWEEP_EVERY:

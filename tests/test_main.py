@@ -28,7 +28,8 @@ def client_for(conn, sites, ai=None, auth=None, posthog_key="", clock=None):
         auth=auth, limiter=RateLimiter(LIMITS), posthog_key=posthog_key,
     )
     # https, so the browser sends the Secure login cookies back.
-    client = TestClient(create_app(deps), base_url="https://testserver", follow_redirects=False)
+    # Requests arrive from Caddy on this machine, as in production, so X-Forwarded-For counts.
+    client = TestClient(create_app(deps), base_url="https://testserver", follow_redirects=False, client=("127.0.0.1", 50000))
     client.headers["Origin"] = "https://testserver"
     client.supabase = auth
     return client

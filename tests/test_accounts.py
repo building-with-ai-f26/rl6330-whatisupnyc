@@ -371,19 +371,41 @@ def test_incomplete_sign_up_forms_do_not_count_toward_the_limit(conn, sites):
 
 def test_password_guessing_is_limited_per_account_too(conn, sites):
     client = client_for(conn, sites)
-    for n in range(LIMITS["sign_in_account"][0]):
+    signed_in_ana(client)
+    client.cookies.clear()
+    for n in range(LIMITS["failed_sign_in"][0]):
         client.post("/signin", data={"email": "Ana@x.test " if n % 2 else "ana@x.test", "password": "guess"})
-    over = client.post("/signin", data={"email": GOOD["email"], "password": "guess"})
-    assert over.status_code == 429
+    assert client.post("/signin", data={"email": GOOD["email"], "password": GOOD["password"]}).status_code == 429
     assert client.post("/signin", data={"email": "bo@x.test", "password": "guess"}).status_code == 400
 
 
-def test_reset_emails_are_limited_per_account_too(conn, sites):
+def test_a_strangers_wrong_guesses_do_not_lock_out_the_owner(conn, sites):
+    stranger = client_for(conn, sites)
+    signed_in_ana(stranger)
+    stranger.cookies.clear()
+    for _ in range(LIMITS["failed_sign_in"][0] + 5):
+        stranger.post("/signin", data={"email": GOOD["email"], "password": "guess"},
+                      headers={"X-Forwarded-For": "6.6.6.6"})
+    # Ana, from her own address, still signs in.
+    ana = stranger.post("/signin", data={"email": GOOD["email"], "password": GOOD["password"]},
+                        headers={"X-Forwarded-For": "1.2.3.4"})
+    assert ana.status_code == 303
+
+
+def test_successful_sign_ins_do_not_count(conn, sites):
     client = client_for(conn, sites)
-    for _ in range(LIMITS["reset_account"][0]):
-        assert client.post("/forgot", data={"email": GOOD["email"]}).status_code == 200
-    assert client.post("/forgot", data={"email": GOOD["email"]}).status_code == 429
-    assert client.post("/forgot", data={"email": "bo@x.test"}).status_code == 200
+    signed_in_ana(client)
+    for _ in range(LIMITS["failed_sign_in"][0] + 2):
+        client.cookies.clear()
+        assert client.post("/signin", data={"email": GOOD["email"], "password": GOOD["password"]}).status_code == 303
+
+
+def test_too_many_reset_requests_look_the_same_but_send_nothing(conn, sites):
+    client = client_for(conn, sites)
+    pages = [client.post("/forgot", data={"email": GOOD["email"]}) for _ in range(LIMITS["reset_account"][0] + 2)]
+    assert {page.status_code for page in pages} == {200}
+    assert len({page.text for page in pages}) == 1
+    assert client.supabase.resets_sent == [GOOD["email"]] * LIMITS["reset_account"][0]
 
 
 def test_list_loads_are_limited_per_reader_too(conn, sites):

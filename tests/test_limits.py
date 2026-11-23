@@ -56,7 +56,8 @@ def test_the_numbers():
     assert LIMITS == {
         "sign_up": (30, 3600), "sign_in": (60, 900), "reset": (10, 3600), "paste": (30, 3600), "newsletter": (60, 3600),
         # Per account, so a shared address's generous limit can't be spent guessing one password.
-        "sign_in_account": (10, 900), "reset_account": (3, 3600), "newsletter_account": (10, 3600),
+        "failed_sign_in": (10, 900), "failed_sign_in_account": (50, 900),
+        "reset_account": (3, 3600), "newsletter_account": (10, 3600),
     }
 
 
@@ -84,3 +85,12 @@ def test_memory_stays_bounded_and_cleanup_is_not_run_on_every_request(monkeypatc
         limiter.allow("paste", f"visitor-{n}")
     assert len(limiter.tries) <= 100
     assert len(sweeps) <= 10
+
+
+def test_peek_and_count_separately():
+    limiter = RateLimiter({"failed_sign_in": (2, 900)}, Clock())
+    assert not limiter.full("failed_sign_in", "k")
+    limiter.count("failed_sign_in", "k")
+    limiter.count("failed_sign_in", "k")
+    assert limiter.full("failed_sign_in", "k")
+    assert not limiter.full("failed_sign_in", "other")

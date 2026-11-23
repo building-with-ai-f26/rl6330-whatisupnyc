@@ -138,6 +138,10 @@ def create_app(deps: AppDeps | None = None) -> FastAPI:
     def over_account_limit(bucket: str, account: str) -> bool:
         return not get_deps().limiter.allow(bucket, account.strip().lower())
 
+    def failed_sign_in_keys(request: Request, email: str) -> list[tuple[str, str]]:
+        account = email.strip().lower()
+        return [("failed_sign_in", f"{account} {client_ip(request)}"), ("failed_sign_in_account", account)]
+
     def too_many(request: Request) -> HTMLResponse | JSONResponse:
         if "application/json" in request.headers.get("accept", ""):
             return JSONResponse({"added": False, "message": TOO_MANY}, status_code=429)
@@ -231,11 +235,15 @@ def create_app(deps: AppDeps | None = None) -> FastAPI:
 
     @app.post("/signin")
     def signin(request: Request, email: str = Form(""), password: str = Form("")):
-        if over_limit(request, "sign_in") or over_account_limit("sign_in_account", email):
+        limiter = get_deps().limiter
+        if over_limit(request, "sign_in") or any(limiter.full(*key) for key in failed_sign_in_keys(request, email)):
             return too_many(request)
         try:
             session = get_deps().auth.sign_in(email.strip(), password)
         except AuthRefused as refused:
+            if refused.code == "invalid_credentials":
+                for key in failed_sign_in_keys(request, email):
+                    limiter.count(*key)
             message = (
                 "Please confirm your email first: use the link we sent when you signed up."
                 if refused.code == "email_not_confirmed"
@@ -322,10 +330,12 @@ def create_app(deps: AppDeps | None = None) -> FastAPI:
 
     @app.post("/forgot")
     def forgot(request: Request, email: str = Form("")):
-        if over_limit(request, "reset") or over_account_limit("reset_account", email):
+        if over_limit(request, "reset"):
             return too_many(request)
         try:
-            get_deps().auth.send_reset(email.strip())
+            # Past the per-account limit, send nothing but answer the same, so nobody sees a lockout.
+            if not over_account_limit("reset_account", email):
+                get_deps().auth.send_reset(email.strip())
         except AuthRefused:
             pass  # Same reply either way, so this page doesn't reveal who has an account.
         except AuthUnavailable:
