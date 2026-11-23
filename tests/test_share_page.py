@@ -28,10 +28,11 @@ def test_share_page_has_link_preview_tags(conn, sites):
     assert 'property="og:description"' in html
 
 
-def test_share_page_without_a_picture(conn, sites):
+def test_share_page_without_its_own_picture_uses_ours(conn, sites):
     event_id = an_event(conn, image_url=None)
     html = client_for(conn, sites).get(f"/e/{event_id}").text
-    assert 'property="og:image"' not in html and "<img" not in html
+    assert '<img src="/static/pictures/' in html
+    assert '<meta property="og:image" content="https://testserver/static/pictures/' in html
 
 
 def test_unknown_event_is_404(conn, sites):
