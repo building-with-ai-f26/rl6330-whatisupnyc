@@ -19,13 +19,14 @@ GOOD = {
 }
 
 
-def client_for(conn, sites, ai=None, auth=None, posthog_key="", clock=None):
-    """A browser on the site. Its Supabase stand-in is client.supabase."""
-    http = httpx.Client(transport=httpx.MockTransport(lambda r: httpx.Response(404)))
+def client_for(conn, sites, ai=None, auth=None, posthog_key="", clock=None, resend_key="", outside=None):
+    """A browser on the site. Its Supabase stand-in is client.supabase; requests the server makes to
+    other services go to outside(request), or get a 404."""
+    http = httpx.Client(transport=httpx.MockTransport(outside or (lambda r: httpx.Response(404))))
     auth = auth or FakeAuth(conn)
     deps = AppDeps(
         conn=conn, ai=ai or FakeAI(), tavily=FakeTavily(), http=http, sites=sites, clock=clock or (lambda: NOW),
-        auth=auth, limiter=RateLimiter(LIMITS), posthog_key=posthog_key,
+        auth=auth, limiter=RateLimiter(LIMITS), posthog_key=posthog_key, resend_key=resend_key,
     )
     # https, so the browser sends the Secure login cookies back.
     # Requests arrive from Caddy on this machine, as in production, so X-Forwarded-For counts.

@@ -57,7 +57,7 @@ def test_the_numbers():
         "sign_up": (30, 3600), "sign_in": (60, 900), "reset": (10, 3600), "paste": (30, 3600), "newsletter": (60, 3600),
         # Per account, so a shared address's generous limit can't be spent guessing one password.
         "failed_sign_in": (10, 900), "failed_sign_in_account": (50, 900),
-        "reset_account": (3, 3600), "newsletter_account": (10, 3600),
+        "reset_account": (3, 3600), "newsletter_account": (10, 3600), "event_actions": (300, 3600), "email_account": (3, 86400),
     }
 
 

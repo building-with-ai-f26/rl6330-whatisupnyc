@@ -1,0 +1,183 @@
+<!doctype html>
+<html lang="en">
+<head>
+  {% include "partials/head.html" %}
+  <title>List for {{ subscriber.name }} | whatisupnyc</title>
+  <style>
+    {% include "partials/base.css" %}
+    :root { --curb: #efefec; }
+    .sign { padding-bottom: 28px; }
+    .sign .row { display: flex; justify-content: space-between; align-items: flex-end; gap: 16px; flex-wrap: wrap; }
+    .sign nav { display: flex; gap: 18px; align-items: center; flex-wrap: wrap; font-size: 15px; }
+    .sign nav button { font-size: 15px; padding: 8px 14px; }
+    main { padding: clamp(24px, 4vw, 48px) var(--gutter) 120px; }
+    .wide { max-width: 1240px; margin: 0 auto; }
+    h1 { font-size: clamp(30px, 4.4vw, 52px); font-weight: 500; letter-spacing: -0.03em; line-height: 1.05; margin: 0 0 8px; }
+    .for { color: var(--steel); margin: 0 0 28px; }
+    .notice { background: var(--taxi); border-radius: 4px; padding: 12px 16px; max-width: 70ch; }
+    section { margin-top: 56px; }
+    section h2 { margin-bottom: 18px; }
+    .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 28px 24px; }
+    .flyer { display: flex; flex-direction: column; border-top: 2px solid var(--black); padding-top: 14px; scroll-margin-top: 24px; }
+    .picture { position: relative; aspect-ratio: 16 / 9; background: var(--curb); border-radius: 2px; overflow: hidden; }
+    .picture img { width: 100%; height: 100%; object-fit: cover; display: block; }
+    /* The date sits on the picture like a street-sign plate. */
+    .plate { position: absolute; left: 10px; bottom: 10px; background: var(--taxi); color: var(--black); font-weight: 600; font-size: 15px; padding: 4px 9px; border-radius: 2px; }
+    .flyer h3 { font-size: 22px; font-weight: 600; letter-spacing: -0.015em; line-height: 1.15; margin: 14px 0 4px; }
+    .flyer h3 a { text-decoration: none; }
+    .flyer h3 a:hover { text-decoration: underline; }
+    .where { margin: 0; color: var(--ink); }
+    .why { margin: 10px 0 0; color: var(--steel); }
+    .tools { display: flex; flex-wrap: wrap; gap: 8px 14px; align-items: center; margin-top: auto; padding-top: 14px; font-size: 15px; }
+    .tools form { margin: 0; }
+    .tools button, .share { font-size: 15px; padding: 8px 14px; }
+    .share { font: 600 15px Archivo, Helvetica, Arial, sans-serif; background: var(--white); color: var(--black); border: 0; box-shadow: inset 0 0 0 1px var(--black); border-radius: 4px; cursor: pointer; text-decoration: none; display: inline-block; }
+    .pick { display: inline-flex; gap: 6px; align-items: center; cursor: pointer; }
+    .pick input { width: 18px; height: 18px; accent-color: var(--black); }
+    .empty { color: var(--steel); max-width: 60ch; }
+    .rated { display: flex; flex-direction: column; gap: 14px; max-width: 760px; }
+    .rated li { display: flex; justify-content: space-between; align-items: center; gap: 16px; flex-wrap: wrap; padding: 12px 0; border-top: 1px solid #d6d6d2; scroll-margin-top: 24px; }
+    .rated ul { list-style: none; margin: 0; padding: 0; }
+    .rated .name { font-weight: 600; }
+    .rated .when { color: var(--steel); font-size: 15px; }
+    .stars { display: flex; gap: 4px; margin: 0; }
+    .stars button { width: 40px; height: 40px; padding: 0; font-size: 16px; background: var(--white); box-shadow: inset 0 0 0 1px var(--black); }
+    .stars button[aria-pressed="true"] { background: var(--taxi); box-shadow: none; }
+    /* Appears once at least one event is ticked. */
+    .more-bar { position: fixed; left: 0; right: 0; bottom: 0; z-index: 5; display: flex; justify-content: center; padding: 14px var(--gutter); background: var(--black); }
+    .more-bar[hidden] { display: none; }
+    .no-js .more-bar { position: static; background: none; justify-content: flex-start; padding: 24px 0 0; }
+    .copied { color: var(--steel); font-size: 14px; }
+    .more-bar { align-items: center; gap: 16px; flex-wrap: wrap; }
+    .more-note { margin: 0; color: #d6d6d2; font-size: 14px; max-width: 46ch; }
+    .no-js .more-note { color: var(--steel); }
+  </style>
+</head>
+<body class="no-js">
+  <script>document.body.className = "";</script>
+  <header class="sign">
+    <div class="inner row">
+      <div class="logo">{% include "partials/logo.svg" %}</div>
+      <nav aria-label="Your account">
+        <a href="/preferences">Edit my preferences</a>
+        <a href="/newsletter/email">Email version</a>
+        <form method="post" action="/signout"><button class="plain" type="submit">Sign out</button></form>
+      </nav>
+    </div>
+  </header>
+  <main>
+    <div class="wide">
+      <h1>Your list for {{ list_day }}</h1>
+      <p class="for">For {{ subscriber.name }}. Save what you like, share it with friends, or tick a few and ask for more like them.</p>
+      {% if banner %}<p class="notice" role="status">{{ banner }}</p>{% endif %}
+      {% if error %}<p class="notice" role="status">{{ error }}</p>{% endif %}
+
+      <form id="more" method="post" action="/newsletter/more" data-making></form>
+      {% if picks %}
+      <div class="grid">
+        {% for item in picks %}
+        <article class="flyer" id="event-{{ item.id }}">
+          <div class="picture">
+            {% if item.image %}<img src="{{ item.image }}" alt="" onerror="this.remove()" loading="lazy" referrerpolicy="no-referrer">{% endif %}
+            <span class="plate">{{ item.plate }}</span>
+          </div>
+          <h3>{% if item.url %}<a href="{{ item.url }}" rel="noopener" target="_blank">{{ item.name }}</a>{% else %}{{ item.name }}{% endif %}</h3>
+          <p class="where">{{ item.when }} · {{ item.venue }}</p>
+          {% if item.reason %}<p class="why">{{ item.reason }}</p>{% endif %}
+          <div class="tools">
+            {% if item.id in saved_ids %}
+            <form method="post" action="/events/{{ item.id }}/unsave"><button class="plain" type="submit">Saved</button></form>
+            {% else %}
+            <form method="post" action="/events/{{ item.id }}/save"><button class="plain" type="submit">Save for later</button></form>
+            {% endif %}
+            <a class="share" href="/e/{{ item.id }}" data-share-url="{{ share_base }}/e/{{ item.id }}" data-share-title="{{ item.name }}">Share</a>
+            <label class="pick"><input type="checkbox" name="event_ids" value="{{ item.id }}" form="more"> More like this</label>
+          </div>
+        </article>
+        {% endfor %}
+      </div>
+      {% else %}
+      <p class="empty">Nothing new to suggest today. Come back tomorrow, or <a href="/preferences">change what you're looking for</a>.</p>
+      {% endif %}
+      <div class="more-bar" id="more-bar"{% if picks %} hidden{% endif %}>
+        {% if picks %}<button type="submit" form="more" id="more-button">More like these</button>
+        <p class="more-note">Makes a new list from what you ticked. Those events are saved for later, so you keep them.</p>{% endif %}
+      </div>
+
+      <section id="saved" aria-labelledby="saved-title">
+        <h2 id="saved-title">Saved for later</h2>
+        {% if saved %}
+        <div class="grid">
+          {% for item in saved %}
+          <article class="flyer" id="saved-{{ item.id }}">
+            <div class="picture">
+              {% if item.image %}<img src="{{ item.image }}" alt="" onerror="this.remove()" loading="lazy" referrerpolicy="no-referrer">{% endif %}
+              <span class="plate">{{ item.plate }}</span>
+            </div>
+            <h3>{% if item.url %}<a href="{{ item.url }}" rel="noopener" target="_blank">{{ item.name }}</a>{% else %}{{ item.name }}{% endif %}</h3>
+            <p class="where">{{ item.when }} · {{ item.venue }}</p>
+            <div class="tools">
+              <form method="post" action="/events/{{ item.id }}/unsave"><button class="plain" type="submit">Remove</button></form>
+              <a class="share" href="/e/{{ item.id }}" data-share-url="{{ share_base }}/e/{{ item.id }}" data-share-title="{{ item.name }}">Share</a>
+            </div>
+          </article>
+          {% endfor %}
+        </div>
+        {% else %}
+        <p class="empty">Nothing saved yet. Tap "Save for later" on an event, and your next lists will lean toward events like it.</p>
+        {% endif %}
+      </section>
+
+      <section id="rate" class="rated" aria-labelledby="rate-title">
+        <h2 id="rate-title">Rate what you went to</h2>
+        {% if to_rate %}
+        <ul>
+          {% for item in to_rate %}
+          <li id="rate-{{ item.id }}">
+            <div><div class="name">{{ item.name }}</div><div class="when">{{ item.when }} · {{ item.venue }}</div></div>
+            <form class="stars" method="post" action="/events/{{ item.id }}/rate">
+              {% for n in range(1, 6) %}
+              <button type="submit" name="rating" value="{{ n }}" aria-label="Rate {{ n }} out of 5" aria-pressed="{{ 'true' if ratings.get(item.id) == n else 'false' }}">{{ n }}</button>
+              {% endfor %}
+            </form>
+          </li>
+          {% endfor %}
+        </ul>
+        {% else %}
+        <p class="empty">Events from your lists show up here once they've happened. Rate the ones you went to, and we'll pick more of what you loved.</p>
+        {% endif %}
+      </section>
+    </div>
+  </main>
+  {% include "partials/making.html" %}
+  <script>
+    (function () {
+      // Show the "More like these" bar once something is ticked.
+      var bar = document.getElementById("more-bar");
+      var button = document.getElementById("more-button");
+      var boxes = document.querySelectorAll('input[form="more"]');
+      function update() {
+        var count = Array.prototype.filter.call(boxes, function (box) { return box.checked; }).length;
+        if (!bar || !button) return;
+        bar.hidden = count === 0;
+        button.textContent = count > 1 ? "More like these " + count : "More like this";
+      }
+      boxes.forEach(function (box) { box.addEventListener("change", update); });
+
+      // Share with the phone's share sheet, or copy the link.
+      document.querySelectorAll("[data-share-url]").forEach(function (link) {
+        link.addEventListener("click", function (event) {
+          var url = link.dataset.shareUrl, title = link.dataset.shareTitle;
+          if (navigator.share) {
+            event.preventDefault();
+            navigator.share({ title: title, text: title + " (found on whatisupnyc)", url: url }).catch(function () {});
+          } else if (navigator.clipboard) {
+            event.preventDefault();
+            navigator.clipboard.writeText(url).then(function () { link.textContent = "Link copied"; });
+          }
+        });
+      });
+    })();
+  </script>
+</body>
+</html>

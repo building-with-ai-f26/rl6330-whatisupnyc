@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="en">
+<head>
+  {% include "partials/head.html" %}
+  <title>{{ item.name }} | whatisupnyc</title>
+  <meta property="og:title" content="{{ item.name }}">
+  <meta property="og:description" content="{{ item.when }} at {{ item.venue }}. Found on whatisupnyc.">
+  {% if item.image %}<meta property="og:image" content="{{ item.image }}">{% endif %}
+  <meta property="og:type" content="website">
+  <style>
+    {% include "partials/base.css" %}
+    .sign { padding-bottom: 24px; }
+    .sign .row { display: flex; justify-content: space-between; align-items: flex-end; gap: 16px; }
+    .sign a { font-size: 15px; }
+    main { padding: clamp(24px, 4vw, 48px) var(--gutter) 72px; }
+    .column { max-width: 720px; margin: 0 auto; }
+    .picture { position: relative; aspect-ratio: 16 / 9; background: #efefec; border-radius: 2px; overflow: hidden; }
+    .picture img { width: 100%; height: 100%; object-fit: cover; display: block; }
+    .plate { position: absolute; left: 12px; bottom: 12px; background: var(--taxi); font-weight: 600; padding: 5px 10px; border-radius: 2px; }
+    h1 { font-size: clamp(30px, 5vw, 52px); font-weight: 500; letter-spacing: -0.03em; line-height: 1.05; margin: 22px 0 8px; }
+    .where { margin: 0; font-size: 19px; }
+    .actions { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 28px; }
+    .actions a { font: 600 18px Archivo, Helvetica, Arial, sans-serif; text-decoration: none; padding: 14px 22px; border-radius: 4px; }
+    .go { background: var(--taxi); color: var(--black); }
+    .own { box-shadow: inset 0 0 0 1px var(--black); }
+    .about { color: var(--steel); margin-top: 36px; max-width: 56ch; }
+  </style>
+</head>
+<body>
+  <header class="sign">
+    <div class="inner row">
+      <div class="logo">{% include "partials/logo.svg" %}</div>
+      <a href="/">Make your own list</a>
+    </div>
+  </header>
+  <main>
+    <div class="column">
+      <div class="picture">
+        {% if item.image %}<img src="{{ item.image }}" alt="" onerror="this.remove()" referrerpolicy="no-referrer">{% endif %}
+        <span class="plate">{{ item.plate }}</span>
+      </div>
+      <h1>{{ item.name }}</h1>
+      <p class="where">{{ item.when }} · {{ item.venue }}</p>
+      <div class="actions">
+        {% if item.url %}<a class="go" href="{{ item.url }}" rel="noopener">Go to event</a>{% endif %}
+        <a class="own" href="/">Get your own list</a>
+      </div>
+      <p class="about">A friend shared this from whatisupnyc, a short list of checked NYC events picked for what you like.</p>
+    </div>
+  </main>
+</body>
+</html>

@@ -1,4 +1,5 @@
 import json
+from dataclasses import dataclass
 import re
 from collections import Counter
 from datetime import datetime
@@ -40,6 +41,34 @@ _templates = Environment(
 )
 
 
+@dataclass
+class Taste:
+    """What the reader told us beyond their preferences, as event names for the AI."""
+
+    saved: list[str]  # saved for later
+    liked: list[str]  # rated 4-5
+    disliked: list[str]  # rated 1-2
+    more_like: list[str]  # picked with "More like these"
+
+
+MAX_TASTE_NAMES = 10
+
+
+def _taste_lines(taste: Taste | None) -> str:
+    if taste is None:
+        return ""
+    parts = [
+        ("Reader saved these for later (suggest similar)", taste.saved),
+        ("Reader loved (4-5 stars)", taste.liked),
+        ("Reader didn't enjoy (1-2 stars; avoid similar)", taste.disliked),
+        ("Reader asked for more like", taste.more_like),
+    ]
+    # Names come from scraped pages, so they go in as JSON: a name can't start a new line of instructions.
+    return "".join(
+        f"{label}: {json.dumps(names[:MAX_TASTE_NAMES], ensure_ascii=False)}\n" for label, names in parts if names
+    )
+
+
 def choose_picks(
     subscriber: Subscriber,
     events: list[ScoredEvent],
@@ -48,6 +77,7 @@ def choose_picks(
     now: datetime,
     max_picks: int = 8,
     sent_ids: set[int] | None = None,
+    taste: Taste | None = None,
 ) -> list[Pick]:
     available = [event for event in events if event.id not in (sent_ids or set())]
     # Best first, then soonest.
@@ -69,6 +99,7 @@ def choose_picks(
     user = (
         f"Reader's interests: {subscriber.interests}\n"
         f"Reader's style request: {subscriber.look_prompt or 'none'}\n"
+        f"{_taste_lines(taste)}"
         f"Choose at most {max_picks}.\n"
         f"Events: {json.dumps(listing, ensure_ascii=False)}"
     )
@@ -140,7 +171,7 @@ def _sections(picks: list[Pick], now: datetime) -> list[dict]:
     ]
 
 
-def render_newsletter(picks: list[Pick], *, now: datetime) -> str:
+def render_newsletter(picks: list[Pick], *, now: datetime, site_url: str | None = None) -> str:
     return _templates.get_template("newsletter.html").render(
         sections=_sections(picks, now),
         issue_date=now.astimezone(NY).strftime("%A, %B %-d"),
@@ -149,6 +180,7 @@ def render_newsletter(picks: list[Pick], *, now: datetime) -> str:
         short=0 < len(picks) < SHORT_ISSUE_BELOW,
         # The Open Data Law lets the city ask apps to name the source of its data.
         parks_credit=any(pick.event.event.source == PARKS_SOURCE for pick in picks),
+        site_url=site_url,
     )
 
 
@@ -159,4 +191,18 @@ def _view(pick: Pick) -> dict:
     if local.time().replace(second=0, microsecond=0) != NO_TIME:
         when += local.strftime(", %-I:%M %p")
     url = event.url if urlparse(event.url).scheme in ("http", "https") else None
-    return {"name": event.name, "when": when, "venue": event.venue, "reason": pick.reason, "url": url}
+    return {"name": event.name, "when": when, "venue": event.venue, "reason": pick.reason, "url": url,
+            "image": event.image_url}
+
+
+def card(event: ScoredEvent, reason: str | None = None) -> dict:
+    """One event as the dashboard shows it: no scores, only what a reader needs."""
+    view = _view(Pick(event, reason or ""))
+    local = event.event.start.astimezone(NY)
+    return {
+        **view,
+        "id": event.id,
+        "image": event.event.image_url,
+        "plate": local.strftime("%a %b %-d"),
+        "start": event.event.start,
+    }

@@ -17,6 +17,7 @@ An **AI app with sign-in and a database**. Readers make an account with email an
 Every table has Row Level Security on.
 
 - **The event tables:** no policies at all, so Supabase's public API can read or write nothing in them.
+- **`saved_for_later` and `event_ratings`:** each reader reads and changes only their own rows (`user_id = auth.uid()` on every action); `event_id` must be a real event, and ratings are 1 to 5. The app accepts only events from the reader's own lists, and ratings only for events that have happened.
 - **`profiles`, `sent_events` and `newsletter_issues` (saved lists):** a signed-in reader sees only rows whose `user_id` is their own (`auth.uid()`). They can add only their own sent events and saved lists, and they can change only the preference columns of their own profile (name, interests, extra wishes, days), never the first-look token. They can't add or delete profiles.
 - **Inside the server:** reader queries switch to the `authenticated` role with the reader's ID (`db.as_reader`). So even a bug in our code can't hand one reader another's rows.
 
@@ -56,7 +57,11 @@ Neither secret reached git or the live site. See the `AGENTS.md` rule this produ
 
 ## 3. File storage
 
-The app stores no files: no Supabase Storage buckets, and no uploads.
+The app stores no files: no Supabase Storage buckets, and no uploads. Event pictures are links to the event's own feed or page, `https` only, loaded with `referrerpolicy="no-referrer"` so the image host doesn't learn which reader's page asked.
+
+**Public share page:** `/e/<id>` shows one event (picture, date, venue, link) for sharing with friends. It shows only events the site recommends (event numbers can be counted through), and nothing about who shared it.
+
+**Emailing a list:** only to the signed-in reader's own address from Supabase (any address in the form is ignored), at most 3 a day per reader, and only when `RESEND_API_KEY` is set on the server.
 
 ## 4. Protecting production from the agent
 

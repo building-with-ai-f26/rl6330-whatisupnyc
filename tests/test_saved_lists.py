@@ -174,3 +174,58 @@ def test_yesterdays_list_shown_when_busy_keeps_its_own_date(conn, sites):
     ai.error = AIUnavailable("busy")
     html = client.get("/newsletter").text
     assert "Monday, November 2" in html and "Tuesday, November 3" not in html
+
+
+def test_saved_and_rated_events_shape_the_next_list(conn, sites):
+    clock = Clock()
+    client, ai = setup(conn, sites, clock)
+    signed_in_ana(client)
+    client.get("/newsletter")
+    jazz, comedy = [e.id for e in db.eligible_events(conn, NOW) if e.event.name in ("Jazz Night", "Comedy Cellar")]
+    db.save_for_later(conn, ana_id(client), jazz, NOW)
+    db.rate_event(conn, ana_id(client), comedy, 5, NOW)
+    clock.now += timedelta(days=1)
+    client.get("/newsletter")
+    assert ai.calls == 2
+    assert 'Reader saved these for later (suggest similar): ["Jazz Night"]' in ai.prompts[1]
+    assert 'Reader loved (4-5 stars): ["Comedy Cellar"]' in ai.prompts[1]
+    assert "Reader saved" not in ai.prompts[0]
+
+
+def test_more_like_these_makes_a_new_list_from_the_chosen_events(conn, sites):
+    client, ai = setup(conn, sites)
+    signed_in_ana(client)
+    client.get("/newsletter")
+    jazz = next(e.id for e in db.eligible_events(conn, NOW) if e.event.name == "Jazz Night")
+    response = client.post("/newsletter/more", data={"event_ids": [jazz]})
+    assert (response.status_code, response.headers["location"]) == (303, "/newsletter")
+    assert ai.calls == 2
+    html = client.get("/newsletter").text
+    assert "Museum Late" in html and ai.calls == 2
+
+
+def test_more_like_these_only_takes_events_from_the_readers_own_lists(conn, sites):
+    client, ai = setup(conn, sites)
+    signed_in_ana(client)
+    client.get("/newsletter")
+    never_listed = next(e.id for e in db.eligible_events(conn, NOW) if e.event.name == "Park Walk")
+    assert client.post("/newsletter/more", data={"event_ids": [never_listed]}).status_code == 404
+    assert client.post("/newsletter/more", data={"event_ids": []}).status_code == 400
+    assert ai.calls == 1
+
+
+def test_more_like_these_needs_a_reader(conn, sites):
+    client, ai = setup(conn, sites)
+    response = client.post("/newsletter/more", data={"event_ids": [1]})
+    assert (response.status_code, response.headers["location"]) == (303, "/signin")
+
+
+def test_more_like_these_counts_toward_the_per_address_limit(conn, sites):
+    from app.limits import LIMITS
+
+    client, ai = setup(conn, sites)
+    signed_in_ana(client)
+    client.get("/newsletter")
+    for _ in range(LIMITS["newsletter"][0] - 1):
+        client.get("/newsletter")
+    assert client.post("/newsletter/more", data={"event_ids": [1]}).status_code == 429

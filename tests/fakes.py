@@ -155,12 +155,14 @@ class ChoosingAI:
         self.how_many = how_many
         self.calls = 0
         self.offered = []  # the event names offered on each call
+        self.prompts = []
         self.error = None
 
     def complete_json(self, system, user):
         import json
 
         self.calls += 1
+        self.prompts.append(user)
         if self.error:
             raise self.error
         events = json.loads(user.split("Events: ", 1)[1])

@@ -250,3 +250,97 @@ def test_old_reader_tables_are_gone(conn):
     with conn.connection() as c:
         assert c.execute("select to_regclass('old_subscribers') as t").fetchone()["t"] is None
         assert c.execute("select to_regclass('old_sent_events') as t").fetchone()["t"] is None
+
+
+def listed(conn, user, *names):
+    """Events put on the reader's list, as the AI would; returns their IDs in order."""
+    picks = picks_for(conn, *[(name, "fits") for name in names])
+    db.save_issue(conn, user, picks, NOW)
+    return [p.event.id for p in picks]
+
+
+def test_history_is_every_event_on_the_readers_lists(conn):
+    a, b = reader(conn), reader(conn)
+    first = listed(conn, a, "One", "Two")
+    second = listed(conn, a, "Three")
+    listed(conn, b, "Bs")
+    assert db.history_event_ids(conn, a) == set(first + second)
+
+
+def test_save_for_later_round_trip_newest_first(conn):
+    a = reader(conn)
+    one, two = listed(conn, a, "One", "Two")
+    db.save_for_later(conn, a, one, NOW)
+    db.save_for_later(conn, a, two, NOW + timedelta(minutes=1))
+    db.save_for_later(conn, a, one, NOW + timedelta(minutes=2))  # saving twice keeps one row
+    assert db.saved_for_later_ids(conn, a) == [one, two]
+    db.unsave(conn, a, one)
+    assert db.saved_for_later_ids(conn, a) == [two]
+
+
+def test_rating_round_trip_and_change(conn):
+    a = reader(conn)
+    (one,) = listed(conn, a, "One")
+    db.rate_event(conn, a, one, 2, NOW)
+    db.rate_event(conn, a, one, 5, NOW)
+    assert db.ratings(conn, a) == {one: 5}
+
+
+def test_ratings_must_be_one_to_five(conn):
+    a = reader(conn)
+    (one,) = listed(conn, a, "One")
+    for bad in (0, 6):
+        with pytest.raises(psycopg.errors.CheckViolation):
+            db.rate_event(conn, a, one, bad, NOW)
+
+
+def test_unknown_events_cannot_be_saved_or_rated(conn):
+    a = reader(conn)
+    with pytest.raises(psycopg.errors.ForeignKeyViolation):
+        db.save_for_later(conn, a, 999999, NOW)
+    with pytest.raises(psycopg.errors.ForeignKeyViolation):
+        db.rate_event(conn, a, 999999, 4, NOW)
+
+
+def test_readers_cannot_see_or_change_each_others_saves_and_ratings(conn):
+    a, b = reader(conn), reader(conn)
+    (one,) = listed(conn, b, "One")
+    db.save_for_later(conn, b, one, NOW)
+    db.rate_event(conn, b, one, 4, NOW)
+    assert db.saved_for_later_ids(conn, a) == [] and db.ratings(conn, a) == {}
+    with db.as_reader(conn, a) as c:
+        assert c.execute("select * from saved_for_later").fetchall() == []
+        assert c.execute("select * from event_ratings").fetchall() == []
+        assert c.execute("delete from saved_for_later where user_id = %s", (b,)).rowcount == 0
+    # Only the server writes saves and ratings, after its checks; a reader can't, even for themselves.
+    for owner in (a, b):
+        for statement in (
+            "insert into saved_for_later (user_id, event_id, saved_at) values (%s, %s, now())",
+            "insert into event_ratings (user_id, event_id, rating, rated_at) values (%s, %s, 1, now())",
+        ):
+            with pytest.raises(psycopg.errors.InsufficientPrivilege):
+                with db.as_reader(conn, a) as c:
+                    c.execute(statement, (owner, one))
+    with pytest.raises(psycopg.errors.InsufficientPrivilege):
+        with db.as_reader(conn, b) as c:
+            c.execute("update event_ratings set rating = 1 where user_id = %s", (b,))
+    assert db.ratings(conn, b) == {one: 4} and db.saved_for_later_ids(conn, b) == [one]
+
+
+def test_reader_can_still_remove_their_own_saves_and_ratings(conn):
+    a = reader(conn)
+    (one,) = listed(conn, a, "One")
+    db.save_for_later(conn, a, one, NOW)
+    db.rate_event(conn, a, one, 3, NOW)
+    with db.as_reader(conn, a) as c:
+        assert c.execute("delete from saved_for_later where user_id = %s", (a,)).rowcount == 1
+        assert c.execute("delete from event_ratings where user_id = %s", (a,)).rowcount == 1
+
+
+def test_dashboard_data_in_one_lookup(conn):
+    a = reader(conn)
+    one, two = listed(conn, a, "One", "Two")
+    db.save_for_later(conn, a, two, NOW)
+    db.rate_event(conn, a, one, 4, NOW)
+    saved, rated, history = db.dashboard_data(conn, a)
+    assert (saved, rated, history) == ([two], {one: 4}, {one, two})

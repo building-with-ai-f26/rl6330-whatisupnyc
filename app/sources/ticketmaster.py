@@ -3,6 +3,7 @@ from datetime import datetime, timedelta, timezone
 
 import httpx
 
+from app.pages import clean_image_url
 from app.models import CandidateEvent
 
 log = logging.getLogger(__name__)
@@ -71,4 +72,16 @@ def _to_event(record: dict) -> CandidateEvent | None:
         source_type="api",
         organizer=record.get("promoter", {}).get("name"),
         category=classifications[0].get("segment", {}).get("name"),
+        image_url=_image(record.get("images")),
     )
+
+
+def _image(images) -> str | None:
+    """A wide picture big enough for a card: 16:9 from 640 px wide, smallest such; else the widest."""
+    found = [i for i in images or [] if isinstance(i, dict) and clean_image_url(i.get("url"))]
+    wide = [i for i in found if i.get("ratio") == "16_9" and (i.get("width") or 0) >= 640]
+    if wide:
+        return clean_image_url(min(wide, key=lambda i: i.get("width") or 0)["url"])
+    if found:
+        return clean_image_url(max(found, key=lambda i: i.get("width") or 0)["url"])
+    return None

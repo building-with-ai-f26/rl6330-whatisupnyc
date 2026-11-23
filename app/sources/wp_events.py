@@ -10,7 +10,7 @@ from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 import httpx
 
 from app.models import CandidateEvent
-from app.pages import USER_AGENT, robots_rules
+from app.pages import USER_AGENT, clean_image_url, robots_rules
 from app.sites import Sites
 from app.sources.web import NO_TIME
 
@@ -113,6 +113,8 @@ def _to_event(record: dict, domain: str, feed: dict) -> CandidateEvent | None:
         source_type="api",
         organizer=feed["organization"],
         category=", ".join(_categories(record)[:MAX_CATEGORIES]) or None,
+        # The feed sends image: false when there is none.
+        image_url=clean_image_url((record.get("image") or {}).get("url")) if isinstance(record.get("image"), dict) else None,
     )
 
 

@@ -282,3 +282,21 @@ def test_waiting_paste_is_dropped_after_three_busy_runs(conn, sites):
     for _ in range(3):
         run_pipeline(conn, deps(sites, ticketmaster=EMPTY_TM, ai=FakeAI(error=AIUnavailable("busy"))), NOW)
     assert db.list_waiting_pastes(conn) == []
+
+
+def test_new_event_takes_its_pages_preview_image(conn, sites):
+    tavily = FakeTavily([SearchHit("https://reliable.example/good", "t", "c")])
+    html = '<meta property="og:image" content="/posters/good.jpg">' + jsonld("Good Show")
+    run_pipeline(conn, deps(sites, {"https://reliable.example/good": html}, EMPTY_TM, tavily), NOW)
+    (event,) = db.eligible_events(conn, NOW)
+    assert event.event.image_url == "https://reliable.example/posters/good.jpg"
+
+
+def test_saved_event_seen_again_picks_up_a_feed_image(conn, sites):
+    run_pipeline(conn, deps(sites), NOW)
+    assert db.eligible_events(conn, NOW)[0].event.image_url is None
+    pictured = json.loads(json.dumps(FIXTURE))
+    for record in pictured["_embedded"]["events"]:
+        record["images"] = [{"ratio": "16_9", "url": "https://s1.ticketm.net/wide.jpg", "width": 1024}]
+    run_pipeline(conn, deps(sites, ticketmaster=pictured), NOW)
+    assert db.eligible_events(conn, NOW)[0].event.image_url == "https://s1.ticketm.net/wide.jpg"
