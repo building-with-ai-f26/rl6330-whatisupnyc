@@ -146,3 +146,23 @@ class FakeAuth:
             del self.access[token]
         for token in [t for t, k in self.refreshes.items() if k == key]:
             del self.refreshes[token]
+
+
+class ChoosingAI:
+    """Stands in for AIClient like the real model: picks the first few events it is offered."""
+
+    def __init__(self, how_many=2):
+        self.how_many = how_many
+        self.calls = 0
+        self.offered = []  # the event names offered on each call
+        self.error = None
+
+    def complete_json(self, system, user):
+        import json
+
+        self.calls += 1
+        if self.error:
+            raise self.error
+        events = json.loads(user.split("Events: ", 1)[1])
+        self.offered.append([event["name"] for event in events])
+        return {"picks": [{"id": e["id"], "reason": f"Fits: {e['name']}"} for e in events[: self.how_many]]}

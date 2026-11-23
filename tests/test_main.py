@@ -147,17 +147,6 @@ def test_ai_down_shows_plain_message(conn, sites):
     assert "try again" in response.text.lower()
 
 
-def test_mark_sent_excludes_next_time(conn, sites):
-    event_id = db.save_event(conn, make_event(name="Jazz Night"), Score(40, True))
-    ai = FakeAI()
-    client = client_for(conn, sites, ai)
-    sign_up_ana(client)
-    assert client.post("/newsletter/sent", data={"event_ids": [event_id]}).status_code == 303
-    html = client.get("/newsletter").text
-    assert "no new picks" in html.lower()
-    assert ai.calls == 0
-
-
 def test_paste_shows_message(conn, sites):
     response = client_for(conn, sites).post("/paste", data={"link": "not a link", "caption": "x"})
     assert "link" in response.text.lower()

@@ -9,7 +9,7 @@ from dotenv import load_dotenv
 from fastapi import FastAPI, Form, Request
 from fastapi.responses import HTMLResponse, JSONResponse, PlainTextResponse, RedirectResponse
 
-from app import auth, db
+from app import auth, db, saved_lists
 from app.ai import AIClient, AIUnavailable, backup_from_env
 from app.limits import LIMITS, RateLimiter, client_ip
 from app.models import Subscriber
@@ -299,38 +299,22 @@ def create_app(deps: AppDeps | None = None) -> FastAPI:
             return RedirectResponse("/signin", status_code=303)
         d = get_deps()
         subscriber = reader.profile
+        context = {"subscriber": subscriber, "banner": SIGNED_UP_BANNER if reader.first_look else ""}
+        now = d.clock()
+        latest = db.latest_issue(d.conn, subscriber.id)
+        if not saved_lists.needs_new_list(latest, subscriber, now):
+            picks = saved_lists.saved_picks(d.conn, latest)
+            return finish(HTMLResponse(page("view.html", error=None, body=render_newsletter(picks, now=now), **context)), reader)
+        # Only making a new list calls the AI, so only that counts toward the reader's limit.
         if over_account_limit("newsletter_account", subscriber.id):
             return too_many(request)
-        context = {"subscriber": subscriber, "banner": SIGNED_UP_BANNER if reader.first_look else ""}
         try:
-            picks = choose_picks(
-                subscriber,
-                db.eligible_events(d.conn, d.clock()),
-                d.ai,
-                now=d.clock(),
-                sent_ids=db.sent_event_ids(d.conn, subscriber.id),
-            )
+            picks = saved_lists.make_list(d.conn, d.ai, subscriber, now)
         except AIUnavailable:
-            return finish(HTMLResponse(page("view.html", error=AI_BUSY, body=None, event_ids=[], **context)), reader)
-        html = page(
-            "view.html",
-            error=None,
-            body=render_newsletter(picks, now=d.clock()),
-            event_ids=[pick.event.id for pick in picks],
-            **context,
-        )
-        return finish(HTMLResponse(html), reader)
-
-    @app.post("/newsletter/sent")
-    def mark_sent(request: Request, event_ids: list[int] = Form([])):
-        try:
-            reader = current_reader(request)
-        except AuthUnavailable:
-            return notice("Please try again", AUTH_DOWN, [("/", "Back to the start")], 503)
-        if reader.profile is None:
-            return RedirectResponse("/signin", status_code=303)
-        db.mark_sent(get_deps().conn, reader.profile.id, event_ids)
-        return finish(RedirectResponse("/", status_code=303), reader)
+            # Their last list, if any, still shows under the message.
+            body = render_newsletter(saved_lists.saved_picks(d.conn, latest), now=now) if latest else None
+            return finish(HTMLResponse(page("view.html", error=AI_BUSY, body=body, **context)), reader)
+        return finish(HTMLResponse(page("view.html", error=None, body=render_newsletter(picks, now=now), **context)), reader)
 
     @app.get("/newsletter/{token}", response_class=HTMLResponse)
     def old_newsletter_link(token: str):
