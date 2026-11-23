@@ -88,6 +88,11 @@ def fill_event_image(conn: Database, key: str, image_url: str) -> None:
         c.execute("UPDATE events SET image_url = %s WHERE dedupe_key = %s AND image_url IS NULL", (image_url, key))
 
 
+def fill_event_image_by_id(conn: Database, event_id: int, image_url: str) -> None:
+    with conn.connection() as c:
+        c.execute("UPDATE events SET image_url = %s WHERE id = %s AND image_url IS NULL", (image_url, event_id))
+
+
 def saved_event_keys(conn: Database) -> dict[str, bool]:
     with conn.connection() as c:
         rows = c.execute("SELECT dedupe_key, eligible FROM events").fetchall()
