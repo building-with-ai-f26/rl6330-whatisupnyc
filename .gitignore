@@ -31,3 +31,6 @@ out/
 
 # Local database
 *.db
+
+# Supabase CLI scratch files
+supabase/.temp/
