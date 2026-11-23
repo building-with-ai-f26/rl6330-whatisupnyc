@@ -36,7 +36,7 @@
   <main>
     <div class="column">
       <div class="picture">
-        {% if item.image %}<img src="{{ item.image }}" alt="" referrerpolicy="no-referrer">{% endif %}
+        {% if item.image %}<img src="{{ item.image }}" alt="" onerror="this.remove()" referrerpolicy="no-referrer">{% endif %}
         <span class="plate">{{ item.plate }}</span>
       </div>
       <h1>{{ item.name }}</h1>

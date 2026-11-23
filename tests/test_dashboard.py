@@ -118,3 +118,29 @@ def test_event_actions_need_a_reader_and_this_site(conn, sites):
     client.cookies.clear()
     response = client.post(f"/events/{jazz}/save")
     assert (response.status_code, response.headers["location"]) == (303, "/signin")
+
+
+def test_saved_events_the_site_stopped_recommending_are_hidden(conn, sites):
+    client, ai, ids = ready(conn, sites)
+    jazz = ids["Jazz Night"]
+    client.post(f"/events/{jazz}/save")
+    with conn.connection() as c:
+        c.execute("update events set eligible = false where id = %s", (jazz,))
+    html = client.get("/newsletter").text
+    assert f'id="saved-{jazz}"' not in html
+
+
+def test_more_like_these_keeps_the_ticked_events_and_says_it_makes_a_new_list(conn, sites):
+    client, ai, ids = ready(conn, sites)
+    html = client.get("/newsletter").text
+    assert "makes a new list" in html.lower()
+    jazz = ids["Jazz Night"]
+    client.post("/newsletter/more", data={"event_ids": [jazz]})
+    assert db.saved_for_later_ids(conn, ana_id(client)) == [jazz]
+
+
+def test_a_picture_that_fails_to_load_leaves_the_plain_block(conn, sites):
+    client, ai, ids = ready(conn, sites)
+    html = client.get("/newsletter").text
+    img = html[html.index('src="https://cdn.example/jazz.jpg"') - 10:html.index('src="https://cdn.example/jazz.jpg"') + 200]
+    assert 'onerror="this.remove()"' in img

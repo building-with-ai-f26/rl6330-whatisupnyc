@@ -325,11 +325,10 @@ def create_app(deps: AppDeps | None = None) -> FastAPI:
         """The website version of the list: today's picks, saved events, and events to rate."""
         d = get_deps()
         now, user_id = d.clock(), reader.profile.id
-        saved_ids = db.saved_for_later_ids(d.conn, user_id)
-        rated = db.ratings(d.conn, user_id)
-        history = db.history_event_ids(d.conn, user_id)
+        saved_ids, rated, history = db.dashboard_data(d.conn, user_id)
         events = db.events_by_ids(d.conn, list(set(saved_ids) | history))
-        saved = [card(events[i]) for i in saved_ids if i in events and events[i].event.start > now]
+        saved = [card(events[i]) for i in saved_ids
+                 if i in events and events[i].score.eligible and events[i].event.start > now]
         went = sorted((events[i] for i in history if i in events and events[i].event.start <= now),
                       key=lambda e: e.event.start, reverse=True)[:12]
         base = str(request.base_url).rstrip("/")
@@ -424,6 +423,9 @@ def create_app(deps: AppDeps | None = None) -> FastAPI:
             return finish(notice("Not found", "That event isn't on your lists.", [("/newsletter", "Back to my list")], 404), reader)
         if over_account_limit("newsletter_account", reader.profile.id):
             return too_many(request)
+        # The ticked events are kept, since the new list replaces today's.
+        for event_id in chosen:
+            db.save_for_later(d.conn, reader.profile.id, event_id, d.clock())
         try:
             saved_lists.make_list(d.conn, d.ai, reader.profile, d.clock(), more_like_ids=chosen)
         except AIUnavailable:

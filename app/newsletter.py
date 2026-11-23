@@ -63,7 +63,10 @@ def _taste_lines(taste: Taste | None) -> str:
         ("Reader didn't enjoy (1-2 stars; avoid similar)", taste.disliked),
         ("Reader asked for more like", taste.more_like),
     ]
-    return "".join(f"{label}: {'; '.join(names[:MAX_TASTE_NAMES])}\n" for label, names in parts if names)
+    # Names come from scraped pages, so they go in as JSON: a name can't start a new line of instructions.
+    return "".join(
+        f"{label}: {json.dumps(names[:MAX_TASTE_NAMES], ensure_ascii=False)}\n" for label, names in parts if names
+    )
 
 
 def choose_picks(

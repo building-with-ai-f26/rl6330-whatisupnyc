@@ -187,8 +187,8 @@ def test_saved_and_rated_events_shape_the_next_list(conn, sites):
     clock.now += timedelta(days=1)
     client.get("/newsletter")
     assert ai.calls == 2
-    assert "Reader saved these for later (suggest similar): Jazz Night" in ai.prompts[1]
-    assert "Reader loved (4-5 stars): Comedy Cellar" in ai.prompts[1]
+    assert 'Reader saved these for later (suggest similar): ["Jazz Night"]' in ai.prompts[1]
+    assert 'Reader loved (4-5 stars): ["Comedy Cellar"]' in ai.prompts[1]
     assert "Reader saved" not in ai.prompts[0]
 
 

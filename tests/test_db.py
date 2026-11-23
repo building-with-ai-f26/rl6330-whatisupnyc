@@ -312,12 +312,35 @@ def test_readers_cannot_see_or_change_each_others_saves_and_ratings(conn):
         assert c.execute("select * from saved_for_later").fetchall() == []
         assert c.execute("select * from event_ratings").fetchall() == []
         assert c.execute("delete from saved_for_later where user_id = %s", (b,)).rowcount == 0
-        assert c.execute("update event_ratings set rating = 1 where user_id = %s", (b,)).rowcount == 0
-    for statement in (
-        "insert into saved_for_later (user_id, event_id, saved_at) values (%s, %s, now())",
-        "insert into event_ratings (user_id, event_id, rating, rated_at) values (%s, %s, 1, now())",
-    ):
-        with pytest.raises(psycopg.errors.InsufficientPrivilege):
-            with db.as_reader(conn, a) as c:
-                c.execute(statement, (b, one))
+    # Only the server writes saves and ratings, after its checks; a reader can't, even for themselves.
+    for owner in (a, b):
+        for statement in (
+            "insert into saved_for_later (user_id, event_id, saved_at) values (%s, %s, now())",
+            "insert into event_ratings (user_id, event_id, rating, rated_at) values (%s, %s, 1, now())",
+        ):
+            with pytest.raises(psycopg.errors.InsufficientPrivilege):
+                with db.as_reader(conn, a) as c:
+                    c.execute(statement, (owner, one))
+    with pytest.raises(psycopg.errors.InsufficientPrivilege):
+        with db.as_reader(conn, b) as c:
+            c.execute("update event_ratings set rating = 1 where user_id = %s", (b,))
     assert db.ratings(conn, b) == {one: 4} and db.saved_for_later_ids(conn, b) == [one]
+
+
+def test_reader_can_still_remove_their_own_saves_and_ratings(conn):
+    a = reader(conn)
+    (one,) = listed(conn, a, "One")
+    db.save_for_later(conn, a, one, NOW)
+    db.rate_event(conn, a, one, 3, NOW)
+    with db.as_reader(conn, a) as c:
+        assert c.execute("delete from saved_for_later where user_id = %s", (a,)).rowcount == 1
+        assert c.execute("delete from event_ratings where user_id = %s", (a,)).rowcount == 1
+
+
+def test_dashboard_data_in_one_lookup(conn):
+    a = reader(conn)
+    one, two = listed(conn, a, "One", "Two")
+    db.save_for_later(conn, a, two, NOW)
+    db.rate_event(conn, a, one, 4, NOW)
+    saved, rated, history = db.dashboard_data(conn, a)
+    assert (saved, rated, history) == ([two], {one: 4}, {one, two})

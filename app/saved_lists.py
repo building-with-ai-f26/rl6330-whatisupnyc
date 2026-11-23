@@ -32,7 +32,8 @@ def taste_for(conn: db.Database, reader: Subscriber, more_like_ids: list[int] | 
     events = db.events_by_ids(conn, saved + list(rated) + more)
 
     def names(ids):
-        return [events[i].event.name for i in ids if i in events]
+        # Only events the site still recommends steer the AI.
+        return [events[i].event.name for i in ids if i in events and events[i].score.eligible]
 
     return Taste(
         saved=names(saved),

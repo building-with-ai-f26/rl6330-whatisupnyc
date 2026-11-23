@@ -48,6 +48,9 @@
     .more-bar[hidden] { display: none; }
     .no-js .more-bar { position: static; background: none; justify-content: flex-start; padding: 24px 0 0; }
     .copied { color: var(--steel); font-size: 14px; }
+    .more-bar { align-items: center; gap: 16px; flex-wrap: wrap; }
+    .more-note { margin: 0; color: #d6d6d2; font-size: 14px; max-width: 46ch; }
+    .no-js .more-note { color: var(--steel); }
   </style>
 </head>
 <body class="no-js">
@@ -75,7 +78,7 @@
         {% for item in picks %}
         <article class="flyer" id="event-{{ item.id }}">
           <div class="picture">
-            {% if item.image %}<img src="{{ item.image }}" alt="" loading="lazy" referrerpolicy="no-referrer">{% endif %}
+            {% if item.image %}<img src="{{ item.image }}" alt="" onerror="this.remove()" loading="lazy" referrerpolicy="no-referrer">{% endif %}
             <span class="plate">{{ item.plate }}</span>
           </div>
           <h3>{% if item.url %}<a href="{{ item.url }}" rel="noopener" target="_blank">{{ item.name }}</a>{% else %}{{ item.name }}{% endif %}</h3>
@@ -97,7 +100,8 @@
       <p class="empty">Nothing new to suggest today. Come back tomorrow, or <a href="/preferences">change what you're looking for</a>.</p>
       {% endif %}
       <div class="more-bar" id="more-bar"{% if picks %} hidden{% endif %}>
-        {% if picks %}<button type="submit" form="more" id="more-button">More like these</button>{% endif %}
+        {% if picks %}<button type="submit" form="more" id="more-button">More like these</button>
+        <p class="more-note">Makes a new list from what you ticked. Those events are saved for later, so you keep them.</p>{% endif %}
       </div>
 
       <section id="saved" aria-labelledby="saved-title">
@@ -107,7 +111,7 @@
           {% for item in saved %}
           <article class="flyer" id="saved-{{ item.id }}">
             <div class="picture">
-              {% if item.image %}<img src="{{ item.image }}" alt="" loading="lazy" referrerpolicy="no-referrer">{% endif %}
+              {% if item.image %}<img src="{{ item.image }}" alt="" onerror="this.remove()" loading="lazy" referrerpolicy="no-referrer">{% endif %}
               <span class="plate">{{ item.plate }}</span>
             </div>
             <h3>{% if item.url %}<a href="{{ item.url }}" rel="noopener" target="_blank">{{ item.name }}</a>{% else %}{{ item.name }}{% endif %}</h3>

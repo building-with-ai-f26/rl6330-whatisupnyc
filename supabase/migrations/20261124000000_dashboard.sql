@@ -20,17 +20,19 @@ create table event_ratings (
     primary key (user_id, event_id)
 );
 
--- Each reader reads and changes only their own rows. The server writes them as the reader.
+-- Each reader may read and remove only their own rows. Only the server adds or changes them, after
+-- checking the event was on that reader's lists (and, for ratings, that it has happened), so the
+-- public API can't be used to save or rate other events.
 alter table saved_for_later enable row level security;
 alter table event_ratings enable row level security;
 revoke all on saved_for_later, event_ratings from anon, authenticated;
-grant select, insert, update, delete on saved_for_later, event_ratings to authenticated;
+grant select, delete on saved_for_later, event_ratings to authenticated;
 
-create policy "Readers manage their own saved events" on saved_for_later
-    for all to authenticated
-    using (user_id = (select auth.uid()))
-    with check (user_id = (select auth.uid()));
-create policy "Readers manage their own ratings" on event_ratings
-    for all to authenticated
-    using (user_id = (select auth.uid()))
-    with check (user_id = (select auth.uid()));
+create policy "Readers see their own saved events" on saved_for_later
+    for select to authenticated using (user_id = (select auth.uid()));
+create policy "Readers remove their own saved events" on saved_for_later
+    for delete to authenticated using (user_id = (select auth.uid()));
+create policy "Readers see their own ratings" on event_ratings
+    for select to authenticated using (user_id = (select auth.uid()));
+create policy "Readers remove their own ratings" on event_ratings
+    for delete to authenticated using (user_id = (select auth.uid()));

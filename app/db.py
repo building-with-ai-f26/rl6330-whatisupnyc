@@ -202,9 +202,9 @@ def as_reader(conn: Database, user_id: str) -> Iterator[Connection]:
     user ID where auth.uid() reads it. Both reset when the transaction ends.
     """
     with conn.connection() as c, c.transaction():
-        c.execute("set local role authenticated")
+        # Both settings in one round trip; both end with the transaction (the true at the end).
         claims = json.dumps({"sub": user_id, "role": "authenticated"})
-        c.execute("select set_config('request.jwt.claims', %s, true)", (claims,))
+        c.execute("select set_config('role', 'authenticated', true), set_config('request.jwt.claims', %s, true)", (claims,))
         yield c
 
 
@@ -304,7 +304,8 @@ def history_event_ids(conn: Database, user_id: str) -> set[int]:
 
 
 def save_for_later(conn: Database, user_id: str, event_id: int, now: datetime) -> None:
-    with as_reader(conn, user_id) as c:
+    """Written as the server's role, after the route checked the event was on this reader's lists."""
+    with conn.connection() as c:
         c.execute(
             "INSERT INTO saved_for_later (user_id, event_id, saved_at) VALUES (%s, %s, %s)"
             " ON CONFLICT (user_id, event_id) DO UPDATE SET saved_at = excluded.saved_at",
@@ -327,7 +328,9 @@ def saved_for_later_ids(conn: Database, user_id: str) -> list[int]:
 
 
 def rate_event(conn: Database, user_id: str, event_id: int, rating: int, now: datetime) -> None:
-    with as_reader(conn, user_id) as c:
+    """Written as the server's role, after the route checked the event was on this reader's lists
+    and has happened."""
+    with conn.connection() as c:
         c.execute(
             "INSERT INTO event_ratings (user_id, event_id, rating, rated_at) VALUES (%s, %s, %s, %s)"
             " ON CONFLICT (user_id, event_id) DO UPDATE SET rating = excluded.rating, rated_at = excluded.rated_at",
@@ -339,6 +342,23 @@ def ratings(conn: Database, user_id: str) -> dict[int, int]:
     with as_reader(conn, user_id) as c:
         rows = c.execute("SELECT event_id, rating FROM event_ratings WHERE user_id = %s", (user_id,)).fetchall()
     return {row["event_id"]: row["rating"] for row in rows}
+
+
+def dashboard_data(conn: Database, user_id: str) -> tuple[list[int], dict[int, int], set[int]]:
+    """The reader's saved events (newest first), ratings and list history, in one lookup."""
+    with as_reader(conn, user_id) as c:
+        saved = [r["event_id"] for r in c.execute(
+            "SELECT event_id FROM saved_for_later WHERE user_id = %s ORDER BY saved_at DESC, event_id", (user_id,)
+        ).fetchall()]
+        rated = {r["event_id"]: r["rating"] for r in c.execute(
+            "SELECT event_id, rating FROM event_ratings WHERE user_id = %s", (user_id,)
+        ).fetchall()}
+        history = {r["event_id"] for r in c.execute(
+            "SELECT DISTINCT (pick ->> 'event_id')::bigint AS event_id"
+            " FROM newsletter_issues, jsonb_array_elements(picks) AS pick WHERE user_id = %s",
+            (user_id,),
+        ).fetchall()}
+    return saved, rated, history
 
 
 def events_by_ids(conn: Database, ids: list[int]) -> dict[int, ScoredEvent]:
