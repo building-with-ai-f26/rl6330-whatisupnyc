@@ -61,6 +61,8 @@ The app stores no files: no Supabase Storage buckets, and no uploads. Event pict
 
 **Public share page:** `/e/<id>` shows one event (picture, date, venue, link) for sharing with friends. It shows only events the site recommends (event numbers can be counted through), and nothing about who shared it.
 
+**Event intake (`POST /api/intake`):** another tool (Muse) sends events it found, with a bearer key. The server keeps only the key's SHA-256 and compares in constant time; the route is off without it. It accepts at most 200 events a day and 512 KB per request, has a per-address limit, and refuses past, far-future or malformed events and social-media "official" links. Nothing sent this way reaches readers until the morning collection confirms it on the event's own page; the social post link is stored, never fetched.
+
 **Emailing a list:** only to the signed-in reader's own address from Supabase (any address in the form is ignored), at most 3 a day per reader, and only when `RESEND_API_KEY` is set on the server.
 
 ## 4. Protecting production from the agent

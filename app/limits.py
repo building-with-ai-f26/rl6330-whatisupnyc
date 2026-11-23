@@ -31,6 +31,8 @@ LIMITS: dict[str, tuple[int, int]] = {
     "event_actions": (300, 3600),
     # Emailing a reader their own list.
     "email_account": (3, 86400),
+    # Another tool sending events to /api/intake.
+    "intake": (30, 3600),
 }
 # The most visitors tracked at once. Past it, stale ones are forgotten first, then the oldest.
 MAX_TRACKED = 10_000

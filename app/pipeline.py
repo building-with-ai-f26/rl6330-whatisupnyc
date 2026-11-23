@@ -72,6 +72,13 @@ def run_pipeline(conn, deps: PipelineDeps, now: datetime) -> PipelineSummary:
         # Pasted posts can wait for tomorrow; collecting today's events matters more.
         log.exception("Could not check waiting pasted posts")
     candidates = _collect(deps, now)
+    # Events sent to /api/intake: checked on their official page like everything else.
+    intake = db.waiting_intake(conn)
+    for _, event in intake:
+        if event.url:
+            candidates.append(event)
+        else:
+            db.log_dropped(conn, event, "no official page to check")
     pastes = db.list_pastes(conn)
     groups = _group(candidates, pastes)
     saved = db.saved_event_keys(conn)
@@ -106,6 +113,7 @@ def run_pipeline(conn, deps: PipelineDeps, now: datetime) -> PipelineSummary:
         outcome = score(signals)
         db.save_event(conn, event, outcome)
         eligible += outcome.eligible
+    db.mark_intake_checked(conn, [intake_id for intake_id, _ in intake], now)
     return PipelineSummary(len(candidates) + len(pastes), passed, dropped, eligible)
 
 
