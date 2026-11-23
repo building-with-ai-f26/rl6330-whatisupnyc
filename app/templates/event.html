@@ -5,7 +5,7 @@
   <title>{{ item.name }} | whatisupnyc</title>
   <meta property="og:title" content="{{ item.name }}">
   <meta property="og:description" content="{{ item.when }} at {{ item.venue }}. Found on whatisupnyc.">
-  {% if item.image %}<meta property="og:image" content="{{ item.image }}">{% endif %}
+  <meta property="og:image" content="{{ preview_image }}">
   <meta property="og:type" content="website">
   <style>
     {% include "partials/base.css" %}

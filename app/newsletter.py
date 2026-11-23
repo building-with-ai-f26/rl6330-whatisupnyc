@@ -154,7 +154,7 @@ def _is_today(item: ScoredEvent, now: datetime) -> bool:
     return item.event.start.astimezone(NY).date() == now.astimezone(NY).date()
 
 
-def _sections(picks: list[Pick], now: datetime) -> list[dict]:
+def _sections(picks: list[Pick], now: datetime, site_url: str | None = None) -> list[dict]:
     today, popular, upcoming = [], [], []
     for pick in sorted(picks, key=lambda p: p.event.event.start):
         if _is_today(pick.event, now):
@@ -165,7 +165,7 @@ def _sections(picks: list[Pick], now: datetime) -> list[dict]:
             upcoming.append(pick)
     sections = [("Happening today", today, True), ("Popular", popular, False), ("Upcoming", upcoming, False)]
     return [
-        {"title": title, "items": [_view(pick) for pick in group], "highlight": highlight}
+        {"title": title, "items": [_email_view(pick, site_url) for pick in group], "highlight": highlight}
         for title, group, highlight in sections
         if group
     ]
@@ -173,7 +173,7 @@ def _sections(picks: list[Pick], now: datetime) -> list[dict]:
 
 def render_newsletter(picks: list[Pick], *, now: datetime, site_url: str | None = None) -> str:
     return _templates.get_template("newsletter.html").render(
-        sections=_sections(picks, now),
+        sections=_sections(picks, now, site_url),
         issue_date=now.astimezone(NY).strftime("%A, %B %-d"),
         checker=range(CHECKER_SQUARES),
         count=len(picks),
@@ -195,6 +195,34 @@ def _view(pick: Pick) -> dict:
             "image": event.image_url}
 
 
+def _email_view(pick: Pick, site_url: str | None) -> dict:
+    """An email row: an email can only show our own picture by its full address."""
+    view = _view(pick)
+    if not view["image"] and site_url:
+        view["image"] = site_url + fallback_picture(pick.event.event)
+    return view
+
+
+# Our own pictures (app/static/pictures, made by scripts/make_pictures.py) for events with none,
+# matched on the event's category, then its name. First match wins.
+FALLBACK_KINDS = [
+    ("comedy", re.compile(r"comed|stand-?up|improv", re.I)),
+    ("music", re.compile(r"music|concert|jazz|band|orchestra|opera|dj\b|singer|choir", re.I)),
+    ("sports", re.compile(r"sport|game|basketball|baseball|football|hockey|soccer|tennis|knicks|nets|yankees|mets|rangers", re.I)),
+    ("outdoors", re.compile(r"nature|park|outdoor|walk|hike|garden|tour|birding|kayak", re.I)),
+    ("arts", re.compile(r"art|theat|museum|film|cinema|exhibit|dance|gallery|book|talk|lecture", re.I)),
+]
+
+
+def fallback_picture(event) -> str:
+    """The site's own picture for an event's kind, as a path on this site."""
+    for text in (event.category or "", event.name):
+        for kind, pattern in FALLBACK_KINDS:
+            if pattern.search(text):
+                return f"/static/pictures/{kind}.png"
+    return "/static/pictures/city.png"
+
+
 def card(event: ScoredEvent, reason: str | None = None) -> dict:
     """One event as the dashboard shows it: no scores, only what a reader needs."""
     view = _view(Pick(event, reason or ""))
@@ -202,7 +230,7 @@ def card(event: ScoredEvent, reason: str | None = None) -> dict:
     return {
         **view,
         "id": event.id,
-        "image": event.event.image_url,
+        "image": event.event.image_url or fallback_picture(event.event),
         "plate": local.strftime("%a %b %-d"),
         "start": event.event.start,
     }

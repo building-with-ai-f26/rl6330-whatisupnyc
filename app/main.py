@@ -1,4 +1,5 @@
 import os
+from pathlib import Path
 import secrets
 from collections.abc import Callable
 from dataclasses import dataclass, field
@@ -8,6 +9,7 @@ import httpx
 from dotenv import load_dotenv
 from fastapi import FastAPI, Form, Request
 from fastapi.responses import HTMLResponse, JSONResponse, PlainTextResponse, RedirectResponse, Response
+from fastapi.staticfiles import StaticFiles
 
 from app import auth, db, saved_lists
 from app import emailer
@@ -117,6 +119,8 @@ def clear_session_cookies(response) -> None:
 def create_app(deps: AppDeps | None = None) -> FastAPI:
     # No automatic pages that list every route.
     app = FastAPI(title="whatisupnyc", docs_url=None, redoc_url=None, openapi_url=None)
+    # The site's own pictures for events that have none.
+    app.mount("/static", StaticFiles(directory=Path(__file__).parent / "static"), name="static")
     cache: list[AppDeps] = [deps] if deps else []
 
     def get_deps() -> AppDeps:
@@ -524,13 +528,16 @@ def create_app(deps: AppDeps | None = None) -> FastAPI:
         return finish(notice("On its way", text, [("/newsletter", "Back to my list")]), reader)
 
     @app.get("/e/{event_id}", response_class=HTMLResponse)
-    def shared_event(event_id: int):
+    def shared_event(request: Request, event_id: int):
         """A public page for one event, for sharing with friends. Nothing about who shared it."""
         event = db.events_by_ids(get_deps().conn, [event_id]).get(event_id)
         # Only events the site would recommend; event numbers can be walked.
         if event is None or not event.score.eligible:
             return notice("Event not found", "That event isn't on whatisupnyc.", [("/", "Make your own list")], 404)
-        return HTMLResponse(page("event.html", item=card(event)))
+        item = card(event)
+        # Link previews need the picture's full address.
+        preview = item["image"] if item["image"].startswith("https://") else str(request.base_url).rstrip("/") + item["image"]
+        return HTMLResponse(page("event.html", item=item, preview_image=preview))
 
     @app.get("/newsletter/{token}", response_class=HTMLResponse)
     def old_newsletter_link(token: str):
