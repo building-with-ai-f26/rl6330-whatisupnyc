@@ -87,10 +87,27 @@ def test_memory_stays_bounded_and_cleanup_is_not_run_on_every_request(monkeypatc
     assert len(sweeps) <= 10
 
 
-def test_peek_and_count_separately():
-    limiter = RateLimiter({"failed_sign_in": (2, 900)}, Clock())
-    assert not limiter.full("failed_sign_in", "k")
-    limiter.count("failed_sign_in", "k")
-    limiter.count("failed_sign_in", "k")
-    assert limiter.full("failed_sign_in", "k")
-    assert not limiter.full("failed_sign_in", "other")
+def test_refund_gives_back_a_reserved_try():
+    limiter = RateLimiter({"failed_sign_in": (1, 900)}, Clock())
+    assert limiter.allow("failed_sign_in", "k")
+    limiter.refund("failed_sign_in", "k")
+    assert limiter.allow("failed_sign_in", "k")
+    assert not limiter.allow("failed_sign_in", "k")
+
+
+def test_simultaneous_tries_cannot_all_slip_under_the_limit():
+    import threading
+
+    limiter = RateLimiter({"failed_sign_in": (10, 900)}, Clock())
+    results, start = [], threading.Barrier(50)
+
+    def attempt():
+        start.wait()
+        results.append(limiter.allow("failed_sign_in", "k"))
+
+    threads = [threading.Thread(target=attempt) for _ in range(50)]
+    for thread in threads:
+        thread.start()
+    for thread in threads:
+        thread.join()
+    assert results.count(True) == 10

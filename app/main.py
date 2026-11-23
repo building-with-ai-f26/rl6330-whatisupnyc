@@ -236,14 +236,23 @@ def create_app(deps: AppDeps | None = None) -> FastAPI:
     @app.post("/signin")
     def signin(request: Request, email: str = Form(""), password: str = Form("")):
         limiter = get_deps().limiter
-        if over_limit(request, "sign_in") or any(limiter.full(*key) for key in failed_sign_in_keys(request, email)):
+        if over_limit(request, "sign_in"):
             return too_many(request)
+        # Reserve a wrong-password try before asking Supabase, so guesses sent at the same moment are
+        # all counted. It's given back below unless the password really was wrong.
+        reserved = []
+        for key in failed_sign_in_keys(request, email):
+            if not limiter.allow(*key):
+                for taken in reserved:
+                    limiter.refund(*taken)
+                return too_many(request)
+            reserved.append(key)
         try:
             session = get_deps().auth.sign_in(email.strip(), password)
         except AuthRefused as refused:
-            if refused.code == "invalid_credentials":
-                for key in failed_sign_in_keys(request, email):
-                    limiter.count(*key)
+            if refused.code != "invalid_credentials":
+                for key in reserved:
+                    limiter.refund(*key)
             message = (
                 "Please confirm your email first: use the link we sent when you signed up."
                 if refused.code == "email_not_confirmed"
@@ -251,7 +260,11 @@ def create_app(deps: AppDeps | None = None) -> FastAPI:
             )
             return HTMLResponse(page("signin.html", message=message, email=email), status_code=400)
         except AuthUnavailable:
+            for key in reserved:
+                limiter.refund(*key)
             return HTMLResponse(page("signin.html", message=AUTH_DOWN, email=email), status_code=503)
+        for key in reserved:
+            limiter.refund(*key)
         response = RedirectResponse("/newsletter", status_code=303)
         set_session_cookies(response, session)
         return response

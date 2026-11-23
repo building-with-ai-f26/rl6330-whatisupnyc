@@ -3,6 +3,7 @@
 Kept in memory, which is enough for the one server process the site runs.
 """
 import ipaddress
+import threading
 import time
 from collections import deque
 from collections.abc import Callable
@@ -40,9 +41,22 @@ class RateLimiter:
         # Insertion order doubles as age order, so the oldest visitor is the first key.
         self.tries: dict[tuple[str, str], deque[float]] = {}
         self.last_sweep = float("-inf")
+        # Requests run on several threads at once; one lock keeps each check-and-count whole.
+        self.lock = threading.Lock()
 
     def allow(self, bucket: str, key: str) -> bool:
         """Counts this try and says whether it is within the limit. Refused tries don't count."""
+        with self.lock:
+            return self._allow(bucket, key)
+
+    def refund(self, bucket: str, key: str) -> None:
+        """Gives back the latest try, for one reserved up front that turned out not to count."""
+        with self.lock:
+            tries = self.tries.get((bucket, key))
+            if tries:
+                tries.pop()
+
+    def _allow(self, bucket: str, key: str) -> bool:
         count, seconds = self.limits[bucket]
         now = self.clock()
         if (bucket, key) not in self.tries and len(self.tries) >= MAX_TRACKED:
@@ -54,19 +68,6 @@ class RateLimiter:
             return False
         tries.append(now)
         return True
-
-    def full(self, bucket: str, key: str) -> bool:
-        """Whether the next try would be over the limit, without counting one."""
-        count, seconds = self.limits[bucket]
-        tries = self.tries.get((bucket, key))
-        now = self.clock()
-        while tries and tries[0] <= now - seconds:
-            tries.popleft()
-        return bool(tries) and len(tries) >= count
-
-    def count(self, bucket: str, key: str) -> None:
-        """Counts a try that already happened, such as a wrong password."""
-        self.allow(bucket, key)
 
     def _make_room(self, now: float) -> None:
         if now - self.last_sweep >= SWEEP_EVERY:

@@ -415,3 +415,34 @@ def test_list_loads_are_limited_per_reader_too(conn, sites):
     for _ in range(LIMITS["newsletter_account"][0]):
         assert client.get("/newsletter").status_code == 200
     assert client.get("/newsletter").status_code == 429
+
+
+def test_guesses_sent_at_the_same_moment_are_all_counted(conn, sites):
+    import threading
+
+    client = client_for(conn, sites)
+    signed_in_ana(client)
+    client.cookies.clear()
+    inside = threading.Barrier(20, timeout=1)  # only the allowed guesses get here now
+    sign_in = client.supabase.sign_in
+
+    def slow_sign_in(email, password):
+        # Every guess reaches Supabase before any of them has been answered.
+        try:
+            inside.wait()
+        except threading.BrokenBarrierError:
+            pass
+        return sign_in(email, password)
+
+    client.supabase.sign_in = slow_sign_in
+    statuses = []
+
+    def guess():
+        statuses.append(client.post("/signin", data={"email": GOOD["email"], "password": "guess"}).status_code)
+
+    threads = [threading.Thread(target=guess) for _ in range(20)]
+    for thread in threads:
+        thread.start()
+    for thread in threads:
+        thread.join()
+    assert statuses.count(400) <= LIMITS["failed_sign_in"][0]
