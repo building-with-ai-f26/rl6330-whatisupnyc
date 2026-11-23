@@ -317,6 +317,36 @@ def create_app(deps: AppDeps | None = None) -> FastAPI:
             return finish(HTMLResponse(page("view.html", error=AI_BUSY, body=body, **context)), reader)
         return finish(HTMLResponse(page("view.html", error=None, body=render_newsletter(picks, now=now), **context)), reader)
 
+    def listed_reader(request: Request) -> Reader | Response:
+        """A reader with preferences, signed in or on their first look; anyone else goes to sign in."""
+        try:
+            reader = current_reader(request)
+        except AuthUnavailable:
+            return notice("Please try again", AUTH_DOWN, [("/", "Back to the start")], 503)
+        if reader.profile is None:
+            return finish(RedirectResponse("/signin", status_code=303), reader)
+        return reader
+
+    @app.post("/newsletter/more")
+    def more_like_these(request: Request, event_ids: list[int] = Form([])):
+        reader = listed_reader(request)
+        if not isinstance(reader, Reader):
+            return reader
+        d = get_deps()
+        chosen = list(dict.fromkeys(event_ids))[:10]
+        if not chosen:
+            return finish(notice("Pick an event", "Tick at least one event you'd like more of.", [("/newsletter", "Back to my list")], 400), reader)
+        if not set(chosen) <= db.history_event_ids(d.conn, reader.profile.id):
+            # Only events from the reader's own lists can steer their next list.
+            return finish(notice("Not found", "That event isn't on your lists.", [("/newsletter", "Back to my list")], 404), reader)
+        if over_account_limit("newsletter_account", reader.profile.id):
+            return too_many(request)
+        try:
+            saved_lists.make_list(d.conn, d.ai, reader.profile, d.clock(), more_like_ids=chosen)
+        except AIUnavailable:
+            return finish(notice("Please try again", AI_BUSY, [("/newsletter", "Back to my list")], 503), reader)
+        return finish(RedirectResponse("/newsletter", status_code=303), reader)
+
     def signed_in_reader(request: Request) -> Reader | Response:
         """The signed-in reader, or the response that sends anyone else to sign in."""
         try:

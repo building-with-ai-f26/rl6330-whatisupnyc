@@ -284,7 +284,7 @@ def save_issue(conn: Database, user_id: str, picks: list[Pick], now: datetime) -
 def latest_issue(conn: Database, user_id: str) -> SavedIssue | None:
     with as_reader(conn, user_id) as c:
         row = c.execute(
-            "SELECT made_on, made_at, picks FROM newsletter_issues WHERE user_id = %s ORDER BY made_at DESC LIMIT 1",
+            "SELECT made_on, made_at, picks FROM newsletter_issues WHERE user_id = %s ORDER BY made_at DESC, id DESC LIMIT 1",
             (user_id,),
         ).fetchone()
     if row is None:

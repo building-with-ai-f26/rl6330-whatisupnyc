@@ -1,4 +1,5 @@
 import json
+from dataclasses import dataclass
 import re
 from collections import Counter
 from datetime import datetime
@@ -40,6 +41,31 @@ _templates = Environment(
 )
 
 
+@dataclass
+class Taste:
+    """What the reader told us beyond their preferences, as event names for the AI."""
+
+    saved: list[str]  # saved for later
+    liked: list[str]  # rated 4-5
+    disliked: list[str]  # rated 1-2
+    more_like: list[str]  # picked with "More like these"
+
+
+MAX_TASTE_NAMES = 10
+
+
+def _taste_lines(taste: Taste | None) -> str:
+    if taste is None:
+        return ""
+    parts = [
+        ("Reader saved these for later (suggest similar)", taste.saved),
+        ("Reader loved (4-5 stars)", taste.liked),
+        ("Reader didn't enjoy (1-2 stars; avoid similar)", taste.disliked),
+        ("Reader asked for more like", taste.more_like),
+    ]
+    return "".join(f"{label}: {'; '.join(names[:MAX_TASTE_NAMES])}\n" for label, names in parts if names)
+
+
 def choose_picks(
     subscriber: Subscriber,
     events: list[ScoredEvent],
@@ -48,6 +74,7 @@ def choose_picks(
     now: datetime,
     max_picks: int = 8,
     sent_ids: set[int] | None = None,
+    taste: Taste | None = None,
 ) -> list[Pick]:
     available = [event for event in events if event.id not in (sent_ids or set())]
     # Best first, then soonest.
@@ -69,6 +96,7 @@ def choose_picks(
     user = (
         f"Reader's interests: {subscriber.interests}\n"
         f"Reader's style request: {subscriber.look_prompt or 'none'}\n"
+        f"{_taste_lines(taste)}"
         f"Choose at most {max_picks}.\n"
         f"Events: {json.dumps(listing, ensure_ascii=False)}"
     )
