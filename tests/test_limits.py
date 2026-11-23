@@ -54,7 +54,9 @@ def test_buckets_are_separate():
 def test_the_numbers():
     # A classroom shares one campus address, so these allow a whole class signing up at once.
     assert LIMITS == {
-        "sign_up": (30, 3600), "sign_in": (60, 900), "reset": (10, 3600), "paste": (30, 3600), "newsletter": (60, 3600)
+        "sign_up": (30, 3600), "sign_in": (60, 900), "reset": (10, 3600), "paste": (30, 3600), "newsletter": (60, 3600),
+        # Per account, so a shared address's generous limit can't be spent guessing one password.
+        "sign_in_account": (10, 900), "reset_account": (3, 3600), "newsletter_account": (10, 3600),
     }
 
 

@@ -281,9 +281,15 @@ def test_mark_sent_signed_out_redirects_to_sign_in(conn, sites):
 def test_rate_limits_return_429(conn, sites, method, path, data, bucket):
     client = client_for(conn, sites)
     send = getattr(client, method)
-    for _ in range(LIMITS[bucket][0]):
-        assert send(path, data=data).status_code != 429 if data else send(path).status_code != 429
-    over = send(path, data=data) if data else send(path)
+
+    def attempt(n):
+        # A different account each time, so only the per-address limit is being measured.
+        form = {**data, "email": f"visitor{n}@x.test"} if data and "email" in data else data
+        return send(path, data=form) if form else send(path)
+
+    for n in range(LIMITS[bucket][0]):
+        assert attempt(n).status_code != 429
+    over = attempt(LIMITS[bucket][0])
     assert over.status_code == 429 and "try again" in over.text.lower()
 
 
@@ -361,3 +367,29 @@ def test_incomplete_sign_up_forms_do_not_count_toward_the_limit(conn, sites):
     for _ in range(LIMITS["sign_up"][0] + 5):
         assert sign_up_ana(client, email="").status_code == 400
     assert sign_up_ana(client).status_code == 303
+
+
+def test_password_guessing_is_limited_per_account_too(conn, sites):
+    client = client_for(conn, sites)
+    for n in range(LIMITS["sign_in_account"][0]):
+        client.post("/signin", data={"email": "Ana@x.test " if n % 2 else "ana@x.test", "password": "guess"})
+    over = client.post("/signin", data={"email": GOOD["email"], "password": "guess"})
+    assert over.status_code == 429
+    assert client.post("/signin", data={"email": "bo@x.test", "password": "guess"}).status_code == 400
+
+
+def test_reset_emails_are_limited_per_account_too(conn, sites):
+    client = client_for(conn, sites)
+    for _ in range(LIMITS["reset_account"][0]):
+        assert client.post("/forgot", data={"email": GOOD["email"]}).status_code == 200
+    assert client.post("/forgot", data={"email": GOOD["email"]}).status_code == 429
+    assert client.post("/forgot", data={"email": "bo@x.test"}).status_code == 200
+
+
+def test_list_loads_are_limited_per_reader_too(conn, sites):
+    ai = FakeAI()
+    client = client_for(conn, sites, ai)
+    sign_up_ana(client)
+    for _ in range(LIMITS["newsletter_account"][0]):
+        assert client.get("/newsletter").status_code == 200
+    assert client.get("/newsletter").status_code == 429

@@ -18,6 +18,11 @@ LIMITS: dict[str, tuple[int, int]] = {
     "reset": (10, 3600),
     "paste": (30, 3600),
     "newsletter": (60, 3600),
+    # Per account (email or reader), so one address's generous limit can't be spent on one account:
+    # guessing its password, flooding its inbox, or using up the day's AI requests on its list.
+    "sign_in_account": (10, 900),
+    "reset_account": (3, 3600),
+    "newsletter_account": (10, 3600),
 }
 # The most visitors tracked at once. Past it, stale ones are forgotten first, then the oldest.
 MAX_TRACKED = 10_000

@@ -135,6 +135,9 @@ def create_app(deps: AppDeps | None = None) -> FastAPI:
     def over_limit(request: Request, bucket: str) -> bool:
         return not get_deps().limiter.allow(bucket, client_ip(request))
 
+    def over_account_limit(bucket: str, account: str) -> bool:
+        return not get_deps().limiter.allow(bucket, account.strip().lower())
+
     def too_many(request: Request) -> HTMLResponse | JSONResponse:
         if "application/json" in request.headers.get("accept", ""):
             return JSONResponse({"added": False, "message": TOO_MANY}, status_code=429)
@@ -228,7 +231,7 @@ def create_app(deps: AppDeps | None = None) -> FastAPI:
 
     @app.post("/signin")
     def signin(request: Request, email: str = Form(""), password: str = Form("")):
-        if over_limit(request, "sign_in"):
+        if over_limit(request, "sign_in") or over_account_limit("sign_in_account", email):
             return too_many(request)
         try:
             session = get_deps().auth.sign_in(email.strip(), password)
@@ -275,6 +278,8 @@ def create_app(deps: AppDeps | None = None) -> FastAPI:
             return RedirectResponse("/signin", status_code=303)
         d = get_deps()
         subscriber = reader.profile
+        if over_account_limit("newsletter_account", subscriber.id):
+            return too_many(request)
         context = {"subscriber": subscriber, "banner": SIGNED_UP_BANNER if reader.first_look else ""}
         try:
             picks = choose_picks(
@@ -317,7 +322,7 @@ def create_app(deps: AppDeps | None = None) -> FastAPI:
 
     @app.post("/forgot")
     def forgot(request: Request, email: str = Form("")):
-        if over_limit(request, "reset"):
+        if over_limit(request, "reset") or over_account_limit("reset_account", email):
             return too_many(request)
         try:
             get_deps().auth.send_reset(email.strip())
