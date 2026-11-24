@@ -302,18 +302,89 @@ def test_saved_event_seen_again_picks_up_a_feed_image(conn, sites):
     assert db.eligible_events(conn, NOW)[0].event.image_url == "https://s1.ticketm.net/wide.jpg"
 
 
-def test_events_sent_to_intake_are_checked_on_their_official_page(conn, sites):
+def _intake(name, start, end=None, image=None, venue="Grand Hall"):
     from app.models import CandidateEvent
 
-    page = jsonld("Intake Show", venue="Beacon Theatre")
-    found = CandidateEvent(name="Intake Show", start=datetime(2026, 11, 7, 20, tzinfo=NY), venue="Beacon Theatre",
-                           city="New York", url="https://reliable.example/intake", source="intake", source_type="web")
-    no_page = CandidateEvent(name="No Page", start=datetime(2026, 11, 7, 20, tzinfo=NY), venue="Somewhere",
-                             city="New York", url="", source="intake", source_type="web")
-    db.save_intake(conn, [("https://www.instagram.com/p/A/", found, "caption"), ("https://www.instagram.com/p/B/", no_page, "")], NOW)
-    run_pipeline(conn, deps(sites, {"https://reliable.example/intake": page}, EMPTY_TM), NOW)
-    with conn.connection() as c:
-        checked = {r["name"] for r in c.execute("select name from events").fetchall()}
-    assert "Intake Show" in checked  # confirmed on its page and scored like any other event
-    assert db.waiting_intake(conn) == []  # every waiting event was handled
-    assert db.dropped_reasons(conn).get("no official page to check", 0) == 1
+    return CandidateEvent(name=name, start=start, end=end, venue=venue, city="New York",
+                          url=f"https://blocked.example/{name.replace(' ', '-')}", source="intake",
+                          source_type="api", image_url=image)
+
+
+def test_muse_events_are_saved_without_fetching_their_page(conn, sites):
+    from datetime import timedelta
+
+    running = _intake("Winter Market", NOW - timedelta(days=20), NOW + timedelta(days=60), "https://cdn.example/m.jpg")
+    soon = _intake("Sample Sale", NOW + timedelta(days=2))
+    over = _intake("Old Fair", NOW - timedelta(days=9), NOW - timedelta(days=1))
+    db.save_intake(conn, [(f"https://www.instagram.com/p/{e.name[:3]}/", e, "") for e in (running, soon, over)], NOW)
+    d = deps(sites, ticketmaster=EMPTY_TM)
+    fetched = []
+    d.http.event_hooks["request"].append(lambda request: fetched.append(str(request.url)))
+    run_pipeline(conn, d, NOW)
+    assert not [url for url in fetched if "blocked.example" in url]
+    listed = {e.event.name: e for e in db.eligible_events(conn, NOW)}
+    assert set(listed) == {"Winter Market", "Sample Sale"}
+    market = listed["Winter Market"].event
+    assert market.end == running.end and market.image_url == "https://cdn.example/m.jpg"
+    assert db.dropped_reasons(conn) == {"event has ended": 1}
+    assert db.waiting_intake(conn) == []
+
+
+def test_a_muse_event_already_found_elsewhere_keeps_its_score_and_dates_and_gains_a_picture(conn, sites):
+    from datetime import timedelta
+
+    from app.models import Score
+
+    start = NOW + timedelta(days=3)
+    db.save_event(conn, make_event(name="Big Show", start=start, venue="Grand Hall"), Score(60, True))
+    copy = _intake("Big Show", start, start + timedelta(days=2), "https://cdn.example/b.jpg")
+    db.save_intake(conn, [("https://www.instagram.com/p/BIG/", copy, "")], NOW)
+    run_pipeline(conn, deps(sites, ticketmaster=EMPTY_TM), NOW)
+    (saved,) = [e for e in db.eligible_events(conn, NOW) if e.event.name == "Big Show"]
+    assert saved.score.total == 60 and saved.event.source == "test"
+    # Muse may not stretch another source's one-night event into a run of days.
+    assert saved.event.image_url == "https://cdn.example/b.jpg" and saved.event.end is None
+
+
+def test_a_corrected_muse_event_replaces_the_old_one(conn, sites):
+    from datetime import timedelta
+
+    wrong = _intake("Pop-Up Shop", NOW + timedelta(days=2))
+    db.save_intake(conn, [("https://www.instagram.com/p/POP/", wrong, "")], NOW)
+    run_pipeline(conn, deps(sites, ticketmaster=EMPTY_TM), NOW)
+    fixed = _intake("Pop-Up Shop", NOW + timedelta(days=3), NOW + timedelta(days=10), "https://cdn.example/p.jpg")
+    db.save_intake(conn, [("https://www.instagram.com/p/POP/", fixed, "")], NOW)
+    run_pipeline(conn, deps(sites, ticketmaster=EMPTY_TM), NOW)
+    (listed,) = [e.event for e in db.eligible_events(conn, NOW) if e.event.name == "Pop-Up Shop"]
+    assert listed.start == fixed.start and listed.end == fixed.end and listed.image_url == "https://cdn.example/p.jpg"
+
+
+def test_a_muse_correction_on_the_same_day_updates_the_event(conn, sites):
+    from datetime import timedelta
+
+    first = _intake("Craft Fair", NOW + timedelta(days=2))
+    db.save_intake(conn, [("https://www.instagram.com/p/CRA/", first, "")], NOW)
+    run_pipeline(conn, deps(sites, ticketmaster=EMPTY_TM), NOW)
+    again = _intake("Craft Fair", NOW + timedelta(days=2), NOW + timedelta(days=5), "https://cdn.example/c.jpg")
+    db.save_intake(conn, [("https://www.instagram.com/p/CRA/", again, "")], NOW)
+    run_pipeline(conn, deps(sites, ticketmaster=EMPTY_TM), NOW)
+    (listed,) = [e.event for e in db.eligible_events(conn, NOW) if e.event.name == "Craft Fair"]
+    assert listed.end == again.end and listed.image_url == "https://cdn.example/c.jpg"
+
+
+def test_one_muse_event_that_fails_does_not_stop_the_others(conn, sites, monkeypatch):
+    from datetime import timedelta
+
+    events = [_intake("Breaks", NOW + timedelta(days=2)), _intake("Works", NOW + timedelta(days=2))]
+    db.save_intake(conn, [(f"https://www.instagram.com/p/{e.name}/", e, "") for e in events], NOW)
+    real = db.save_event
+
+    def save(conn_, event, outcome):
+        if event.name == "Breaks":
+            raise RuntimeError("boom")
+        return real(conn_, event, outcome)
+
+    monkeypatch.setattr(db, "save_event", save)
+    run_pipeline(conn, deps(sites, ticketmaster=EMPTY_TM), NOW)
+    assert [e.event.name for e in db.eligible_events(conn, NOW)] == ["Works"]
+    assert [e.name for _, e in db.waiting_intake(conn)] == ["Breaks"]  # tried again tomorrow

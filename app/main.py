@@ -348,9 +348,9 @@ def create_app(deps: AppDeps | None = None) -> FastAPI:
         now, user_id = d.clock(), reader.profile.id
         saved_ids, rated, history = db.dashboard_data(d.conn, user_id)
         events = db.events_by_ids(d.conn, list(set(saved_ids) | history))
-        saved = [card(events[i]) for i in saved_ids
-                 if i in events and events[i].score.eligible and events[i].event.start > now]
-        went = sorted((events[i] for i in history if i in events and events[i].event.start <= now),
+        saved = [card(events[i], now=now) for i in saved_ids
+                 if i in events and events[i].score.eligible and not events[i].event.is_over(now)]
+        went = sorted((events[i] for i in history if i in events and events[i].event.is_over(now)),
                       key=lambda e: e.event.start, reverse=True)[:12]
         base = str(request.base_url).rstrip("/")
         html = page(
@@ -359,9 +359,9 @@ def create_app(deps: AppDeps | None = None) -> FastAPI:
             banner=SIGNED_UP_BANNER if reader.first_look else "",
             error=error,
             list_day=made_at.astimezone(NY).strftime("%A, %B %-d"),
-            picks=[card(p.event, p.reason) for p in picks],
+            picks=[card(p.event, p.reason, now) for p in picks],
             saved=saved,
-            to_rate=[card(e) for e in went],
+            to_rate=[card(e, now=now) for e in went],
             saved_ids=set(saved_ids),
             ratings=rated,
             share_base=base,
@@ -412,7 +412,7 @@ def create_app(deps: AppDeps | None = None) -> FastAPI:
             return not_on_your_lists(reader)
         d = get_deps()
         stars = int(rating) if rating.isdigit() else 0
-        if not 1 <= stars <= 5 or event.event.start > d.clock():
+        if not 1 <= stars <= 5 or not event.event.is_over(d.clock()):
             text = "Ratings go from 1 to 5, for events that have already happened."
             return finish(notice("Can't rate that", text, [("/newsletter", "Back to my list")], 400), reader)
         db.rate_event(d.conn, reader.profile.id, event_id, stars, d.clock())
@@ -586,8 +586,8 @@ def create_app(deps: AppDeps | None = None) -> FastAPI:
                 rejected.append({"index": index, "reason": f"over the daily limit of {intake.MAX_PER_DAY} events"})
             else:
                 usable.append(found)
-        accepted, duplicates = db.save_intake(d.conn, usable, now)
-        return JSONResponse({"accepted": accepted, "duplicates": duplicates, "rejected": rejected})
+        accepted, updated = db.save_intake(d.conn, usable, now)
+        return JSONResponse({"accepted": accepted, "updated": updated, "rejected": rejected})
 
     @app.get("/e/{event_id}", response_class=HTMLResponse)
     def shared_event(request: Request, event_id: int):
@@ -596,7 +596,7 @@ def create_app(deps: AppDeps | None = None) -> FastAPI:
         # Only events the site would recommend; event numbers can be walked.
         if event is None or not event.score.eligible:
             return notice("Event not found", "That event isn't on whatisupnyc.", [("/", "Make your own list")], 404)
-        item = card(event)
+        item = card(event, now=get_deps().clock())
         # Link previews need the picture's full address.
         preview = item["image"] if item["image"].startswith("https://") else str(request.base_url).rstrip("/") + item["image"]
         return HTMLResponse(page("event.html", item=item, preview_image=preview))

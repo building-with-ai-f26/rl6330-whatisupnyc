@@ -19,10 +19,18 @@ class CandidateEvent:
     category: str | None = None
     # https only; None shows a plain block instead of a picture.
     image_url: str | None = None
+    # For events that run several days, like markets and sample sales; None for one-off events.
+    end: datetime | None = None
 
     def __post_init__(self):
         if self.start.tzinfo is None:
             raise ValueError("Event start must include a time zone")
+        if self.end is not None and self.end.tzinfo is None:
+            raise ValueError("Event end must include a time zone")
+
+    def is_over(self, now: datetime) -> bool:
+        """Over once it ends; an event with no end date is over once it starts."""
+        return (self.end or self.start) <= now
 
 
 @dataclass

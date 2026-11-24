@@ -144,3 +144,15 @@ def test_a_picture_that_fails_to_load_leaves_the_plain_block(conn, sites):
     html = client.get("/newsletter").text
     img = html[html.index('src="https://cdn.example/jazz.jpg"') - 10:html.index('src="https://cdn.example/jazz.jpg"') + 200]
     assert 'onerror="this.remove()"' in img
+
+
+def test_a_running_event_is_not_rated_until_it_ends(conn, sites):
+    clock = Clock()
+    client, ai, ids = ready(conn, sites, clock)
+    jazz = ids["Jazz Night"]
+    with conn.connection() as c:
+        c.execute("update events set ends_at = start + interval '10 days' where id = %s", (jazz,))
+    clock.now = NOW + timedelta(days=4)  # started, still running
+    html = client.get("/newsletter").text
+    assert f'id="rate-{jazz}"' not in html
+    assert client.post(f"/events/{jazz}/rate", data={"rating": "5"}).status_code == 400
