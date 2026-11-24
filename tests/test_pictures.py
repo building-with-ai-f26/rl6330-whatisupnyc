@@ -57,8 +57,8 @@ def test_no_picture_when_no_other_trusted_site_mentions_the_event(conn, sites):
 
 def test_mentions_on_the_events_own_site_do_not_count(conn, sites):
     # The event's own listing is on www1.nyc.gov, so a mention elsewhere on nyc.gov proves nothing.
-    sites._entries.append({"domain": "nyc.gov", "automated_access": "allowed", "reliable": True}) \
-        if hasattr(sites, "_entries") else None
+    # Reliable but not opened by us, so the feed event is still saved without fetching its page.
+    sites._entries["nyc.gov"] = {"domain": "nyc.gov", "automated_access": "prohibited", "reliable": True}
     tavily = FakeTavily(hits=[SearchHit("https://www.nyc.gov/listing", "x", f"{BALLOONS} details")], images=[PHOTO])
     new_event_run(conn, sites, tavily, feed_event())
     assert pictures(conn)[BALLOONS] is None
