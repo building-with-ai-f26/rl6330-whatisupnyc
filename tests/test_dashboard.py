@@ -189,3 +189,11 @@ def test_the_page_updates_buttons_in_place_and_says_when_the_list_is_opening(con
     html = client.get("/newsletter").text
     assert f'action="/events/{ids["Jazz Night"]}/save" data-inplace' in html
     assert "Opening your list" in html
+
+
+def test_saving_an_event_deleted_since_says_not_found(conn, sites):
+    client, ai, ids = ready(conn, sites)
+    gone = ids["Comedy Cellar"]
+    with conn.connection() as c:
+        c.execute("delete from events where id = %s", (gone,))
+    assert client.post(f"/events/{gone}/save", headers=FETCH).status_code == 404

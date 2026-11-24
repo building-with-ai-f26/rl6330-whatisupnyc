@@ -9,6 +9,7 @@ from dataclasses import dataclass, field
 from datetime import datetime, timezone
 
 import httpx
+import psycopg
 from dotenv import load_dotenv
 from fastapi import FastAPI, Form, Request
 from fastapi.responses import HTMLResponse, JSONResponse, PlainTextResponse, RedirectResponse, Response
@@ -388,12 +389,15 @@ def create_app(deps: AppDeps | None = None) -> FastAPI:
         if not isinstance(reader, Reader):
             return reader
         if over_limit(request, "event_actions"):
-            return too_many(request)
+            return finish(too_many(request), reader)
         d = get_deps()
         # The list history alone answers this (the events table guards that the event exists).
         if event_id not in db.history_event_ids(d.conn, reader.profile.id):
             return not_on_your_lists(reader)
-        db.save_for_later(d.conn, reader.profile.id, event_id, d.clock())
+        try:
+            db.save_for_later(d.conn, reader.profile.id, event_id, d.clock())
+        except psycopg.errors.ForeignKeyViolation:
+            return not_on_your_lists(reader)  # on an old list, but the event itself is gone
         if from_page_script(request):
             return finish(JSONResponse({"saved": True}), reader)
         return finish(RedirectResponse(f"/newsletter#event-{event_id}", status_code=303), reader)
@@ -404,7 +408,7 @@ def create_app(deps: AppDeps | None = None) -> FastAPI:
         if not isinstance(reader, Reader):
             return reader
         if over_limit(request, "event_actions"):
-            return too_many(request)
+            return finish(too_many(request), reader)
         db.unsave(get_deps().conn, reader.profile.id, event_id)
         if from_page_script(request):
             return finish(JSONResponse({"saved": False}), reader)
@@ -416,7 +420,7 @@ def create_app(deps: AppDeps | None = None) -> FastAPI:
         if not isinstance(reader, Reader):
             return reader
         if over_limit(request, "event_actions"):
-            return too_many(request)
+            return finish(too_many(request), reader)
         event = event_on_readers_lists(reader, event_id)
         if event is None:
             return not_on_your_lists(reader)
@@ -455,7 +459,7 @@ def create_app(deps: AppDeps | None = None) -> FastAPI:
             # Only events from the reader's own lists can steer their next list.
             return finish(notice("Not found", "That event isn't on your lists.", [("/newsletter", "Back to my list")], 404), reader)
         if over_account_limit("newsletter_account", reader.profile.id):
-            return too_many(request)
+            return finish(too_many(request), reader)
         # The ticked events are kept, since the new list replaces today's.
         for event_id in chosen:
             db.save_for_later(d.conn, reader.profile.id, event_id, d.clock())

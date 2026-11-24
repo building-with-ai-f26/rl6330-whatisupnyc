@@ -177,9 +177,10 @@
       }
       document.querySelectorAll("form[data-inplace]").forEach(function (form) {
         form.addEventListener("submit", function (event) {
-          if (!window.fetch) return;
+          // Browsers that don't say which button was pressed (Safari before 15.4) post the form normally.
+          if (!window.fetch || !event.submitter) return;
           event.preventDefault();
-          var submitter = event.submitter || form.querySelector("button");
+          var submitter = event.submitter;
           var buttons = form.querySelectorAll("button");
           buttons.forEach(function (b) { b.disabled = true; });
           send(form, submitter).then(function (answer) {
@@ -193,7 +194,16 @@
               form.action = form.action.replace(/\/(save|unsave)$/, answer.saved ? "/unsave" : "/save");
               submitter.textContent = answer.saved ? "Saved" : "Save for later";
             }
-          }).catch(function () { buttons.forEach(function (b) { b.disabled = false; }); form.submit(); });
+          }).catch(function () {
+            // No answer: post the form the ordinary way, with the pressed button's value.
+            buttons.forEach(function (b) { b.disabled = false; });
+            if (submitter.name) {
+              var pressed = document.createElement("input");
+              pressed.type = "hidden"; pressed.name = submitter.name; pressed.value = submitter.value;
+              form.appendChild(pressed);
+            }
+            form.submit();
+          });
         });
       });
 
@@ -208,7 +218,8 @@
             making.querySelector("strong").textContent = "Opening your list…";
             making.querySelector("p").textContent = "Your new list is ready.";
             window.location.href = answer.next;
-          }).catch(function () { more.submit(); });
+          // No answer: the list may already be made, so open it rather than asking for another.
+          }).catch(function () { window.location.href = "/newsletter"; });
         });
       }
 
