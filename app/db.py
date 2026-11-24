@@ -384,7 +384,7 @@ def update_profile(
 
 def save_issue(conn: Database, user_id: str, picks: list[Pick], now: datetime) -> None:
     """Saves a list the AI just made, and marks the events shown at once as sent, together.
-    Picks behind "Show more" count as sent only when the reader reveals them (mark_sent).
+    Picks behind "Show more" count as sent only when the reader reveals them (reveal_picks).
 
     Written as the server's own role: readers can't write lists, so every saved pick came from code
     that confirmed it. user_id is always the signed-in reader Supabase verified.
@@ -420,7 +420,9 @@ def history_event_ids(conn: Database, user_id: str) -> set[int]:
     with as_reader(conn, user_id) as c:
         rows = c.execute(
             "SELECT DISTINCT (pick ->> 'event_id')::bigint AS event_id"
-            " FROM newsletter_issues, jsonb_array_elements(picks) AS pick WHERE user_id = %s",
+            " FROM newsletter_issues, jsonb_array_elements(picks) AS pick WHERE user_id = %s"
+            # Picks still behind "Show more" were never shown to the reader.
+            " AND NOT coalesce((pick ->> 'extra')::boolean, false)",
             (user_id,),
         ).fetchall()
     return {row["event_id"] for row in rows}
@@ -477,7 +479,8 @@ def dashboard_data(conn: Database, user_id: str) -> tuple[list[int], dict[int, i
             "  FROM saved_for_later WHERE user_id = %(u)s) AS saved,"
             " (SELECT coalesce(json_object_agg(event_id, rating), '{}') FROM event_ratings WHERE user_id = %(u)s) AS rated,"
             " (SELECT coalesce(json_agg(DISTINCT (pick ->> 'event_id')::bigint), '[]')"
-            "  FROM newsletter_issues, jsonb_array_elements(picks) AS pick WHERE user_id = %(u)s) AS history",
+            "  FROM newsletter_issues, jsonb_array_elements(picks) AS pick WHERE user_id = %(u)s"
+            "  AND NOT coalesce((pick ->> 'extra')::boolean, false)) AS history",
             {"u": user_id},
         ).fetchone()
     return row["saved"], {int(k): v for k, v in row["rated"].items()}, set(row["history"])

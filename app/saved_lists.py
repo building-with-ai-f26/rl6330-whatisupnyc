@@ -17,6 +17,15 @@ PICKS_MADE = 16
 PICKS_SHOWN = 8
 
 
+def _carried(conn: db.Database, reader: Subscriber, now: datetime) -> list[Pick]:
+    """The picks "More like these" keeps: today's list for the reader's current preferences, without
+    events that are over. An older list (left open overnight, or from before new preferences) isn't kept."""
+    latest = db.latest_issue(conn, reader.id)
+    if latest is None or needs_new_list(latest, reader, now):
+        return []
+    return [Pick(p.event, p.reason, False, p.extra) for p in saved_picks(conn, latest) if not p.event.event.is_over(now)]
+
+
 def needs_new_list(latest: SavedIssue | None, reader: Subscriber, now: datetime) -> bool:
     if latest is None or latest.made_on != now.astimezone(NY).date():
         return True
@@ -55,21 +64,27 @@ def make_list(
     """Asks the AI for a new list and saves it. If the AI is unavailable, nothing is saved.
 
     With more_like_ids ("More like these"), the new picks go on top of the reader's current list,
-    which stays as it was."""
+    which stays as it was, as long as it is still today's list for their current preferences."""
     events, sent = db.eligible_events(conn, now), db.sent_event_ids(conn, reader.id)
-    current: list[Pick] = []
-    if more_like_ids:
-        latest = db.latest_issue(conn, reader.id)
-        current = [Pick(p.event, p.reason, False, p.extra) for p in saved_picks(conn, latest)] if latest else []
-    # Never offer again what's already on the list, shown or behind "Show more".
+    current = _carried(conn, reader, now) if more_like_ids else []
+    # Never offer again what's on the list, shown or behind "Show more", nor another night of a
+    # show already on it.
     skip = sent | {pick.event.id for pick in current}
+    names = {pick.event.event.name.casefold() for pick in current}
+    offer = [event for event in events if event.event.name.casefold() not in names]
     taste = taste_for(conn, reader, more_like_ids)
-    chosen = choose_picks(reader, events, ai, now=now, max_picks=PICKS_MADE, sent_ids=skip, taste=taste)
-    if not chosen and any(event.id not in skip for event in events):
+    chosen = choose_picks(reader, offer, ai, now=now, max_picks=PICKS_MADE, sent_ids=skip, taste=taste)
+    if not chosen and any(event.id not in skip for event in offer):
         # There were events to offer but no usable answer: try again next time, like a busy AI,
         # rather than saving an empty list for the rest of the day.
         raise AIUnavailable("the AI's answer had no usable picks")
     new = [Pick(p.event, p.reason, bool(more_like_ids), n >= PICKS_SHOWN) for n, p in enumerate(chosen)]
+    if more_like_ids:
+        # The AI can take a minute. Read the list again: another tab may have revealed picks or
+        # added a batch meanwhile, and none of that should be lost or hidden again.
+        new_ids, seen = {pick.event.id for pick in new}, db.sent_event_ids(conn, reader.id)
+        current = [Pick(p.event, p.reason, False, p.extra and p.event.id not in seen)
+                   for p in _carried(conn, reader, now) if p.event.id not in new_ids]
     picks = new + current
     db.save_issue(conn, reader.id, picks, now)
     return picks

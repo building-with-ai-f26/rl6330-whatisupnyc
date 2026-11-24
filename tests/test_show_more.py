@@ -125,3 +125,95 @@ def test_revealed_picks_stay_shown_after_a_reload(conn, sites):
     now_shown, now_extra = visible_and_extra(again)
     assert set(now_shown) == set(shown + extra) and now_extra == []
     assert 'id="show-more"' not in again and 'href="#picks">Picks (16)' in again
+
+
+def test_picks_never_revealed_are_not_offered_for_rating(conn, sites):
+    client, ai, html = big_list(conn, sites)
+    shown, extra = visible_and_extra(html)
+    ids = {e.event.name: e.id for e in db.eligible_events(conn, ai_now(client))}
+    history = db.history_event_ids(conn, ana_id(client))
+    assert history == {ids[n] for n in shown}
+    assert db.dashboard_data(conn, ana_id(client))[2] == {ids[n] for n in shown}
+
+
+def test_more_like_these_on_yesterdays_list_starts_fresh(conn, sites):
+    from datetime import timedelta
+
+    from tests.test_main import NOW
+    from tests.test_saved_lists import Clock
+
+    add_events(conn, *NAMES, start=NOW + timedelta(days=5))
+    clock = Clock()
+    ai = ChoosingAI(16)
+    client = client_for(conn, sites, ai, clock=clock)
+    signed_in_ana(client)
+    first, _ = visible_and_extra(open_list(client).text)
+    ids = {e.event.name: e.id for e in db.eligible_events(conn, NOW)}
+    clock.now = NOW + timedelta(days=1)  # the page was left open overnight
+    client.post("/newsletter/more", data={"event_ids": [ids[first[0]]]})
+    names = sum(visible_and_extra(client.get("/newsletter").text), [])
+    assert not set(first) & set(names)  # yesterday's picks aren't carried into today's list
+
+
+def test_the_same_show_on_another_night_is_not_added(conn, sites):
+    from datetime import timedelta
+
+    from tests.test_main import NOW
+
+    add_events(conn, "Hamlet", start=NOW + timedelta(days=3))
+    add_events(conn, "Opener")
+    client = client_for(conn, sites, ChoosingAI(2))
+    signed_in_ana(client)
+    open_list(client)
+    add_events(conn, "Hamlet", start=NOW + timedelta(days=4))  # Friday's performance, found later
+    add_events(conn, "Something Else", start=NOW + timedelta(days=4, hours=2))
+    hamlet = next(e.id for e in db.eligible_events(conn, NOW) if e.event.name == "Hamlet")
+    client.post("/newsletter/more", data={"event_ids": [hamlet]})
+    html = client.get("/newsletter").text
+    # One pick card for Hamlet (each card also carries its name in its hidden saved card).
+    assert html.count('data-name="Hamlet"><button class="plain toggle"') == 1
+
+
+def test_show_more_during_a_slow_more_like_these_stays_shown(conn, sites):
+    client, ai, html = big_list(conn, sites)
+    shown, extra = visible_and_extra(html)
+    ids = {e.event.name: e.id for e in db.eligible_events(conn, ai_now(client))}
+    real = ai.complete_json
+
+    def answer_after_another_tab_reveals(system, user):
+        db.reveal_picks(conn, ana_id(client), [ids[n] for n in extra])  # tab B taps Show more meanwhile
+        return real(system, user)
+
+    ai.complete_json = answer_after_another_tab_reveals
+    client.post("/newsletter/more", data={"event_ids": [ids[shown[0]]]})
+    now_shown, now_extra = visible_and_extra(client.get("/newsletter").text)
+    assert set(extra) <= set(now_shown)
+
+
+def test_two_more_like_these_at_once_keep_both_batches(conn, sites):
+    client, ai, html = big_list(conn, sites)
+    shown, extra = visible_and_extra(html)
+    ids = {e.event.name: e.id for e in db.eligible_events(conn, ai_now(client))}
+    real, inner = ai.complete_json, {"done": False}
+
+    def from_the_end(system, user):
+        import json
+        events = json.loads(user.split("Events: ", 1)[1])
+        return {"picks": [{"id": e["id"], "reason": "B"} for e in events[-4:]]}
+
+    def another_request_finishes_first(system, user):
+        if not inner["done"]:
+            inner["done"] = True
+            ai.complete_json = from_the_end  # tab B's answer differs from tab A's
+            inner["status"] = client.post("/newsletter/more", data={"event_ids": [ids[shown[1]]]}).status_code
+            ai.complete_json = another_request_finishes_first
+        return real(system, user)
+
+    ai.complete_json = another_request_finishes_first
+    ai.how_many = 2  # tab A picks the first two, tab B the last four
+    client.post("/newsletter/more", data={"event_ids": [ids[shown[0]]]})
+    assert inner.get("status") == 303, inner
+    names = sum(visible_and_extra(client.get("/newsletter").text), [])
+    sent = db.sent_event_ids(conn, ana_id(client))
+    on_list = {ids[n] for n in names}
+    assert sent <= on_list  # nothing marked seen has fallen off the list
