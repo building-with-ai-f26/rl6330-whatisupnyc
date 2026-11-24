@@ -57,11 +57,12 @@ def save_event(conn: Database, event: CandidateEvent, score: Score) -> int:
     with conn.connection() as c:
         return c.execute(
             "INSERT INTO events (dedupe_key, name, start, venue, city, url, source, source_type, organizer,"
-            " category, score, eligible, score_reason, image_url)"
-            " VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)"
+            " category, score, eligible, score_reason, image_url, ends_at)"
+            " VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)"
             " ON CONFLICT (dedupe_key) DO UPDATE SET url = excluded.url, source = excluded.source,"
             " source_type = excluded.source_type, score = excluded.score, eligible = excluded.eligible,"
-            " score_reason = excluded.score_reason, image_url = coalesce(excluded.image_url, events.image_url)"
+            " score_reason = excluded.score_reason, image_url = coalesce(excluded.image_url, events.image_url),"
+            " ends_at = coalesce(excluded.ends_at, events.ends_at)"
             " RETURNING id",
             (
                 dedupe_key(event),
@@ -78,6 +79,7 @@ def save_event(conn: Database, event: CandidateEvent, score: Score) -> int:
                 score.eligible,
                 score.reason,
                 event.image_url,
+                event.end,
             ),
         ).fetchone()["id"]
 
@@ -88,18 +90,33 @@ def fill_event_image(conn: Database, key: str, image_url: str) -> None:
         c.execute("UPDATE events SET image_url = %s WHERE dedupe_key = %s AND image_url IS NULL", (image_url, key))
 
 
+def fill_event_details(conn: Database, key: str, image_url: str | None, end: datetime | None) -> None:
+    """Gives an already-saved event a picture and an end date, where it has none yet."""
+    with conn.connection() as c:
+        c.execute(
+            "UPDATE events SET image_url = coalesce(image_url, %s), ends_at = coalesce(ends_at, %s) WHERE dedupe_key = %s",
+            (image_url, end, key),
+        )
+
+
 def save_intake(conn: Database, items: list[tuple[str, CandidateEvent, str]], now: datetime) -> tuple[int, int]:
-    """Stores events sent to /api/intake. Returns (accepted, duplicates); a post already sent is a duplicate."""
+    """Stores events sent to /api/intake. Returns (accepted, updated): a post sent again replaces its details
+    and waits for the next collection again."""
     accepted = 0
     with conn.connection() as c:
         for post_url, event, caption in items:
-            accepted += c.execute(
-                "INSERT INTO intake_events (post_url, name, start, venue, official_url, caption, category,"
-                " received_at, received_day) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)"
-                " ON CONFLICT (post_url) DO NOTHING",
-                (post_url, event.name, event.start, event.venue, event.url or None, caption, event.category,
-                 now, now.astimezone(NY).date()),
-            ).rowcount
+            row = c.execute(
+                "INSERT INTO intake_events (post_url, name, start, ends_at, venue, official_url, image_url, caption,"
+                " category, received_at, received_day) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)"
+                " ON CONFLICT (post_url) DO UPDATE SET name = excluded.name, start = excluded.start,"
+                " ends_at = excluded.ends_at, venue = excluded.venue, official_url = excluded.official_url,"
+                " image_url = excluded.image_url, caption = excluded.caption, category = excluded.category,"
+                " checked_at = NULL"
+                " RETURNING (xmax = 0) AS inserted",
+                (post_url, event.name, event.start, event.end, event.venue, event.url or None, event.image_url,
+                 caption, event.category, now, now.astimezone(NY).date()),
+            ).fetchone()
+            accepted += row["inserted"]
     return accepted, len(items) - accepted
 
 
@@ -117,7 +134,8 @@ def waiting_intake(conn: Database) -> list[tuple[int, CandidateEvent]]:
     return [
         (row["id"], CandidateEvent(
             name=row["name"], start=row["start"].astimezone(NY), venue=row["venue"], city="New York",
-            url=row["official_url"] or "", source="intake", source_type="web", category=row["category"],
+            url=row["official_url"] or "", source="intake", source_type="api", category=row["category"],
+            image_url=row["image_url"], end=row["ends_at"].astimezone(NY) if row["ends_at"] else None,
         ))
         for row in rows
     ]
@@ -205,7 +223,7 @@ def eligible_events(conn: Database, now: datetime) -> list[ScoredEvent]:
     with conn.connection() as c:
         rows = c.execute("SELECT * FROM events WHERE eligible ORDER BY score DESC, id").fetchall()
     events = [_row_to_scored(row) for row in rows]
-    return [e for e in events if e.event.start > now]
+    return [e for e in events if not e.event.is_over(now)]
 
 
 def _row_to_scored(row: dict) -> ScoredEvent:
@@ -221,6 +239,7 @@ def _row_to_scored(row: dict) -> ScoredEvent:
         organizer=row["organizer"],
         category=row["category"],
         image_url=row.get("image_url"),
+        end=row["ends_at"].astimezone(NY) if row.get("ends_at") else None,
     )
     return ScoredEvent(row["id"], event, Score(row["score"], row["eligible"], row["score_reason"]))
 

@@ -72,13 +72,6 @@ def run_pipeline(conn, deps: PipelineDeps, now: datetime) -> PipelineSummary:
         # Pasted posts can wait for tomorrow; collecting today's events matters more.
         log.exception("Could not check waiting pasted posts")
     candidates = _collect(deps, now)
-    # Events sent to /api/intake: checked on their official page like everything else.
-    intake = db.waiting_intake(conn)
-    for _, event in intake:
-        if event.url:
-            candidates.append(event)
-        else:
-            db.log_dropped(conn, event, "no official page to check")
     pastes = db.list_pastes(conn)
     groups = _group(candidates, pastes)
     saved = db.saved_event_keys(conn)
@@ -113,8 +106,37 @@ def run_pipeline(conn, deps: PipelineDeps, now: datetime) -> PipelineSummary:
         outcome = score(signals)
         db.save_event(conn, event, outcome)
         eligible += outcome.eligible
-    db.mark_intake_checked(conn, [intake_id for intake_id, _ in intake], now)
-    return PipelineSummary(len(candidates) + len(pastes), passed, dropped, eligible)
+    intake = _save_intake(conn, now)
+    return PipelineSummary(
+        len(candidates) + len(pastes) + intake.collected, passed + intake.passed, dropped + intake.dropped,
+        eligible + intake.eligible,
+    )
+
+
+def _save_intake(conn, now: datetime) -> PipelineSummary:
+    """Events Muse sent to /api/intake. Muse is a trusted feed: /api/intake already ran the plain checks
+    and its events are saved as sent, without fetching their pages."""
+    waiting = db.waiting_intake(conn)
+    saved = db.saved_event_keys(conn)
+    passed = dropped = eligible = 0
+    for _, event in waiting:
+        if event.is_over(now):
+            db.log_dropped(conn, event, "event has ended")
+            dropped += 1
+            continue
+        passed += 1
+        key = dedupe_key(event)
+        if key in saved:
+            # Already found by another source: keep its score, and add Muse's picture and end date.
+            db.fill_event_details(conn, key, event.image_url, event.end)
+            eligible += saved[key]
+            continue
+        outcome = score(Signals(feeds={event.source}))
+        db.save_event(conn, event, outcome)
+        saved[key] = outcome.eligible
+        eligible += outcome.eligible
+    db.mark_intake_checked(conn, [intake_id for intake_id, _ in waiting], now)
+    return PipelineSummary(len(waiting), passed, dropped, eligible)
 
 
 def _check_waiting_pastes(conn, deps: PipelineDeps, now: datetime) -> None:

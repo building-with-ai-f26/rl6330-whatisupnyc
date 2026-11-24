@@ -16,6 +16,8 @@ OFFICIAL_FEED_POINTS = {
     "nyu_engage": 10,
     "nps": 20,
     "nyc_calendar": 20,
+    # Muse (POST /api/intake): events found by hand and sent with a key only the builder gave out.
+    "intake": 20,
     # WordPress event feeds (app/sources/wp_events.py), one source per site.
     "wp:movingimage.org": 20,
     "wp:scandinaviahouse.org": 20,

@@ -43,17 +43,38 @@ def test_good_events_are_stored_for_the_morning_check(conn, sites):
     client = client_for(conn, sites, intake_hash=HASH)
     response = send(client, [event(1), event(2)])
     assert response.status_code == 200
-    assert response.json() == {"accepted": 2, "duplicates": 0, "rejected": []}
+    assert response.json() == {"accepted": 2, "updated": 0, "rejected": []}
     stored = db.waiting_intake(conn)
     assert [e.name for _, e in stored] == ["Show 1", "Show 2"]
-    assert stored[0][1].url == "https://reliable.example/e/1" and stored[0][1].source == "intake"
+    first = stored[0][1]
+    assert first.url == "https://reliable.example/e/1" and first.source == "intake"
+    assert first.source_type == "api"  # a trusted feed: its page is never fetched
 
 
-def test_the_same_post_twice_is_counted_once(conn, sites):
+def test_end_date_and_picture_are_stored(conn, sites):
+    client = client_for(conn, sites, intake_hash=HASH)
+    end = NOW + timedelta(days=20)
+    item = event(1, end=end.isoformat(), image_url="https://cdn.venue.example/poster.jpg")
+    assert send(client, [item]).json()["accepted"] == 1
+    (_, stored), = db.waiting_intake(conn)
+    assert stored.end == end and stored.image_url == "https://cdn.venue.example/poster.jpg"
+
+
+def test_an_event_that_started_but_is_still_running_is_accepted(conn, sites):
+    client = client_for(conn, sites, intake_hash=HASH)
+    item = event(1, start=(NOW - timedelta(days=30)).isoformat(), end=(NOW + timedelta(days=60)).isoformat())
+    assert send(client, [item]).json() == {"accepted": 1, "updated": 0, "rejected": []}
+
+
+def test_sending_the_same_post_again_updates_it(conn, sites):
     client = client_for(conn, sites, intake_hash=HASH)
     send(client, [event(1)])
-    assert send(client, [event(1), event(1)]).json() == {"accepted": 0, "duplicates": 2, "rejected": []}
-    assert len(db.waiting_intake(conn)) == 1
+    db.mark_intake_checked(conn, [i for i, _ in db.waiting_intake(conn)], NOW)
+    end = NOW + timedelta(days=9)
+    body = send(client, [event(1, end=end.isoformat(), image_url="https://cdn.venue.example/p.jpg")]).json()
+    assert body == {"accepted": 0, "updated": 1, "rejected": []}
+    (_, stored), = db.waiting_intake(conn)  # waiting again, with the new details
+    assert stored.end == end and stored.image_url == "https://cdn.venue.example/p.jpg"
 
 
 def test_bad_events_are_rejected_with_reasons(conn, sites):
@@ -68,17 +89,21 @@ def test_bad_events_are_rejected_with_reasons(conn, sites):
         event(7, venue=""),
         event(8, post_url=""),
         "not an object",
+        event(10, official_url=None),  # readers need a page to go to
+        event(11, end=(NOW + timedelta(days=1)).isoformat()),  # ends before it starts
+        event(12, end="2026-11-27T20:00:00"),  # no time zone offset
+        event(13, end=(NOW + timedelta(days=200)).isoformat()),  # runs longer than 180 days
+        event(14, start=(NOW - timedelta(days=5)).isoformat(), end=(NOW - timedelta(days=1)).isoformat()),  # over
+        event(15, image_url="http://cdn.venue.example/p.jpg"),
+        event(16, image_url="https://scontent-lga3-1.cdninstagram.com/v/p.jpg"),
+        event(17, image_url="https://scontent.xx.fbcdn.net/p.jpg"),
+        event(18, image_url="not a link"),
     ]
     body = send(client, bad + [event(9)]).json()
     assert body["accepted"] == 1
-    assert [r["index"] for r in body["rejected"]] == list(range(9))
+    assert [r["index"] for r in body["rejected"]] == list(range(len(bad)))
     assert all(r["reason"] for r in body["rejected"])
     assert [e.name for _, e in db.waiting_intake(conn)] == ["Show 9"]
-
-
-def test_an_event_without_an_official_page_is_kept(conn, sites):
-    client = client_for(conn, sites, intake_hash=HASH)
-    assert send(client, [event(1, official_url=None)]).json()["accepted"] == 1
 
 
 def test_malformed_bodies_are_400(conn, sites):

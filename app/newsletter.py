@@ -93,6 +93,7 @@ def choose_picks(
             "venue": item.event.venue,
             "category": item.event.category,
             "today": _is_today(item, now),
+            **({"open_until": item.event.end.astimezone(NY).strftime("%a %b %-d, %Y")} if _runs_days(item.event) else {}),
         }
         for item in available
     ]
@@ -165,7 +166,7 @@ def _sections(picks: list[Pick], now: datetime, site_url: str | None = None) -> 
             upcoming.append(pick)
     sections = [("Happening today", today, True), ("Popular", popular, False), ("Upcoming", upcoming, False)]
     return [
-        {"title": title, "items": [_email_view(pick, site_url) for pick in group], "highlight": highlight}
+        {"title": title, "items": [_email_view(pick, site_url, now) for pick in group], "highlight": highlight}
         for title, group, highlight in sections
         if group
     ]
@@ -184,20 +185,35 @@ def render_newsletter(picks: list[Pick], *, now: datetime, site_url: str | None 
     )
 
 
-def _view(pick: Pick) -> dict:
-    event = pick.event.event
+def _runs_days(event) -> bool:
+    """Runs past the day it starts, like a market or a sample sale."""
+    return event.end is not None and event.end.astimezone(NY).date() > event.start.astimezone(NY).date()
+
+
+def _when(event, now: datetime | None) -> str:
     local = event.start.astimezone(NY)
-    when = local.strftime("%a, %b %-d")
+    day = local.strftime("%a, %b %-d")
+    if _runs_days(event):
+        until = event.end.astimezone(NY).strftime("%a, %b %-d")
+        if now is None or local <= now:
+            return f"Open until {until}"
+        return f"From {day}, open until {until}"
     if local.time().replace(second=0, microsecond=0) != NO_TIME:
-        when += local.strftime(", %-I:%M %p")
+        day += local.strftime(", %-I:%M %p")
+    return day
+
+
+def _view(pick: Pick, now: datetime | None = None) -> dict:
+    event = pick.event.event
+    when = _when(event, now)
     url = event.url if urlparse(event.url).scheme in ("http", "https") else None
     return {"name": event.name, "when": when, "venue": event.venue, "reason": pick.reason, "url": url,
             "image": event.image_url}
 
 
-def _email_view(pick: Pick, site_url: str | None) -> dict:
+def _email_view(pick: Pick, site_url: str | None, now: datetime | None = None) -> dict:
     """An email row: an email can only show our own picture by its full address."""
-    view = _view(pick)
+    view = _view(pick, now)
     if not view["image"] and site_url:
         view["image"] = site_url + fallback_picture(pick.event.event)
     return view
@@ -223,14 +239,15 @@ def fallback_picture(event) -> str:
     return "/static/pictures/city.png"
 
 
-def card(event: ScoredEvent, reason: str | None = None) -> dict:
+def card(event: ScoredEvent, reason: str | None = None, now: datetime | None = None) -> dict:
     """One event as the dashboard shows it: no scores, only what a reader needs."""
-    view = _view(Pick(event, reason or ""))
+    view = _view(Pick(event, reason or ""), now)
     local = event.event.start.astimezone(NY)
+    running = _runs_days(event.event) and (now is None or local <= now)
     return {
         **view,
         "id": event.id,
         "image": event.event.image_url or fallback_picture(event.event),
-        "plate": local.strftime("%a %b %-d"),
+        "plate": event.event.end.astimezone(NY).strftime("Until %b %-d") if running else local.strftime("%a %b %-d"),
         "start": event.event.start,
     }
