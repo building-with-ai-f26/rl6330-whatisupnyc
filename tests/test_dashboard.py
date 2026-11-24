@@ -127,7 +127,8 @@ def test_saved_events_the_site_stopped_recommending_are_hidden(conn, sites):
     with conn.connection() as c:
         c.execute("update events set eligible = false where id = %s", (jazz,))
     html = client.get("/newsletter").text
-    assert f'id="saved-{jazz}"' not in html
+    saved_section = html[html.index('id="saved-grid"'):html.index("</section>", html.index('id="saved-grid"'))]
+    assert f'id="saved-{jazz}"' not in saved_section
 
 
 def test_more_like_these_keeps_the_ticked_events_and_says_it_makes_a_new_list(conn, sites):

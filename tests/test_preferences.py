@@ -16,8 +16,8 @@ def test_preferences_form_is_prefilled(conn, sites):
     client.post("/signin", data={"email": GOOD["email"], "password": GOOD["password"]})
     html = client.get("/preferences").text
     assert 'value="Ana"' in html and "late jazz</textarea>" in html and 'value="casual"' in html
-    assert 'value="Friday" checked' in html and 'value="Sunday" checked' in html
-    assert 'value="Monday" checked' not in html
+    assert 'value="Friday" aria-label="Friday" checked' in html and 'value="Sunday" aria-label="Sunday" checked' in html
+    assert 'value="Monday" aria-label="Monday" checked' not in html
 
 
 def test_saving_preferences_makes_a_new_list(conn, sites):

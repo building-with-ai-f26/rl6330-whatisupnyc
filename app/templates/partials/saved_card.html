@@ -1,0 +1,13 @@
+{#- One card under "Saved for later". Also put in each pick as a <template>, so saving shows it at once. #}
+<article class="flyer" id="saved-{{ item.id }}">
+  <div class="picture">
+    {% if item.image %}<img src="{{ item.image }}" alt="" onerror="this.remove()" loading="lazy" referrerpolicy="no-referrer">{% endif %}
+    <span class="plate">{{ item.plate }}</span>
+  </div>
+  <h3>{% if item.url %}<a href="{{ item.url }}" rel="noopener" target="_blank">{{ item.name }}</a>{% else %}{{ item.name }}{% endif %}</h3>
+  <p class="where">{{ item.when }} · {{ item.venue }}</p>
+  <div class="tools">
+    <form method="post" action="/events/{{ item.id }}/unsave" data-inplace data-remove data-undo data-name="{{ item.name }}"><button class="plain" type="submit">Remove</button></form>
+    <a class="share" href="/e/{{ item.id }}" data-share-url="{{ share_base }}/e/{{ item.id }}" data-share-title="{{ item.name }}">Share</a>
+  </div>
+</article>

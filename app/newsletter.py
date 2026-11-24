@@ -2,7 +2,7 @@ import json
 from dataclasses import dataclass
 import re
 from collections import Counter
-from datetime import datetime, timedelta
+from datetime import datetime, time, timedelta
 from pathlib import Path
 from urllib.parse import urlparse
 from zoneinfo import ZoneInfo
@@ -244,6 +244,25 @@ def fallback_picture(event) -> str:
             if pattern.search(text):
                 return f"/static/pictures/{kind}.png"
     return "/static/pictures/city.png"
+
+
+def dashboard_groups(picks: list[Pick], now: datetime) -> list[tuple[str, list[Pick]]]:
+    """Picks under "Happening today", "This weekend" (Friday 5 pm to Sunday) and "Coming up",
+    soonest first, leaving out empty groups."""
+    today = now.astimezone(NY).date()
+    friday = today - timedelta(days=today.weekday() - 4) if today.weekday() >= 4 else today + timedelta(days=4 - today.weekday())
+    weekend_start = datetime.combine(friday, time(17), NY)
+    weekend_end = datetime.combine(friday + timedelta(days=3), time(0), NY)
+    groups: dict[str, list[Pick]] = {"Happening today": [], "This weekend": [], "Coming up": []}
+    for pick in sorted(picks, key=lambda p: p.event.event.start):
+        start = pick.event.event.start
+        if _is_today(pick.event, now):
+            groups["Happening today"].append(pick)
+        elif weekend_start <= start < weekend_end:
+            groups["This weekend"].append(pick)
+        else:
+            groups["Coming up"].append(pick)
+    return [(title, group) for title, group in groups.items() if group]
 
 
 def card(event: ScoredEvent, reason: str | None = None, now: datetime | None = None) -> dict:

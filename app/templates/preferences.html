@@ -1,5 +1,6 @@
 {% extends "partials/account_page.html" %}
 {% block title %}Your preferences{% endblock %}
+{% block header_link %}<a href="/newsletter">Back to my list</a>{% endblock %}
 {% block content %}
 <h2>Your preferences</h2>
 <p>Change anything, and your next list is picked fresh from it.</p>
@@ -14,10 +15,10 @@
   <fieldset>
     <legend>Which days do you want your list?</legend>
     <div class="days">
-      {% for day in days %}<label><input type="checkbox" name="days" value="{{ day }}"{% if day in form.days %} checked{% endif %}>{{ day }}</label>{% endfor %}
+      {% for day in days %}<label><input type="checkbox" name="days" value="{{ day }}" aria-label="{{ day }}"{% if day in form.days %} checked{% endif %}><span aria-hidden="true">{{ day[:3] }}</span></label>{% endfor %}
     </div>
   </fieldset>
   <button type="submit">Save and see my list</button>
 </form>
-<p class="links"><a href="/newsletter">Back to my list</a></p>
+<p class="links"><a href="/newsletter">Cancel and go back to my list</a></p>
 {% endblock %}
