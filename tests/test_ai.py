@@ -147,3 +147,52 @@ def test_daily_limit_stops_before_trying_backup(conn):
 def test_reasoning_in_think_tags_is_ignored(conn):
     ai = client_for(conn, lambda r: completion('<think>Need JSON. {"no": 1}</think>\n\n{"ok": true}'))
     assert ai.complete_json("s", "u") == {"ok": True}
+
+
+# AI_PRIMARY=minimax: MiniMax's own API first, OpenRouter's free model as the backup.
+def env_client(conn, monkeypatch, handler, **env):
+    for name in ("AI_PRIMARY", "MINIMAX_API_KEY", "MINIMAX_MODEL"):
+        monkeypatch.delenv(name, raising=False)
+    monkeypatch.setenv("OPENROUTER_API_KEY", "free-key")
+    monkeypatch.setenv("OPENROUTER_MODEL", "model:free")
+    for name, value in env.items():
+        monkeypatch.setenv(name, value)
+    from app.ai import client_from_env
+    return client_from_env(httpx.Client(transport=httpx.MockTransport(handler)), conn)
+
+
+def answering(seen, failing=()):
+    def handler(request):
+        seen.append((str(request.url), request.headers["authorization"], json.loads(request.content)["model"]))
+        return httpx.Response(503) if any(f in str(request.url) for f in failing) else completion('{"ok": true}')
+    return handler
+
+
+def test_minimax_first_uses_minimax_api_and_its_own_key(conn, monkeypatch):
+    seen = []
+    ai = env_client(conn, monkeypatch, answering(seen), AI_PRIMARY="minimax", MINIMAX_API_KEY="paid-key",
+                    MINIMAX_MODEL="MiniMax-M3.1-Flash-Preview")
+    assert ai.complete_json("s", "u") == {"ok": True}
+    assert seen == [(MINIMAX_URL, "Bearer paid-key", "MiniMax-M3.1-Flash-Preview")]
+
+
+def test_minimax_first_falls_back_to_the_free_openrouter_model(conn, monkeypatch):
+    seen = []
+    ai = env_client(conn, monkeypatch, answering(seen, failing=["minimax"]), AI_PRIMARY="minimax",
+                    MINIMAX_API_KEY="paid-key")
+    assert ai.complete_json("s", "u") == {"ok": True}
+    assert seen[-1] == ("https://openrouter.ai/api/v1/chat/completions", "Bearer free-key", "model:free")
+
+
+def test_without_ai_primary_openrouter_stays_first(conn, monkeypatch):
+    seen = []
+    ai = env_client(conn, monkeypatch, answering(seen), MINIMAX_API_KEY="paid-key")
+    ai.complete_json("s", "u")
+    assert [url for url, _, _ in seen] == ["https://openrouter.ai/api/v1/chat/completions"]
+
+
+def test_minimax_first_without_a_minimax_key_uses_openrouter(conn, monkeypatch):
+    seen = []
+    ai = env_client(conn, monkeypatch, answering(seen), AI_PRIMARY="minimax")
+    ai.complete_json("s", "u")
+    assert [url for url, _, _ in seen] == ["https://openrouter.ai/api/v1/chat/completions"]

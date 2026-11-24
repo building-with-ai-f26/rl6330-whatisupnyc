@@ -18,7 +18,7 @@ from starlette.concurrency import run_in_threadpool
 
 from app import auth, db, intake, saved_lists
 from app import emailer
-from app.ai import AIClient, AIUnavailable, backup_from_env
+from app.ai import AIClient, AIUnavailable, client_from_env
 from app.limits import LIMITS, RateLimiter, client_ip
 from app.models import Subscriber
 from app.newsletter import NY
@@ -95,9 +95,7 @@ def _default_deps() -> AppDeps:
     http = httpx.Client()
     return AppDeps(
         conn=conn,
-        ai=AIClient(
-            http, os.environ["OPENROUTER_API_KEY"], os.environ["OPENROUTER_MODEL"], conn, backup=backup_from_env()
-        ),
+        ai=client_from_env(http, conn),
         tavily=TavilyClient(http, os.environ["TAVILY_API_KEY"], run_budget=100),
         http=http,
         sites=load_sites(),
