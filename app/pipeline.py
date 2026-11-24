@@ -11,6 +11,7 @@ from app.ai import AIClient, client_from_env
 from app.checks import check_event, dedupe_key, same_event
 from app.models import CandidateEvent, Signals
 from app.pages import PageResult, fetch_page, page_image
+from app.pictures import find_picture, is_copy
 from app.scoring import Reputable, brand_confirmed, domain_of, load_reputable, normalize, reliable_domains, score
 from app.sentiment import Opinion, gather_opinions, rate_sentiment
 from app.sites import Sites, load as load_sites
@@ -27,6 +28,8 @@ log = logging.getLogger(__name__)
 
 MAX_COVERAGE_SEARCHES = 8
 MAX_SENTIMENT_EVENTS = 6
+# Image searches for new events without a picture, each run.
+MAX_PICTURE_SEARCHES = 10
 # Each pasted post can use an AI request, so a run checks only this many and leaves the rest of the
 # shared daily AI limit for collected events. A post that keeps failing is dropped after MAX_PASTE_TRIES.
 MAX_PASTES_PER_RUN = 10
@@ -102,25 +105,55 @@ def run_pipeline(conn, deps: PipelineDeps, now: datetime) -> PipelineSummary:
 
     _add_coverage_from_search(scored_now, deps)
     _add_sentiment(scored_now, deps)
+    new: list[tuple[int, CandidateEvent]] = []
     for _, event, signals, _ in scored_now:
         outcome = score(signals)
-        db.save_event(conn, event, outcome)
+        new.append((db.save_event(conn, event, outcome), event))
         eligible += outcome.eligible
-    intake = _save_intake(conn, now)
+    intake = _save_intake(conn, now, new)
+    merge_muse_copies(conn, now)
+    add_search_pictures(conn, deps, new, now)
     return PipelineSummary(
         len(candidates) + len(pastes) + intake.collected, passed + intake.passed, dropped + intake.dropped,
         eligible + intake.eligible,
     )
 
 
-def _save_intake(conn, now: datetime) -> PipelineSummary:
+def merge_muse_copies(conn, now: datetime) -> None:
+    """One card for an event Muse and another source both list: the other source's copy stays, with Muse's
+    picture if it has none, and Muse's copy comes off lists."""
+    events = db.eligible_events(conn, now)
+    others = [e for e in events if e.event.source != "intake"]
+    for muse in (e for e in events if e.event.source == "intake"):
+        twin = next((o for o in others if is_copy(muse.event, o.event)), None)
+        if twin:
+            if muse.event.image_url:
+                db.fill_event_image_by_id(conn, twin.id, muse.event.image_url)
+            db.retire_event(conn, muse.id)
+
+
+def add_search_pictures(conn, deps: "PipelineDeps", new: list[tuple[int, CandidateEvent]], now: datetime) -> None:
+    """A picture from an image search for new, well-known events that came without one."""
+    listed = {e.id: e.event for e in db.eligible_events(conn, now)}
+    waiting = [(i, listed[i]) for i, _ in new if i in listed and not listed[i].image_url]
+    for event_id, event in waiting[:MAX_PICTURE_SEARCHES]:
+        try:
+            picture = find_picture(event, deps.tavily, deps.sites)
+        except Exception:
+            log.exception("Picture search failed")
+            continue
+        if picture:
+            db.fill_event_image_by_id(conn, event_id, picture)
+
+
+def _save_intake(conn, now: datetime, new: list | None = None) -> PipelineSummary:
     """Events Muse sent to /api/intake. Muse is a trusted feed: /api/intake already ran the plain checks,
     and its events are saved as sent, without fetching their pages."""
     waiting = db.waiting_intake(conn)
     passed = dropped = eligible = 0
     for intake_id, event in waiting:
         try:
-            outcome = _save_one_intake(conn, intake_id, event, now)
+            outcome = _save_one_intake(conn, intake_id, event, now, new)
         except Exception:
             # Left waiting, so tomorrow's run tries it again; the rest still go through.
             log.exception("Could not save an event sent to intake")
@@ -134,7 +167,7 @@ def _save_intake(conn, now: datetime) -> PipelineSummary:
     return PipelineSummary(len(waiting), passed, dropped, eligible)
 
 
-def _save_one_intake(conn, intake_id: int, event: CandidateEvent, now: datetime) -> bool | None:
+def _save_one_intake(conn, intake_id: int, event: CandidateEvent, now: datetime, new: list | None = None) -> bool | None:
     """Whether the event is on offer to readers; None when it was dropped."""
     # A resent post replaces what it was saved as; saving it again below brings it back if unchanged.
     db.retire_muse_event(conn, intake_id)
@@ -150,7 +183,10 @@ def _save_one_intake(conn, intake_id: int, event: CandidateEvent, now: datetime)
             db.fill_event_image(conn, key, event.image_url)
         return existing[1]
     outcome = score(Signals(feeds={event.source}))
-    db.link_intake(conn, intake_id, db.save_event(conn, event, outcome))
+    event_id = db.save_event(conn, event, outcome)
+    db.link_intake(conn, intake_id, event_id)
+    if new is not None:
+        new.append((event_id, event))
     return outcome.eligible
 
 
@@ -282,7 +318,7 @@ def _default_deps(conn) -> PipelineDeps:
     http = httpx.Client()
     return PipelineDeps(
         http=http,
-        tavily=TavilyClient(http, os.environ["TAVILY_API_KEY"]),
+        tavily=TavilyClient(http, os.environ["TAVILY_API_KEY"], run_budget=20 + MAX_PICTURE_SEARCHES),
         ai=client_from_env(http, conn),
         sites=load_sites(),
         reputable=load_reputable(),

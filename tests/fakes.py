@@ -19,10 +19,16 @@ class FakeAI:
 
 
 class FakeTavily:
-    def __init__(self, hits=()):
+    def __init__(self, hits=(), images=()):
         self.hits = list(hits)
+        self.images = list(images)
         self.queries = []
+        self.image_queries = []
         self.include_domains = []
+
+    def search_images(self, query, include_domains):
+        self.image_queries.append(query)
+        return self.hits, self.images
 
     def search(self, query, include_domains):
         self.queries.append(query)
