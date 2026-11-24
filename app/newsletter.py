@@ -175,6 +175,7 @@ def _sections(picks: list[Pick], now: datetime, site_url: str | None = None) -> 
 
 
 def render_newsletter(picks: list[Pick], *, now: datetime, site_url: str | None = None) -> str:
+    picks = [pick for pick in picks if not pick.extra]  # the email stays compact: only what the list shows
     return _templates.get_template("newsletter.html").render(
         sections=_sections(picks, now, site_url),
         issue_date=now.astimezone(NY).strftime("%A, %B %-d"),
@@ -247,18 +248,23 @@ def fallback_picture(event) -> str:
 
 
 def dashboard_groups(picks: list[Pick], now: datetime) -> list[tuple[str, list[Pick]]]:
-    """Picks under "Happening today", "This week" (until Friday 5 pm), "This weekend" (to Sunday
-    night) and "Coming up", soonest first. Picks already over and empty groups are left out."""
+    """Picks under "More like what you picked" (the latest More like these), then "Happening today",
+    "This week" (until Friday 5 pm), "This weekend" (to Sunday night) and "Coming up", soonest first
+    in each. Picks already over and empty groups are left out."""
     today = now.astimezone(NY).date()
     friday = today - timedelta(days=today.weekday() - 4) if today.weekday() >= 4 else today + timedelta(days=4 - today.weekday())
     weekend_start = datetime.combine(friday, time(17), NY)
     weekend_end = datetime.combine(friday + timedelta(days=3), time(0), NY)
-    groups: dict[str, list[Pick]] = {"Happening today": [], "This week": [], "This weekend": [], "Coming up": []}
+    groups: dict[str, list[Pick]] = {
+        "More like what you picked": [], "Happening today": [], "This week": [], "This weekend": [], "Coming up": [],
+    }
     for pick in sorted(picks, key=lambda p: p.event.event.start):
         start = pick.event.event.start
         if pick.event.event.is_over(now):
             continue  # an older list shown while the AI is busy can hold past events
-        if _is_today(pick.event, now):
+        if pick.more_like:
+            groups["More like what you picked"].append(pick)
+        elif _is_today(pick.event, now):
             groups["Happening today"].append(pick)
         elif start < weekend_start:
             groups["This week"].append(pick)

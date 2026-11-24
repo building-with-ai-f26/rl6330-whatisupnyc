@@ -131,13 +131,13 @@ def test_saved_events_the_site_stopped_recommending_are_hidden(conn, sites):
     assert f'id="saved-{jazz}"' not in saved_section
 
 
-def test_more_like_these_keeps_the_ticked_events_and_says_it_makes_a_new_list(conn, sites):
+def test_more_like_these_keeps_the_ticked_events_on_the_list(conn, sites):
     client, ai, ids = ready(conn, sites)
-    html = client.get("/newsletter").text
-    assert "makes a new list" in html.lower()
     jazz = ids["Jazz Night"]
     client.post("/newsletter/more", data={"event_ids": [jazz]})
-    assert db.saved_for_later_ids(conn, ana_id(client)) == [jazz]
+    html = client.get("/newsletter").text
+    assert f'id="event-{jazz}"' in html  # still on the list, so nothing is saved for them
+    assert db.saved_for_later_ids(conn, ana_id(client)) == []
 
 
 def test_a_picture_that_fails_to_load_leaves_the_plain_block(conn, sites):

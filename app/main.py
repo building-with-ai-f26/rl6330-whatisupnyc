@@ -354,7 +354,8 @@ def create_app(deps: AppDeps | None = None) -> FastAPI:
         went = sorted((events[i] for i in history if i in events and events[i].event.is_over(now)),
                       key=lambda e: e.event.start, reverse=True)[:12]
         base = str(request.base_url).rstrip("/")
-        groups = [(title, [card(p.event, p.reason, now) for p in group]) for title, group in dashboard_groups(picks, now)]
+        groups = [(title, [{**card(p.event, p.reason, now), "extra": p.extra} for p in group])
+                  for title, group in dashboard_groups(picks, now)]
         html = page(
             "dashboard.html",
             subscriber=reader.profile,
@@ -362,7 +363,8 @@ def create_app(deps: AppDeps | None = None) -> FastAPI:
             error=error,
             list_day=made_at.astimezone(NY).strftime("%A, %B %-d"),
             groups=groups,
-            pick_count=sum(len(cards) for _, cards in groups),
+            pick_count=sum(1 for _, cards in groups for c in cards if not c["extra"]),
+            extra_count=sum(1 for _, cards in groups for c in cards if c["extra"]),
             saved=saved,
             to_rate=[card(e, now=now) for e in went],
             saved_ids=set(saved_ids),
@@ -446,6 +448,23 @@ def create_app(deps: AppDeps | None = None) -> FastAPI:
             return finish(RedirectResponse("/signin", status_code=303), reader)
         return reader
 
+    @app.post("/newsletter/shown")
+    def picks_shown(request: Request, event_ids: list[int] = Form([])):
+        """Show more was tapped: those picks now count as seen, so later lists don't repeat them."""
+        reader = listed_reader(request)
+        if not isinstance(reader, Reader):
+            return reader
+        if over_limit(request, "event_actions"):
+            return finish(too_many(request), reader)
+        d = get_deps()
+        latest = db.latest_issue(d.conn, reader.profile.id)
+        on_list = {saved.event_id for saved in latest.picks} if latest else set()
+        chosen = list(dict.fromkeys(event_ids))[:50]
+        if not chosen or not set(chosen) <= on_list:
+            return not_on_your_lists(reader)
+        db.reveal_picks(d.conn, reader.profile.id, chosen)
+        return finish(JSONResponse({"ok": True}), reader)
+
     @app.post("/newsletter/more")
     def more_like_these(request: Request, event_ids: list[int] = Form([])):
         if over_limit(request, "newsletter"):
@@ -462,9 +481,6 @@ def create_app(deps: AppDeps | None = None) -> FastAPI:
             return finish(notice("Not found", "That event isn't on your lists.", [("/newsletter", "Back to my list")], 404), reader)
         if over_account_limit("newsletter_account", reader.profile.id):
             return finish(too_many(request), reader)
-        # The ticked events are kept, since the new list replaces today's.
-        for event_id in chosen:
-            db.save_for_later(d.conn, reader.profile.id, event_id, d.clock())
         try:
             saved_lists.make_list(d.conn, d.ai, reader.profile, d.clock(), more_like_ids=chosen)
         except AIUnavailable:

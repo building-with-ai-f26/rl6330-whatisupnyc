@@ -191,7 +191,7 @@ def test_saved_issue_round_trip_and_marks_events_sent(conn):
     db.save_issue(conn, a, picks, datetime(2026, 11, 23, 20, tzinfo=NY))
     issue = db.latest_issue(conn, a)
     assert issue.made_on == date(2026, 11, 23)
-    assert issue.picks == [(picks[0].event.id, "a"), (picks[1].event.id, "b")]
+    assert [(p.event_id, p.reason) for p in issue.picks] == [(picks[0].event.id, "a"), (picks[1].event.id, "b")]
     assert db.sent_event_ids(conn, a) == {p.event.id for p in picks}
 
 
@@ -200,7 +200,7 @@ def test_latest_issue_is_the_newest(conn):
     first, second = picks_for(conn, ("One", "x")), picks_for(conn, ("Two", "y"))
     db.save_issue(conn, a, first, NOW)
     db.save_issue(conn, a, second, NOW + timedelta(days=1))
-    assert db.latest_issue(conn, a).picks == [(second[0].event.id, "y")]
+    assert [(p.event_id, p.reason) for p in db.latest_issue(conn, a).picks] == [(second[0].event.id, "y")]
     assert db.latest_issue(conn, make_user(conn)) is None
 
 
