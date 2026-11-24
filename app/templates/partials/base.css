@@ -6,13 +6,18 @@
   --ink: #2b2b2b;
   --press: cubic-bezier(0.23, 1, 0.32, 1);
   --gutter: clamp(16px, 5vw, 64px);
+  /* Yellow can't be seen on white (1.6:1), so white areas ring in black and black areas in yellow. */
+  --focus-ring: var(--black);
 }
 * { box-sizing: border-box; }
+/* Hidden always wins, even over a layout's display (a grid or flex card). */
+[hidden] { display: none !important; }
 body { margin: 0; background: var(--white); color: var(--black); font: 400 17px/1.5 Archivo, Helvetica, Arial, sans-serif; }
 a { color: inherit; }
-:focus-visible { outline: 3px solid var(--taxi); outline-offset: 2px; }
+:focus-visible { outline: 3px solid var(--focus-ring); outline-offset: 2px; }
 .inner { max-width: 1040px; margin: 0 auto; }
-.sign { background: var(--black); color: var(--white); padding: 0 var(--gutter); }
+.sign { background: var(--black); color: var(--white); padding: 0 var(--gutter); --focus-ring: var(--taxi); }
+.making, .more-bar, .toast { --focus-ring: var(--taxi); }
 .logo { display: block; width: 132px; padding-top: clamp(20px, 3vw, 32px); }
 .logo svg { display: block; width: 100%; height: auto; }
 h2 { font-size: 26px; font-weight: 500; line-height: 1.15; letter-spacing: -0.02em; margin: 0 0 6px; }

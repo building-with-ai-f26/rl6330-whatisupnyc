@@ -22,7 +22,7 @@ from app.ai import AIClient, AIUnavailable, backup_from_env
 from app.limits import LIMITS, RateLimiter, client_ip
 from app.models import Subscriber
 from app.newsletter import NY
-from app.newsletter import _templates, card, choose_picks, render_newsletter
+from app.newsletter import _templates, card, choose_picks, dashboard_groups, render_newsletter
 from app.sites import Sites, load as load_sites
 from app.sources.pasted import paste_problem
 from app.sources.web import TavilyClient
@@ -354,13 +354,15 @@ def create_app(deps: AppDeps | None = None) -> FastAPI:
         went = sorted((events[i] for i in history if i in events and events[i].event.is_over(now)),
                       key=lambda e: e.event.start, reverse=True)[:12]
         base = str(request.base_url).rstrip("/")
+        groups = [(title, [card(p.event, p.reason, now) for p in group]) for title, group in dashboard_groups(picks, now)]
         html = page(
             "dashboard.html",
             subscriber=reader.profile,
             banner=SIGNED_UP_BANNER if reader.first_look else "",
             error=error,
             list_day=made_at.astimezone(NY).strftime("%A, %B %-d"),
-            picks=[card(p.event, p.reason, now) for p in picks],
+            groups=groups,
+            pick_count=sum(len(cards) for _, cards in groups),
             saved=saved,
             to_rate=[card(e, now=now) for e in went],
             saved_ids=set(saved_ids),

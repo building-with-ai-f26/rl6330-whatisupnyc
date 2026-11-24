@@ -18,15 +18,20 @@
     input[type=text], textarea { width: 100%; font: inherit; padding: 12px 14px; border: 1px solid var(--black); border-radius: 4px; }
     fieldset { border: 0; padding: 0; margin: 20px 0 0; }
     legend { font-weight: 600; margin-bottom: 6px; }
-    .days { display: flex; flex-wrap: wrap; gap: 8px 16px; }
-    .days label { display: inline-flex; gap: 6px; align-items: center; font-weight: 400; margin: 0; }
+    /* The same big day buttons as the start page, in black on white. */
+    .days { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 6px; }
+    .days label { position: relative; margin: 0; font-weight: 500; }
+    .days input { position: absolute; inset: 0; opacity: 0; width: 100%; height: 100%; margin: 0; cursor: pointer; }
+    .days span { display: block; text-align: center; border: 1px solid var(--black); border-radius: 4px; padding: 14px 0; font-size: 15px; transition: background-color 120ms; }
+    .days input:checked + span { background: var(--taxi); border-color: var(--taxi); }
+    .days input:focus-visible + span { outline: 3px solid var(--focus-ring); outline-offset: 2px; }
   </style>
 </head>
 <body>
   <header class="sign">
     <div class="inner row">
       <div class="logo">{% include "partials/logo.svg" %}</div>
-      <a href="/">Back to the start</a>
+      {% block header_link %}<a href="/">Back to the start</a>{% endblock %}
     </div>
   </header>
   <main>

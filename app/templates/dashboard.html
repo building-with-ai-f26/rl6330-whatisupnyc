@@ -48,6 +48,17 @@
     .more-bar[hidden] { display: none; }
     .no-js .more-bar { position: static; background: none; justify-content: flex-start; padding: 24px 0 0; }
     .copied { color: var(--steel); font-size: 14px; }
+    .jump { display: flex; flex-wrap: wrap; gap: 8px 22px; margin: 0 0 8px; font-size: 15px; font-weight: 600; }
+    .when-group { margin: 40px 0 16px; }
+    #picks > .when-group:first-child { margin-top: 24px; }
+    .toggle[aria-pressed="true"] { background: var(--taxi); box-shadow: inset 0 0 0 1px var(--taxi); }
+    .toggle[aria-pressed="true"]::before { content: ""; display: inline-block; width: 0.7em; height: 0.4em; margin: 0 8px 0.2em 0; border: solid currentColor; border-width: 0 0 2px 2px; transform: rotate(-45deg); }
+    /* Ticking a card for "More like these" is choosing, not acting, so it sits on its own line. */
+    .flyer .pick { margin-top: 12px; padding-top: 12px; border-top: 1px solid #d6d6d2; font-size: 15px; }
+    .toast { position: fixed; left: 50%; bottom: 20px; transform: translateX(-50%); z-index: 6; display: flex; gap: 16px; align-items: center; max-width: calc(100% - 32px); background: var(--black); color: var(--white); padding: 12px 16px; border-radius: 4px; font-size: 15px; }
+    .toast:empty { display: none; }
+    .toast button { background: none; color: var(--taxi); padding: 0; font-size: 15px; text-decoration: underline; }
+    body.ticking .toast { bottom: 110px; }  /* above the "More like these" bar */
     .more-bar { align-items: center; gap: 16px; flex-wrap: wrap; }
     .more-note { margin: 0; color: #d6d6d2; font-size: 14px; max-width: 46ch; }
     .no-js .more-note { color: var(--steel); }
@@ -72,10 +83,20 @@
       {% if banner %}<p class="notice" role="status">{{ banner }}</p>{% endif %}
       {% if error %}<p class="notice" role="status">{{ error }}</p>{% endif %}
 
+      <nav class="jump" aria-label="On this page">
+        <a href="#picks">Picks ({{ pick_count }})</a>
+        <a data-count="saved" href="#saved">Saved ({{ saved|length }})</a>
+        <a href="#rate">To rate ({{ to_rate|length }})</a>
+      </nav>
+
       <form id="more" method="post" action="/newsletter/more" data-making></form>
-      {% if picks %}
+      <section id="picks" aria-label="Your picks">
+      {% if groups %}
+      {% for title, cards in groups %}
+      <h2 class="when-group">{{ title }}</h2>
       <div class="grid">
-        {% for item in picks %}
+        {% for item in cards %}
+        {% set saved_now = item.id in saved_ids %}
         <article class="flyer" id="event-{{ item.id }}">
           <div class="picture">
             {% if item.image %}<img src="{{ item.image }}" alt="" onerror="this.remove()" loading="lazy" referrerpolicy="no-referrer">{% endif %}
@@ -85,47 +106,30 @@
           <p class="where">{{ item.when }} · {{ item.venue }}</p>
           {% if item.reason %}<p class="why">{{ item.reason }}</p>{% endif %}
           <div class="tools">
-            {% if item.id in saved_ids %}
-            <form method="post" action="/events/{{ item.id }}/unsave" data-inplace><button class="plain" type="submit">Saved</button></form>
-            {% else %}
-            <form method="post" action="/events/{{ item.id }}/save" data-inplace><button class="plain" type="submit">Save for later</button></form>
-            {% endif %}
+            <form method="post" action="/events/{{ item.id }}/{{ 'unsave' if saved_now else 'save' }}" data-inplace data-toggle data-id="{{ item.id }}" data-name="{{ item.name }}"><button class="plain toggle" type="submit" aria-pressed="{{ 'true' if saved_now else 'false' }}">Save for later</button></form>
             <a class="share" href="/e/{{ item.id }}" data-share-url="{{ share_base }}/e/{{ item.id }}" data-share-title="{{ item.name }}">Share</a>
-            <label class="pick"><input type="checkbox" name="event_ids" value="{{ item.id }}" form="more"> More like this</label>
           </div>
+          <label class="pick"><input type="checkbox" name="event_ids" value="{{ item.id }}" form="more"> More like this</label>
+          <template id="saved-card-{{ item.id }}">{% include "partials/saved_card.html" %}</template>
         </article>
         {% endfor %}
       </div>
+      {% endfor %}
       {% else %}
       <p class="empty">Nothing new to suggest today. Come back tomorrow, or <a href="/preferences">change what you're looking for</a>.</p>
       {% endif %}
-      <div class="more-bar" id="more-bar"{% if picks %} hidden{% endif %}>
-        {% if picks %}<button type="submit" form="more" id="more-button">More like these</button>
+      </section>
+      <div class="more-bar" id="more-bar"{% if groups %} hidden{% endif %}>
+        {% if groups %}<button type="submit" form="more" id="more-button">More like these</button>
         <p class="more-note">Makes a new list from what you ticked. Those events are saved for later, so you keep them.</p>{% endif %}
       </div>
 
       <section id="saved" aria-labelledby="saved-title">
-        <h2 id="saved-title">Saved for later</h2>
-        {% if saved %}
-        <div class="grid">
-          {% for item in saved %}
-          <article class="flyer" id="saved-{{ item.id }}">
-            <div class="picture">
-              {% if item.image %}<img src="{{ item.image }}" alt="" onerror="this.remove()" loading="lazy" referrerpolicy="no-referrer">{% endif %}
-              <span class="plate">{{ item.plate }}</span>
-            </div>
-            <h3>{% if item.url %}<a href="{{ item.url }}" rel="noopener" target="_blank">{{ item.name }}</a>{% else %}{{ item.name }}{% endif %}</h3>
-            <p class="where">{{ item.when }} · {{ item.venue }}</p>
-            <div class="tools">
-              <form method="post" action="/events/{{ item.id }}/unsave" data-inplace data-remove><button class="plain" type="submit">Remove</button></form>
-              <a class="share" href="/e/{{ item.id }}" data-share-url="{{ share_base }}/e/{{ item.id }}" data-share-title="{{ item.name }}">Share</a>
-            </div>
-          </article>
-          {% endfor %}
+        <h2 id="saved-title" tabindex="-1">Saved for later</h2>
+        <div class="grid" id="saved-grid"{% if not saved %} hidden{% endif %}>
+          {% for item in saved %}{% include "partials/saved_card.html" %}{% endfor %}
         </div>
-        {% else %}
-        <p class="empty">Nothing saved yet. Tap "Save for later" on an event, and your next lists will lean toward events like it.</p>
-        {% endif %}
+        <p class="empty" id="saved-empty"{% if saved %} hidden{% endif %}>Nothing saved yet. Tap "Save for later" on an event, and your next lists will lean toward events like it.</p>
       </section>
 
       <section id="rate" class="rated" aria-labelledby="rate-title">
@@ -149,6 +153,7 @@
       </section>
     </div>
   </main>
+  <div class="toast" id="announce" role="status" aria-live="polite"></div>
   {% include "partials/making.html" %}
   <script>
     (function () {
@@ -160,6 +165,7 @@
         var count = Array.prototype.filter.call(boxes, function (box) { return box.checked; }).length;
         if (!bar || !button) return;
         bar.hidden = count === 0;
+        document.body.classList.toggle("ticking", count > 0);
         button.textContent = count > 1 ? "More like these " + count : "More like this";
       }
       boxes.forEach(function (box) { box.addEventListener("change", update); });
@@ -175,35 +181,133 @@
           return response.text().then(function (html) { document.open(); document.write(html); document.close(); });
         });
       }
-      document.querySelectorAll("form[data-inplace]").forEach(function (form) {
-        form.addEventListener("submit", function (event) {
-          // Browsers that don't say which button was pressed (Safari before 15.4) post the form normally.
-          if (!window.fetch || !event.submitter) return;
-          event.preventDefault();
-          var submitter = event.submitter;
-          var buttons = form.querySelectorAll("button");
-          buttons.forEach(function (b) { b.disabled = true; });
-          send(form, submitter).then(function (answer) {
-            buttons.forEach(function (b) { b.disabled = false; });
-            if (!answer) return;
-            if ("rating" in answer) {
-              buttons.forEach(function (b) { b.setAttribute("aria-pressed", String(b.value === String(answer.rating))); });
-            } else if (form.hasAttribute("data-remove")) {
-              form.closest(".flyer").remove();
-            } else {
-              form.action = form.action.replace(/\/(save|unsave)$/, answer.saved ? "/unsave" : "/save");
-              submitter.textContent = answer.saved ? "Saved" : "Save for later";
-            }
-          }).catch(function () {
-            // No answer: post the form the ordinary way, with the pressed button's value.
-            buttons.forEach(function (b) { b.disabled = false; });
-            if (submitter.name) {
-              var pressed = document.createElement("input");
-              pressed.type = "hidden"; pressed.name = submitter.name; pressed.value = submitter.value;
-              form.appendChild(pressed);
-            }
-            form.submit();
+      // A short message at the bottom, read out by screen readers; Undo when there's something to undo.
+      // The timer pauses while the pointer or keyboard focus is on the message.
+      var announce = document.getElementById("announce"), toastTimer = null, pending = null;
+      function finishToast() {
+        clearTimeout(toastTimer);
+        var hadFocus = announce.contains(document.activeElement);
+        announce.textContent = "";
+        if (pending) { var last = pending; pending = null; last.expire(); }
+        if (hadFocus) document.getElementById("saved-title").focus();
+      }
+      function startTimer() {
+        clearTimeout(toastTimer);
+        if (announce.querySelector(":focus-visible")) return;  // a keyboard user is on it: wait for them
+        toastTimer = setTimeout(finishToast, pending ? 8000 : 3500);
+      }
+      announce.addEventListener("mouseenter", function () { clearTimeout(toastTimer); });
+      announce.addEventListener("focusin", function (event) {
+        // Keyboard focus (not focus moved there after a mouse click) holds the message until it leaves.
+        if (event.target.matches(":focus-visible")) clearTimeout(toastTimer);
+      });
+      ["mouseleave", "focusout"].forEach(function (type) {
+        announce.addEventListener(type, function () { if (announce.textContent) startTimer(); });
+      });
+      function say(text, undo) {
+        finishToast();  // an earlier Undo that wasn't used is settled first
+        var words = document.createElement("span");
+        words.textContent = text;
+        announce.appendChild(words);
+        if (undo) {
+          pending = undo;
+          var again = document.createElement("button");
+          again.type = "button";
+          again.textContent = "Undo";
+          again.addEventListener("click", function () {
+            pending = null;
+            clearTimeout(toastTimer);
+            announce.textContent = "";
+            undo.run();
           });
+          announce.appendChild(again);
+          again.focus();  // the button that was pressed is gone, so keyboard users land on Undo
+        }
+        startTimer();
+      }
+      function post(url) {
+        return fetch(url, { method: "POST", credentials: "same-origin", headers: { "X-Requested-With": "fetch" } })
+          .then(function (response) { return response.ok; });
+      }
+
+      // "Saved for later" follows the Save buttons at once, using the card each pick carries.
+      var savedGrid = document.getElementById("saved-grid"), savedEmpty = document.getElementById("saved-empty");
+      var savedLink = document.querySelector('[data-count="saved"]');
+      function refreshSaved() {
+        var count = savedGrid.querySelectorAll(".flyer:not([hidden])").length;
+        savedGrid.hidden = count === 0;
+        savedEmpty.hidden = count > 0;
+        savedLink.textContent = "Saved (" + count + ")";
+      }
+      function setToggle(id, on) {
+        var form = document.querySelector('form[data-toggle][data-id="' + id + '"]');
+        if (!form) return;
+        form.action = "/events/" + id + (on ? "/unsave" : "/save");
+        form.querySelector("button").setAttribute("aria-pressed", String(on));
+      }
+      function showSaved(id) {
+        var old = document.getElementById("saved-" + id), template = document.getElementById("saved-card-" + id);
+        if (old && old.hidden) { old.remove(); old = null; }  // removed a moment ago: a fresh copy goes on top
+        if (!old && template) savedGrid.prepend(template.content.cloneNode(true));
+        refreshSaved();
+      }
+      function dropSaved(id) {
+        var card = document.getElementById("saved-" + id);
+        if (card) card.remove();
+        refreshSaved();
+      }
+
+      // Listens on the whole page, so saved cards added later work too.
+      document.addEventListener("submit", function (event) {
+        var form = event.target;
+        if (!form.matches("form[data-inplace]")) return;
+        // Browsers that don't say which button was pressed (Safari before 15.4) post the form normally.
+        if (!window.fetch || !event.submitter) return;
+        event.preventDefault();
+        var submitter = event.submitter;
+        var buttons = form.querySelectorAll("button");
+        var id = (form.action.match(/\/events\/(\d+)\//) || [])[1];
+        var name = form.dataset.name || "the event";
+        buttons.forEach(function (b) { b.disabled = true; });
+        send(form, submitter).then(function (answer) {
+          buttons.forEach(function (b) { b.disabled = false; });
+          if (!answer) return;
+          if ("rating" in answer) {
+            buttons.forEach(function (b) { b.setAttribute("aria-pressed", String(b.value === String(answer.rating))); });
+            say("Rated " + answer.rating + " out of 5.");
+          } else if (form.hasAttribute("data-remove")) {
+            var card = form.closest(".flyer");
+            card.hidden = true;
+            refreshSaved();
+            setToggle(id, false);
+            say("Removed " + name + ".", {
+              run: function () {
+                post("/events/" + id + "/save").then(function (ok) {
+                  if (!ok) { card.remove(); refreshSaved(); say("Couldn't undo. Save " + name + " again from your list."); return; }
+                  card.hidden = false;
+                  refreshSaved();
+                  setToggle(id, true);
+                  say("Saved " + name + " again.");
+                  var removeButton = card.querySelector("button");
+                  if (removeButton) removeButton.focus();
+                }).catch(function () { card.remove(); refreshSaved(); say("Couldn't undo. Save " + name + " again from your list."); });
+              },
+              expire: function () { if (card.hidden) card.remove(); }
+            });
+          } else {
+            setToggle(id, answer.saved);
+            if (answer.saved) { showSaved(id); say("Saved " + name + " for later."); }
+            else { dropSaved(id); say("Removed " + name + " from saved."); }
+          }
+        }).catch(function () {
+          // No answer: post the form the ordinary way, with the pressed button's value.
+          buttons.forEach(function (b) { b.disabled = false; });
+          if (submitter.name) {
+            var pressed = document.createElement("input");
+            pressed.type = "hidden"; pressed.name = submitter.name; pressed.value = submitter.value;
+            form.appendChild(pressed);
+          }
+          form.submit();
         });
       });
 
@@ -232,7 +336,7 @@
             navigator.share({ title: title, text: title + " (found on whatisupnyc)", url: url }).catch(function () {});
           } else if (navigator.clipboard) {
             event.preventDefault();
-            navigator.clipboard.writeText(url).then(function () { link.textContent = "Link copied"; });
+            navigator.clipboard.writeText(url).then(function () { say("Link copied. Paste it to a friend."); });
           }
         });
       });
