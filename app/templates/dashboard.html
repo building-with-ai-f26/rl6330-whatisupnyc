@@ -48,6 +48,7 @@
     .more-bar[hidden] { display: none; }
     .no-js .more-bar { position: static; background: none; justify-content: flex-start; padding: 24px 0 0; }
     .copied { color: var(--steel); font-size: 14px; }
+    .show-more-row { margin: 32px 0 0; }
     .jump { display: flex; flex-wrap: wrap; gap: 8px 22px; margin: 0 0 8px; font-size: 15px; font-weight: 600; }
     .when-group { margin: 40px 0 16px; }
     #picks > .when-group:first-child { margin-top: 24px; }
@@ -93,11 +94,13 @@
       <section id="picks" aria-label="Your picks">
       {% if groups %}
       {% for title, cards in groups %}
-      <h2 class="when-group">{{ title }}</h2>
-      <div class="grid">
+      {#- A group with only Show-more picks stays hidden with them. #}
+      {% set later = ' data-extra hidden' if cards|rejectattr('extra')|list|length == 0 else '' %}
+      <h2 class="when-group"{{ later|safe }}>{{ title }}</h2>
+      <div class="grid"{{ later|safe }}>
         {% for item in cards %}
         {% set saved_now = item.id in saved_ids %}
-        <article class="flyer" id="event-{{ item.id }}">
+        <article class="flyer" id="event-{{ item.id }}"{% if item.extra %} data-extra hidden{% endif %}>
           <div class="picture">
             {% if item.image %}<img src="{{ item.image }}" alt="" onerror="this.remove()" loading="lazy" referrerpolicy="no-referrer">{% endif %}
             <span class="plate">{{ item.plate }}</span>
@@ -115,13 +118,14 @@
         {% endfor %}
       </div>
       {% endfor %}
+      {% if extra_count %}<p class="show-more-row"><button type="button" class="plain" id="show-more">Show {{ extra_count }} more</button></p>{% endif %}
       {% else %}
       <p class="empty">Nothing new to suggest today. Come back tomorrow, or <a href="/preferences">change what you're looking for</a>.</p>
       {% endif %}
       </section>
       <div class="more-bar" id="more-bar"{% if groups %} hidden{% endif %}>
         {% if groups %}<button type="submit" form="more" id="more-button">More like these</button>
-        <p class="more-note">Makes a new list from what you ticked. Those events are saved for later, so you keep them.</p>{% endif %}
+        <p class="more-note">Adds events like the ones you ticked to the top of your list. Everything else stays.</p>{% endif %}
       </div>
 
       <section id="saved" aria-labelledby="saved-title">
@@ -311,16 +315,43 @@
         });
       });
 
+      // Show more: those picks are already in the page, so they appear at once. Telling the server
+      // they've been seen happens in the background, so later lists don't repeat them.
+      var showMore = document.getElementById("show-more");
+      if (showMore) {
+        showMore.addEventListener("click", function () {
+          var ids = [];
+          document.querySelectorAll("[data-extra]").forEach(function (element) {
+            element.hidden = false;
+            element.removeAttribute("data-extra");
+            var match = element.id && element.id.match(/^event-(\d+)$/);
+            if (match) ids.push(match[1]);
+          });
+          showMore.parentNode.remove();
+          var picksLink = document.querySelector('a[href="#picks"]');
+          picksLink.textContent = "Picks (" + document.querySelectorAll('#picks article.flyer:not([hidden])').length + ")";
+          say("Showing " + ids.length + " more.");
+          var first = document.getElementById("event-" + ids[0]);
+          if (first) { var link = first.querySelector("h3 a, button"); if (link) link.focus(); }
+          var body = new FormData();
+          ids.forEach(function (id) { body.append("event_ids", id); });
+          if (window.fetch) fetch("/newsletter/shown", { method: "POST", body: body, credentials: "same-origin",
+                                                         headers: { "X-Requested-With": "fetch" } }).catch(function () {});
+        });
+      }
+
       // More like these: once the new list is made, say so while it opens.
       var more = document.getElementById("more");
       if (more && window.fetch) {
         more.addEventListener("submit", function (event) {
           event.preventDefault();
+          var making = document.getElementById("making");
+          making.querySelector("strong").textContent = "Finding more like these…";
+          making.querySelector("p").textContent = "We're adding events like the ones you ticked to the top of your list. This can take up to a minute.";
           send(more, null).then(function (answer) {
             if (!answer) return;
-            var making = document.getElementById("making");
             making.querySelector("strong").textContent = "Opening your list…";
-            making.querySelector("p").textContent = "Your new list is ready.";
+            making.querySelector("p").textContent = "Your new picks are at the top.";
             window.location.href = answer.next;
           // No answer: the list may already be made, so open it rather than asking for another.
           }).catch(function () { window.location.href = "/newsletter"; });

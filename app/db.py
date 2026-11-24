@@ -15,7 +15,7 @@ from psycopg.types.json import Jsonb
 from psycopg_pool import ConnectionPool
 
 from app.checks import dedupe_key
-from app.models import CandidateEvent, Pick, SavedIssue, Score, ScoredEvent, Subscriber
+from app.models import CandidateEvent, Pick, SavedIssue, SavedPick, Score, ScoredEvent, Subscriber
 
 NY = ZoneInfo("America/New_York")
 
@@ -383,12 +383,14 @@ def update_profile(
 
 
 def save_issue(conn: Database, user_id: str, picks: list[Pick], now: datetime) -> None:
-    """Saves a list the AI just made, and marks its events as sent, together.
+    """Saves a list the AI just made, and marks the events shown at once as sent, together.
+    Picks behind "Show more" count as sent only when the reader reveals them (mark_sent).
 
     Written as the server's own role: readers can't write lists, so every saved pick came from code
     that confirmed it. user_id is always the signed-in reader Supabase verified.
     """
-    saved = [{"event_id": pick.event.id, "reason": pick.reason} for pick in picks]
+    saved = [{"event_id": pick.event.id, "reason": pick.reason, "more_like": pick.more_like, "extra": pick.extra}
+             for pick in picks]
     with conn.connection() as c, c.transaction():
         c.execute(
             "INSERT INTO newsletter_issues (user_id, made_on, made_at, picks) VALUES (%s, %s, %s, %s)",
@@ -396,7 +398,7 @@ def save_issue(conn: Database, user_id: str, picks: list[Pick], now: datetime) -
         )
         c.cursor().executemany(
             "INSERT INTO sent_events (user_id, event_id) VALUES (%s, %s) ON CONFLICT DO NOTHING",
-            [(user_id, pick.event.id) for pick in picks],
+            [(user_id, pick.event.id) for pick in picks if not pick.extra],
         )
 
 
@@ -408,7 +410,9 @@ def latest_issue(conn: Database, user_id: str) -> SavedIssue | None:
         ).fetchone()
     if row is None:
         return None
-    return SavedIssue(row["made_on"], row["made_at"], [(p["event_id"], p["reason"]) for p in row["picks"]])
+    return SavedIssue(row["made_on"], row["made_at"], [
+        SavedPick(p["event_id"], p["reason"], p.get("more_like", False), p.get("extra", False)) for p in row["picks"]
+    ])
 
 
 def history_event_ids(conn: Database, user_id: str) -> set[int]:
@@ -488,6 +492,25 @@ def events_by_ids(conn: Database, ids: list[int]) -> dict[int, ScoredEvent]:
 
 def mark_sent(conn: Database, user_id: str, event_ids: list[int]) -> None:
     with as_reader(conn, user_id) as c:
+        c.cursor().executemany(
+            "INSERT INTO sent_events (user_id, event_id) VALUES (%s, %s) ON CONFLICT DO NOTHING",
+            [(user_id, event_id) for event_id in event_ids],
+        )
+
+
+def reveal_picks(conn: Database, user_id: str, event_ids: list[int]) -> None:
+    """The reader tapped Show more: those picks stay shown on their latest list, and count as seen.
+    Written as the server's role (readers can't write lists), after the route checked the IDs are
+    on that list."""
+    with conn.connection() as c, c.transaction():
+        c.execute(
+            "UPDATE newsletter_issues SET picks = ("
+            "  SELECT jsonb_agg(CASE WHEN (p ->> 'event_id')::bigint = ANY(%(ids)s)"
+            "                   THEN p || '{\"extra\": false}'::jsonb ELSE p END ORDER BY n)"
+            "  FROM jsonb_array_elements(picks) WITH ORDINALITY AS t(p, n))"
+            " WHERE id = (SELECT id FROM newsletter_issues WHERE user_id = %(u)s ORDER BY made_at DESC, id DESC LIMIT 1)",
+            {"ids": event_ids, "u": user_id},
+        )
         c.cursor().executemany(
             "INSERT INTO sent_events (user_id, event_id) VALUES (%s, %s) ON CONFLICT DO NOTHING",
             [(user_id, event_id) for event_id in event_ids],

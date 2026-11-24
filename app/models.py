@@ -1,6 +1,6 @@
 from dataclasses import dataclass, field
 from datetime import date, datetime
-from typing import Literal
+from typing import Literal, NamedTuple
 
 SourceType = Literal["api", "web", "pasted"]
 Sentiment = Literal["positive", "mixed", "negative", "unknown"]
@@ -80,12 +80,23 @@ class Subscriber:
 class Pick:
     event: ScoredEvent
     reason: str
+    # Added by "More like these", shown at the top of the list.
+    more_like: bool = False
+    # Picked in the same AI call but kept behind "Show more" until the reader asks.
+    extra: bool = False
+
+
+class SavedPick(NamedTuple):
+    event_id: int
+    reason: str
+    more_like: bool = False
+    extra: bool = False
 
 
 @dataclass
 class SavedIssue:
-    """A list the AI made for a reader, as saved: (event ID, reason) in the AI's order."""
+    """A list the AI made for a reader, as saved, in the AI's order."""
 
     made_on: date
     made_at: datetime
-    picks: list[tuple[int, str]]
+    picks: list[SavedPick]
