@@ -388,3 +388,33 @@ def test_one_muse_event_that_fails_does_not_stop_the_others(conn, sites, monkeyp
     run_pipeline(conn, deps(sites, ticketmaster=EMPTY_TM), NOW)
     assert [e.event.name for e in db.eligible_events(conn, NOW)] == ["Works"]
     assert [e.name for _, e in db.waiting_intake(conn)] == ["Breaks"]  # tried again tomorrow
+
+
+def test_a_muse_resend_never_takes_down_an_event_another_source_now_owns(conn, sites):
+    from datetime import timedelta
+
+    from app.models import Score
+
+    start = NOW + timedelta(days=2)
+    db.save_intake(conn, [("https://www.instagram.com/p/GIG/", _intake("Big Gig", start), "")], NOW)
+    run_pipeline(conn, deps(sites, ticketmaster=EMPTY_TM), NOW)
+    # Another feed lists the same event later and takes the row over.
+    db.save_event(conn, make_event(name="Big Gig", start=start, venue="Grand Hall"), Score(60, True))
+    moved = _intake("Big Gig", start + timedelta(days=1))
+    db.save_intake(conn, [("https://www.instagram.com/p/GIG/", moved, "")], NOW)
+    run_pipeline(conn, deps(sites, ticketmaster=EMPTY_TM), NOW)
+    sources = sorted(e.event.source for e in db.eligible_events(conn, NOW) if e.event.name == "Big Gig")
+    assert sources == ["intake", "test"]
+
+
+def test_a_muse_resend_keeps_an_event_another_post_also_points_to(conn, sites):
+    from datetime import timedelta
+
+    start = NOW + timedelta(days=2)
+    same = _intake("Pop Market", start)
+    db.save_intake(conn, [("https://www.instagram.com/p/ONE/", same, ""), ("https://www.instagram.com/p/TWO/", same, "")], NOW)
+    run_pipeline(conn, deps(sites, ticketmaster=EMPTY_TM), NOW)
+    db.save_intake(conn, [("https://www.instagram.com/p/ONE/", _intake("Pop Market", start + timedelta(days=3)), "")], NOW)
+    run_pipeline(conn, deps(sites, ticketmaster=EMPTY_TM), NOW)
+    starts = sorted(e.event.start for e in db.eligible_events(conn, NOW) if e.event.name == "Pop Market")
+    assert starts == [start, start + timedelta(days=3)]  # post TWO still says the first date

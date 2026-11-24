@@ -136,10 +136,8 @@ def _save_intake(conn, now: datetime) -> PipelineSummary:
 
 def _save_one_intake(conn, intake_id: int, event: CandidateEvent, now: datetime) -> bool | None:
     """Whether the event is on offer to readers; None when it was dropped."""
-    earlier = db.intake_event_id(conn, intake_id)
-    if earlier is not None:
-        # A resent post replaces what it was saved as; saving it again below brings it back if unchanged.
-        db.retire_event(conn, earlier)
+    # A resent post replaces what it was saved as; saving it again below brings it back if unchanged.
+    db.retire_muse_event(conn, intake_id)
     if event.is_over(now):
         db.log_dropped(conn, event, "event has ended")
         return None
