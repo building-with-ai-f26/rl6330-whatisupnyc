@@ -90,15 +90,6 @@ def fill_event_image(conn: Database, key: str, image_url: str) -> None:
         c.execute("UPDATE events SET image_url = %s WHERE dedupe_key = %s AND image_url IS NULL", (image_url, key))
 
 
-def fill_event_details(conn: Database, key: str, image_url: str | None, end: datetime | None) -> None:
-    """Gives an already-saved event a picture and an end date, where it has none yet."""
-    with conn.connection() as c:
-        c.execute(
-            "UPDATE events SET image_url = coalesce(image_url, %s), ends_at = coalesce(ends_at, %s) WHERE dedupe_key = %s",
-            (image_url, end, key),
-        )
-
-
 def save_intake(conn: Database, items: list[tuple[str, CandidateEvent, str]], now: datetime) -> tuple[int, int]:
     """Stores events sent to /api/intake. Returns (accepted, updated): a post sent again replaces its details
     and waits for the next collection again."""
@@ -111,7 +102,8 @@ def save_intake(conn: Database, items: list[tuple[str, CandidateEvent, str]], no
                 " ON CONFLICT (post_url) DO UPDATE SET name = excluded.name, start = excluded.start,"
                 " ends_at = excluded.ends_at, venue = excluded.venue, official_url = excluded.official_url,"
                 " image_url = excluded.image_url, caption = excluded.caption, category = excluded.category,"
-                " checked_at = NULL"
+                # A resend counts toward today's limit, like a new post.
+                " received_at = excluded.received_at, received_day = excluded.received_day, checked_at = NULL"
                 " RETURNING (xmax = 0) AS inserted",
                 (post_url, event.name, event.start, event.end, event.venue, event.url or None, event.image_url,
                  caption, event.category, now, now.astimezone(NY).date()),

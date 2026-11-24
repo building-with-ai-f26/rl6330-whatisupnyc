@@ -127,8 +127,10 @@ def _save_intake(conn, now: datetime) -> PipelineSummary:
         passed += 1
         key = dedupe_key(event)
         if key in saved:
-            # Already found by another source: keep its score, and add Muse's picture and end date.
-            db.fill_event_details(conn, key, event.image_url, event.end)
+            # Already saved: keep its score and dates (Muse may not stretch another source's event),
+            # and add Muse's picture if it has none.
+            if event.image_url:
+                db.fill_event_image(conn, key, event.image_url)
             eligible += saved[key]
             continue
         outcome = score(Signals(feeds={event.source}))

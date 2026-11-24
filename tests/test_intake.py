@@ -122,6 +122,15 @@ def test_at_most_200_events_a_day(conn, sites):
     assert send(client, [event(999)]).status_code == 429
 
 
+def test_sending_a_post_again_counts_toward_the_daily_limit(conn, sites):
+    client = client_for(conn, sites, intake_hash=HASH)
+    send(client, [event(n) for n in range(200)])
+    with conn.connection() as c:  # yesterday's posts
+        c.execute("update intake_events set received_day = received_day - 1")
+    assert send(client, [event(n) for n in range(200)]).json()["updated"] == 200
+    assert send(client, [event(999)]).status_code == 429
+
+
 def test_too_large_a_body_is_refused(conn, sites):
     client = client_for(conn, sites, intake_hash=HASH)
     huge = [event(n, caption="x" * 5000) for n in range(200)]

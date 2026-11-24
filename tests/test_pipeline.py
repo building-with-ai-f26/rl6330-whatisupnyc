@@ -330,7 +330,7 @@ def test_muse_events_are_saved_without_fetching_their_page(conn, sites):
     assert db.waiting_intake(conn) == []
 
 
-def test_a_muse_event_already_found_elsewhere_keeps_its_score_and_gains_details(conn, sites):
+def test_a_muse_event_already_found_elsewhere_keeps_its_score_and_dates_and_gains_a_picture(conn, sites):
     from datetime import timedelta
 
     from app.models import Score
@@ -342,4 +342,5 @@ def test_a_muse_event_already_found_elsewhere_keeps_its_score_and_gains_details(
     run_pipeline(conn, deps(sites, ticketmaster=EMPTY_TM), NOW)
     (saved,) = [e for e in db.eligible_events(conn, NOW) if e.event.name == "Big Show"]
     assert saved.score.total == 60 and saved.event.source == "test"
-    assert saved.event.image_url == "https://cdn.example/b.jpg" and saved.event.end == copy.end
+    # Muse may not stretch another source's one-night event into a run of days.
+    assert saved.event.image_url == "https://cdn.example/b.jpg" and saved.event.end is None
