@@ -1,12 +1,15 @@
 import json
 import os
 import secrets
+import select
+import time
+import weakref
 from collections.abc import Iterator
 from contextlib import contextmanager
 from datetime import date, datetime, timedelta
 from zoneinfo import ZoneInfo
 
-from psycopg import Connection
+from psycopg import Connection, sql
 from psycopg.rows import dict_row
 from psycopg.types.json import Jsonb
 from psycopg_pool import ConnectionPool
@@ -35,16 +38,43 @@ def url_from_env() -> str:
     return url
 
 
+# The server is far from the database (about 0.26 s a trip), so a connection used this recently is
+# lent without testing it first; one idle longer is tested, so one Supabase closed overnight is replaced.
+CHECK_AFTER_IDLE_SECONDS = 30
+_returned_at: "weakref.WeakKeyDictionary[Connection, float]" = weakref.WeakKeyDictionary()
+
+
+def _note_returned(c: Connection) -> None:
+    _returned_at[c] = time.monotonic()
+
+
+def _server_said_something(c: Connection) -> bool:
+    # A connection at rest has nothing to read. Something waiting means the server is closing it.
+    try:
+        readable, _, _ = select.select([c.fileno()], [], [], 0)
+    except (OSError, ValueError):
+        return True
+    return bool(readable)
+
+
+def _check_if_idle(c: Connection) -> None:
+    idle = time.monotonic() - _returned_at.get(c, float("-inf"))
+    if idle > CHECK_AFTER_IDLE_SECONDS or _server_said_something(c):
+        ConnectionPool.check_connection(c)
+
+
 def connect(url: str) -> Database:
     return ConnectionPool(
         url,
         min_size=1,
         max_size=4,
         open=True,
-        # Checks a connection before lending it, so one Supabase closed overnight is replaced.
-        check=ConnectionPool.check_connection,
-        # Supabase's pooler doesn't support prepared statements.
-        kwargs={"autocommit": True, "row_factory": dict_row, "prepare_threshold": None},
+        check=_check_if_idle,
+        reset=_note_returned,
+        # Supabase's pooler doesn't support prepared statements. Keepalives notice a dropped
+        # connection between requests.
+        kwargs={"autocommit": True, "row_factory": dict_row, "prepare_threshold": None,
+                "keepalives": 1, "keepalives_idle": 60, "keepalives_interval": 10, "keepalives_count": 3},
     )
 
 
@@ -283,11 +313,18 @@ def as_reader(conn: Database, user_id: str) -> Iterator[Connection]:
     Inside one transaction it switches to Supabase's "authenticated" role and sets the reader's
     user ID where auth.uid() reads it. Both reset when the transaction ends.
     """
-    with conn.connection() as c, c.transaction():
-        # Both settings in one round trip; both end with the transaction (the true at the end).
-        claims = json.dumps({"sub": user_id, "role": "authenticated"})
-        c.execute("select set_config('role', 'authenticated', true), set_config('request.jwt.claims', %s, true)", (claims,))
-        yield c
+    claims = json.dumps({"sub": user_id, "role": "authenticated"})
+    with conn.connection() as c:
+        # BEGIN and both settings in one round trip; both settings end with the transaction (the true).
+        c.execute(sql.SQL(
+            "BEGIN; select set_config('role', 'authenticated', true), set_config('request.jwt.claims', {}, true)"
+        ).format(sql.Literal(claims)))
+        try:
+            yield c
+        except BaseException:
+            c.execute("ROLLBACK")
+            raise
+        c.execute("COMMIT")
 
 
 def create_profile(
@@ -429,18 +466,17 @@ def ratings(conn: Database, user_id: str) -> dict[int, int]:
 def dashboard_data(conn: Database, user_id: str) -> tuple[list[int], dict[int, int], set[int]]:
     """The reader's saved events (newest first), ratings and list history, in one lookup."""
     with as_reader(conn, user_id) as c:
-        saved = [r["event_id"] for r in c.execute(
-            "SELECT event_id FROM saved_for_later WHERE user_id = %s ORDER BY saved_at DESC, event_id", (user_id,)
-        ).fetchall()]
-        rated = {r["event_id"]: r["rating"] for r in c.execute(
-            "SELECT event_id, rating FROM event_ratings WHERE user_id = %s", (user_id,)
-        ).fetchall()}
-        history = {r["event_id"] for r in c.execute(
-            "SELECT DISTINCT (pick ->> 'event_id')::bigint AS event_id"
-            " FROM newsletter_issues, jsonb_array_elements(picks) AS pick WHERE user_id = %s",
-            (user_id,),
-        ).fetchall()}
-    return saved, rated, history
+        # One statement, so one round trip.
+        row = c.execute(
+            "SELECT"
+            " (SELECT coalesce(json_agg(event_id ORDER BY saved_at DESC, event_id), '[]')"
+            "  FROM saved_for_later WHERE user_id = %(u)s) AS saved,"
+            " (SELECT coalesce(json_object_agg(event_id, rating), '{}') FROM event_ratings WHERE user_id = %(u)s) AS rated,"
+            " (SELECT coalesce(json_agg(DISTINCT (pick ->> 'event_id')::bigint), '[]')"
+            "  FROM newsletter_issues, jsonb_array_elements(picks) AS pick WHERE user_id = %(u)s) AS history",
+            {"u": user_id},
+        ).fetchone()
+    return row["saved"], {int(k): v for k, v in row["rated"].items()}, set(row["history"])
 
 
 def events_by_ids(conn: Database, ids: list[int]) -> dict[int, ScoredEvent]:

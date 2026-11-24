@@ -156,3 +156,44 @@ def test_a_running_event_is_not_rated_until_it_ends(conn, sites):
     html = client.get("/newsletter").text
     assert f'id="rate-{jazz}"' not in html
     assert client.post(f"/events/{jazz}/rate", data={"rating": "5"}).status_code == 400
+
+
+FETCH = {"X-Requested-With": "fetch"}
+
+
+def test_buttons_on_the_page_answer_without_a_reload(conn, sites):
+    clock = Clock()
+    client, ai, ids = ready(conn, sites, clock)
+    jazz = ids["Jazz Night"]
+    assert client.post(f"/events/{jazz}/save", headers=FETCH).json() == {"saved": True}
+    assert db.saved_for_later_ids(conn, ana_id(client)) == [jazz]
+    assert client.post(f"/events/{jazz}/unsave", headers=FETCH).json() == {"saved": False}
+    clock.now = NOW + timedelta(days=4)
+    assert client.post(f"/events/{jazz}/rate", data={"rating": "4"}, headers=FETCH).json() == {"rating": 4}
+    assert db.ratings(conn, ana_id(client)) == {jazz: 4}
+
+
+def test_a_refused_button_still_says_why(conn, sites):
+    client, ai, ids = ready(conn, sites)
+    assert client.post(f"/events/{ids['Park Walk']}/save", headers=FETCH).status_code == 404
+
+
+def test_more_like_these_from_the_page_says_where_the_new_list_is(conn, sites):
+    client, ai, ids = ready(conn, sites)
+    response = client.post("/newsletter/more", data={"event_ids": [ids["Jazz Night"]]}, headers=FETCH)
+    assert response.json() == {"next": "/newsletter"}
+
+
+def test_the_page_updates_buttons_in_place_and_says_when_the_list_is_opening(conn, sites):
+    client, ai, ids = ready(conn, sites)
+    html = client.get("/newsletter").text
+    assert f'action="/events/{ids["Jazz Night"]}/save" data-inplace' in html
+    assert "Opening your list" in html
+
+
+def test_saving_an_event_deleted_since_says_not_found(conn, sites):
+    client, ai, ids = ready(conn, sites)
+    gone = ids["Comedy Cellar"]
+    with conn.connection() as c:
+        c.execute("delete from events where id = %s", (gone,))
+    assert client.post(f"/events/{gone}/save", headers=FETCH).status_code == 404
