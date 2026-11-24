@@ -7,7 +7,7 @@ import httpx
 from dotenv import load_dotenv
 
 from app import db
-from app.ai import AIClient, backup_from_env
+from app.ai import AIClient, client_from_env
 from app.checks import check_event, dedupe_key, same_event
 from app.models import CandidateEvent, Signals
 from app.pages import PageResult, fetch_page, page_image
@@ -283,9 +283,7 @@ def _default_deps(conn) -> PipelineDeps:
     return PipelineDeps(
         http=http,
         tavily=TavilyClient(http, os.environ["TAVILY_API_KEY"]),
-        ai=AIClient(
-            http, os.environ["OPENROUTER_API_KEY"], os.environ["OPENROUTER_MODEL"], conn, backup=backup_from_env()
-        ),
+        ai=client_from_env(http, conn),
         sites=load_sites(),
         reputable=load_reputable(),
         ticketmaster_key=os.environ["TICKETMASTER_API_KEY"],

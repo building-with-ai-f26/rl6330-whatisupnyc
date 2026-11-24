@@ -26,7 +26,7 @@ class DailyLimitReached(AIUnavailable):
 
 @dataclass
 class Provider:
-    """One model to send requests to. A paid backup is tried when the free one is busy or fails."""
+    """One model to send requests to. The second one is tried when the first is busy or fails."""
 
     url: str
     api_key: str
@@ -36,6 +36,18 @@ class Provider:
 def backup_from_env() -> Provider | None:
     key = os.environ.get("MINIMAX_API_KEY", "")
     return Provider(MINIMAX_URL, key, os.environ.get("MINIMAX_MODEL", "MiniMax-M3")) if key else None
+
+
+def client_from_env(http: httpx.Client, conn: db.Database) -> "AIClient":
+    """OpenRouter's free model first and MiniMax as the backup, or the other way round with
+    AI_PRIMARY=minimax (MiniMax's own API, with its own key)."""
+    free = Provider(API_URL, os.environ["OPENROUTER_API_KEY"], os.environ["OPENROUTER_MODEL"])
+    minimax = backup_from_env()
+    if os.environ.get("AI_PRIMARY", "").strip().lower() == "minimax" and minimax:
+        order = [minimax, free]
+    else:
+        order = [free] + ([minimax] if minimax else [])
+    return AIClient(http, free.api_key, free.model, conn, providers=order)
 
 
 class AIClient:
@@ -48,12 +60,14 @@ class AIClient:
         daily_limit: int = 50,
         clock: Callable[[], datetime] = lambda: datetime.now(timezone.utc),
         backup: Provider | None = None,
+        providers: list[Provider] | None = None,
     ):
         self.http = http
         self.conn = conn
         self.daily_limit = daily_limit
         self.clock = clock
-        self.providers = [Provider(API_URL, api_key, model)] + ([backup] if backup else [])
+        # In the order to try them; by default the free model, then the backup.
+        self.providers = providers or [Provider(API_URL, api_key, model)] + ([backup] if backup else [])
 
     def complete_json(self, system: str, user: str) -> dict:
         for provider in self.providers:
