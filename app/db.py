@@ -139,22 +139,22 @@ def mark_intake_checked(conn: Database, ids: list[int], now: datetime) -> None:
         c.execute("UPDATE intake_events SET checked_at = %s WHERE id = ANY(%s) AND received_at <= %s", (now, ids, now))
 
 
-def intake_event_id(conn: Database, intake_id: int) -> int | None:
-    """The event a Muse post was saved as on an earlier run, if any."""
+def retire_muse_event(conn: Database, intake_id: int) -> None:
+    """Takes the event a Muse post was saved as off future lists, because a corrected copy replaces it.
+    Only while Muse still owns that event and no other post points to it. Readers' saves and ratings stay."""
     with conn.connection() as c:
-        row = c.execute("SELECT event_id FROM intake_events WHERE id = %s", (intake_id,)).fetchone()
-    return row["event_id"] if row else None
+        c.execute(
+            "UPDATE events e SET eligible = false FROM intake_events i"
+            " WHERE i.id = %s AND e.id = i.event_id AND e.source = 'intake'"
+            " AND NOT EXISTS (SELECT 1 FROM intake_events j WHERE j.event_id = e.id AND j.id <> i.id)",
+            (intake_id,),
+        )
+        c.execute("UPDATE intake_events SET event_id = NULL WHERE id = %s", (intake_id,))
 
 
 def link_intake(conn: Database, intake_id: int, event_id: int) -> None:
     with conn.connection() as c:
         c.execute("UPDATE intake_events SET event_id = %s WHERE id = %s", (event_id, intake_id))
-
-
-def retire_event(conn: Database, event_id: int) -> None:
-    """Takes an event off future lists (a corrected copy replaces it). Readers' saves and ratings stay."""
-    with conn.connection() as c:
-        c.execute("UPDATE events SET eligible = false WHERE id = %s", (event_id,))
 
 
 def event_source_by_key(conn: Database, key: str) -> tuple[str, bool] | None:
