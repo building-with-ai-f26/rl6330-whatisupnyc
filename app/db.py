@@ -134,8 +134,34 @@ def waiting_intake(conn: Database) -> list[tuple[int, CandidateEvent]]:
 
 
 def mark_intake_checked(conn: Database, ids: list[int], now: datetime) -> None:
+    # A post resent after this run read it stays waiting, so its new details are handled next time.
     with conn.connection() as c:
-        c.execute("UPDATE intake_events SET checked_at = %s WHERE id = ANY(%s)", (now, ids))
+        c.execute("UPDATE intake_events SET checked_at = %s WHERE id = ANY(%s) AND received_at <= %s", (now, ids, now))
+
+
+def intake_event_id(conn: Database, intake_id: int) -> int | None:
+    """The event a Muse post was saved as on an earlier run, if any."""
+    with conn.connection() as c:
+        row = c.execute("SELECT event_id FROM intake_events WHERE id = %s", (intake_id,)).fetchone()
+    return row["event_id"] if row else None
+
+
+def link_intake(conn: Database, intake_id: int, event_id: int) -> None:
+    with conn.connection() as c:
+        c.execute("UPDATE intake_events SET event_id = %s WHERE id = %s", (event_id, intake_id))
+
+
+def retire_event(conn: Database, event_id: int) -> None:
+    """Takes an event off future lists (a corrected copy replaces it). Readers' saves and ratings stay."""
+    with conn.connection() as c:
+        c.execute("UPDATE events SET eligible = false WHERE id = %s", (event_id,))
+
+
+def event_source_by_key(conn: Database, key: str) -> tuple[str, bool] | None:
+    """(source, eligible) of the saved event with this duplicate key, if any."""
+    with conn.connection() as c:
+        row = c.execute("SELECT source, eligible FROM events WHERE dedupe_key = %s", (key,)).fetchone()
+    return (row["source"], row["eligible"]) if row else None
 
 
 def fill_event_image_by_id(conn: Database, event_id: int, image_url: str) -> None:

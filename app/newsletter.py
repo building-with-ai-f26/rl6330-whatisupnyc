@@ -2,7 +2,7 @@ import json
 from dataclasses import dataclass
 import re
 from collections import Counter
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
 from urllib.parse import urlparse
 from zoneinfo import ZoneInfo
@@ -93,7 +93,7 @@ def choose_picks(
             "venue": item.event.venue,
             "category": item.event.category,
             "today": _is_today(item, now),
-            **({"open_until": item.event.end.astimezone(NY).strftime("%a %b %-d, %Y")} if _runs_days(item.event) else {}),
+            **({"open_until": _last_day(item.event).strftime("%a %b %-d, %Y")} if _runs_days(item.event) else {}),
         }
         for item in available
     ]
@@ -152,7 +152,9 @@ def _clean_reason(reason) -> str:
 
 
 def _is_today(item: ScoredEvent, now: datetime) -> bool:
-    return item.event.start.astimezone(NY).date() == now.astimezone(NY).date()
+    # A market that opened last week and is still running is happening today too.
+    started_by_today = item.event.start.astimezone(NY).date() <= now.astimezone(NY).date()
+    return started_by_today and not item.event.is_over(now)
 
 
 def _sections(picks: list[Pick], now: datetime, site_url: str | None = None) -> list[dict]:
@@ -186,15 +188,20 @@ def render_newsletter(picks: list[Pick], *, now: datetime, site_url: str | None 
 
 
 def _runs_days(event) -> bool:
-    """Runs past the day it starts, like a market or a sample sale."""
-    return event.end is not None and event.end.astimezone(NY).date() > event.start.astimezone(NY).date()
+    """Runs longer than a day, like a market or a sample sale. A party that ends at 2am is one night."""
+    return event.end is not None and event.end - event.start > timedelta(hours=24)
+
+
+def _last_day(event) -> datetime:
+    # An end at midnight means the day before was the last one.
+    return (event.end - timedelta(microseconds=1)).astimezone(NY)
 
 
 def _when(event, now: datetime | None) -> str:
     local = event.start.astimezone(NY)
     day = local.strftime("%a, %b %-d")
     if _runs_days(event):
-        until = event.end.astimezone(NY).strftime("%a, %b %-d")
+        until = _last_day(event).strftime("%a, %b %-d")
         if now is None or local <= now:
             return f"Open until {until}"
         return f"From {day}, open until {until}"
@@ -248,6 +255,6 @@ def card(event: ScoredEvent, reason: str | None = None, now: datetime | None = N
         **view,
         "id": event.id,
         "image": event.event.image_url or fallback_picture(event.event),
-        "plate": event.event.end.astimezone(NY).strftime("Until %b %-d") if running else local.strftime("%a %b %-d"),
+        "plate": _last_day(event.event).strftime("Until %b %-d") if running else local.strftime("%a %b %-d"),
         "start": event.event.start,
     }

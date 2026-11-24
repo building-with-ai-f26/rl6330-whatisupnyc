@@ -350,7 +350,7 @@ def create_app(deps: AppDeps | None = None) -> FastAPI:
         events = db.events_by_ids(d.conn, list(set(saved_ids) | history))
         saved = [card(events[i], now=now) for i in saved_ids
                  if i in events and events[i].score.eligible and not events[i].event.is_over(now)]
-        went = sorted((events[i] for i in history if i in events and events[i].event.start <= now),
+        went = sorted((events[i] for i in history if i in events and events[i].event.is_over(now)),
                       key=lambda e: e.event.start, reverse=True)[:12]
         base = str(request.base_url).rstrip("/")
         html = page(
@@ -412,7 +412,7 @@ def create_app(deps: AppDeps | None = None) -> FastAPI:
             return not_on_your_lists(reader)
         d = get_deps()
         stars = int(rating) if rating.isdigit() else 0
-        if not 1 <= stars <= 5 or event.event.start > d.clock():
+        if not 1 <= stars <= 5 or not event.event.is_over(d.clock()):
             text = "Ratings go from 1 to 5, for events that have already happened."
             return finish(notice("Can't rate that", text, [("/newsletter", "Back to my list")], 400), reader)
         db.rate_event(d.conn, reader.profile.id, event_id, stars, d.clock())

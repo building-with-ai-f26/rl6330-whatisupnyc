@@ -16,7 +16,8 @@ MAX_BODY_BYTES = 512_000
 DAYS_AHEAD = 60
 # Markets and seasonal shows can run all winter; longer than this is more likely a mistake.
 LONGEST_RUN_DAYS = 180
-SOCIAL_HOSTS = ("instagram.com", "tiktok.com", "xiaohongshu.com", "xhslink.com", "facebook.com", "threads.net")
+SOCIAL_HOSTS = ("instagram.com", "instagr.am", "tiktok.com", "xiaohongshu.com", "xhslink.com", "rednote.com",
+                "facebook.com", "fb.com", "fb.me", "threads.net", "x.com", "twitter.com")
 # Where social apps keep their pictures. Those links expire, and readers must not see a social origin.
 SOCIAL_IMAGE_HOSTS = SOCIAL_HOSTS + ("cdninstagram.com", "fbcdn.net", "tiktokcdn.com", "tiktokcdn-us.com", "xhscdn.com")
 
@@ -65,7 +66,7 @@ def check(item, now: datetime) -> tuple[tuple[str, CandidateEvent, str] | None, 
         return None, f"start is more than {DAYS_AHEAD} days away"
     official = text["official_url"]
     # Readers click this link, and nothing else confirms the event, so every event needs one.
-    if not official.startswith("https://") or len(official) > 1000:
+    if not official.startswith("https://") or not urlparse(official).hostname or len(official) > 1000:
         return None, "official_url must be an https link to the event's own page"
     if _on(urlparse(official).hostname or "", SOCIAL_HOSTS):
         return None, "official_url must be the event's own page, not a social media post"

@@ -114,31 +114,46 @@ def run_pipeline(conn, deps: PipelineDeps, now: datetime) -> PipelineSummary:
 
 
 def _save_intake(conn, now: datetime) -> PipelineSummary:
-    """Events Muse sent to /api/intake. Muse is a trusted feed: /api/intake already ran the plain checks
+    """Events Muse sent to /api/intake. Muse is a trusted feed: /api/intake already ran the plain checks,
     and its events are saved as sent, without fetching their pages."""
     waiting = db.waiting_intake(conn)
-    saved = db.saved_event_keys(conn)
     passed = dropped = eligible = 0
-    for _, event in waiting:
-        if event.is_over(now):
-            db.log_dropped(conn, event, "event has ended")
+    for intake_id, event in waiting:
+        try:
+            outcome = _save_one_intake(conn, intake_id, event, now)
+        except Exception:
+            # Left waiting, so tomorrow's run tries it again; the rest still go through.
+            log.exception("Could not save an event sent to intake")
+            continue
+        db.mark_intake_checked(conn, [intake_id], now)
+        if outcome is None:
             dropped += 1
-            continue
-        passed += 1
-        key = dedupe_key(event)
-        if key in saved:
-            # Already saved: keep its score and dates (Muse may not stretch another source's event),
-            # and add Muse's picture if it has none.
-            if event.image_url:
-                db.fill_event_image(conn, key, event.image_url)
-            eligible += saved[key]
-            continue
-        outcome = score(Signals(feeds={event.source}))
-        db.save_event(conn, event, outcome)
-        saved[key] = outcome.eligible
-        eligible += outcome.eligible
-    db.mark_intake_checked(conn, [intake_id for intake_id, _ in waiting], now)
+        else:
+            passed += 1
+            eligible += outcome
     return PipelineSummary(len(waiting), passed, dropped, eligible)
+
+
+def _save_one_intake(conn, intake_id: int, event: CandidateEvent, now: datetime) -> bool | None:
+    """Whether the event is on offer to readers; None when it was dropped."""
+    earlier = db.intake_event_id(conn, intake_id)
+    if earlier is not None:
+        # A resent post replaces what it was saved as; saving it again below brings it back if unchanged.
+        db.retire_event(conn, earlier)
+    if event.is_over(now):
+        db.log_dropped(conn, event, "event has ended")
+        return None
+    key = dedupe_key(event)
+    existing = db.event_source_by_key(conn, key)
+    if existing and existing[0] != event.source:
+        # Found by another source: keep its score and dates (Muse may not stretch another source's
+        # event into a run of days), and add Muse's picture if it has none.
+        if event.image_url:
+            db.fill_event_image(conn, key, event.image_url)
+        return existing[1]
+    outcome = score(Signals(feeds={event.source}))
+    db.link_intake(conn, intake_id, db.save_event(conn, event, outcome))
+    return outcome.eligible
 
 
 def _check_waiting_pastes(conn, deps: PipelineDeps, now: datetime) -> None:

@@ -98,6 +98,9 @@ def test_bad_events_are_rejected_with_reasons(conn, sites):
         event(16, image_url="https://scontent-lga3-1.cdninstagram.com/v/p.jpg"),
         event(17, image_url="https://scontent.xx.fbcdn.net/p.jpg"),
         event(18, image_url="not a link"),
+        event(19, official_url="https://x.com/venue/status/1"),
+        event(20, official_url="https://fb.me/abc"),
+        event(21, official_url="https:///no-host"),
     ]
     body = send(client, bad + [event(9)]).json()
     assert body["accepted"] == 1

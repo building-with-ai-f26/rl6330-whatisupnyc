@@ -52,3 +52,23 @@ def test_the_ai_is_told_how_long_it_runs():
     ai = ChoosingAI()
     choose_picks(SUB, [scored(**MARKET)], ai, now=NOW)
     assert '"open_until": "Mon Mar 1, 2027"' in ai.prompts[-1]
+
+
+def test_a_late_night_party_is_not_a_multi_day_event():
+    item = card(scored(name="Party", start=datetime(2026, 11, 27, 21, tzinfo=NY),
+                       end=datetime(2026, 11, 28, 2, tzinfo=NY)), now=NOW)
+    assert item["when"] == "Fri, Nov 27, 9:00 PM" and item["plate"] == "Fri Nov 27"
+
+
+def test_an_end_at_midnight_counts_as_the_day_before():
+    item = card(scored(name="Market", start=datetime(2026, 11, 20, 10, tzinfo=NY),
+                       end=datetime(2026, 12, 1, 0, tzinfo=NY)), now=NOW)
+    assert item["when"] == "Open until Mon, Nov 30" and item["plate"] == "Until Nov 30"
+
+
+def test_a_running_event_is_happening_today():
+    html = render_newsletter([Pick(scored(**MARKET), "Fits: markets")], now=NOW)
+    assert html.index("Happening today") < html.index("Winter Market")
+    ai = ChoosingAI()
+    choose_picks(SUB, [scored(**MARKET)], ai, now=NOW)
+    assert '"today": true' in ai.prompts[-1]
