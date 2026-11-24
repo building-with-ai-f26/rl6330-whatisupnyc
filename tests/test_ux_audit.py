@@ -26,13 +26,15 @@ def test_focus_ring_is_black_on_white_and_yellow_on_black():
 
 # 2. Save is one toggle that says whether it's on, and saving is announced.
 def test_save_is_a_toggle_with_a_steady_name(conn, sites):
+    # The visible words stay "Save for later", so they are also its name (WCAG 2.5.3): voice
+    # control users can say them. aria-pressed and the check mark show it's on.
     client, ai, ids = ready(conn, sites)
     jazz = ids["Jazz Night"]
     card = card_html(client.get("/newsletter").text, jazz)
-    assert 'aria-label="Save for later" aria-pressed="false"' in card
+    assert 'aria-pressed="false">Save for later</button>' in card
     client.post(f"/events/{jazz}/save")
     card = card_html(client.get("/newsletter").text, jazz)
-    assert 'aria-label="Save for later" aria-pressed="true"' in card and ">Saved<" in card
+    assert 'aria-pressed="true">Save for later</button>' in card and "aria-label" not in card
 
 
 def test_the_page_has_a_place_to_announce_what_happened(conn, sites):
@@ -95,13 +97,60 @@ def test_picks_are_grouped_today_weekend_coming_up(conn, sites):
     html = open_list(client).text
     order = [html.index(text) for text in
              ("Happening today", "Tonight Show", "This weekend", "Saturday Market", "Coming up", "Next Week Talk")]
+    assert "This week<" not in html  # nothing between today and the weekend
     assert order == sorted(order)
 
 
 def test_empty_groups_are_left_out(conn, sites):
     client, ai, ids = ready(conn, sites)  # both picks are on Thursday
     html = client.get("/newsletter").text
-    assert "Coming up" in html and "Happening today" not in html and "This weekend" not in html
+    assert "This week" in html and "Happening today" not in html and "This weekend" not in html
+
+
+def groups_on(now, *starts):
+    from app.models import Pick, Score, ScoredEvent
+    from app.newsletter import dashboard_groups
+    from tests.conftest import make_event
+
+    picks = [Pick(ScoredEvent(n, make_event(name=f"E{n}", start=start), Score(20, True)), "") for n, start in enumerate(starts)]
+    return [(title, [p.event.event.name for p in group]) for title, group in dashboard_groups(picks, now)]
+
+
+def test_groups_follow_time_order_on_every_weekday():
+    from datetime import datetime
+
+    from tests.conftest import NY
+
+    for day in range(2, 9):  # Mon Nov 2 to Sun Nov 8, 2026
+        now = datetime(2026, 11, day, 12, tzinfo=NY)
+        starts = [now + timedelta(hours=h) for h in (6, 30, 54, 78, 102, 126, 150, 174)]
+        groups = groups_on(now, *starts)
+        names = [name for _, group in groups for name in group]
+        assert names == [f"E{n}" for n in range(8)], (day, groups)  # soonest first, each once
+        titles = [t for t, _ in groups]
+        order = ["Happening today", "This week", "This weekend", "Coming up"]
+        assert titles == [t for t in order if t in titles], (day, titles)
+
+
+def test_a_thursday_event_seen_on_monday_is_this_week():
+    from datetime import datetime
+
+    from tests.conftest import NY
+
+    monday = datetime(2026, 11, 2, 12, tzinfo=NY)
+    groups = dict(groups_on(monday, datetime(2026, 11, 5, 19, tzinfo=NY), datetime(2026, 11, 7, 14, tzinfo=NY)))
+    assert groups == {"This week": ["E0"], "This weekend": ["E1"]}
+
+
+def test_picks_that_already_ended_are_left_out():
+    from datetime import datetime
+
+    from tests.conftest import NY
+
+    afternoon = datetime(2026, 11, 2, 15, tzinfo=NY)
+    groups = groups_on(afternoon, datetime(2026, 11, 2, 10, tzinfo=NY), datetime(2026, 10, 31, 20, tzinfo=NY),
+                       datetime(2026, 11, 2, 19, tzinfo=NY))
+    assert groups == [("Happening today", ["E2"])]
 
 
 # 9. "More like this" is its own line, apart from the buttons.

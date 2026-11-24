@@ -84,14 +84,14 @@
       {% if error %}<p class="notice" role="status">{{ error }}</p>{% endif %}
 
       <nav class="jump" aria-label="On this page">
-        <a href="#picks">Picks ({{ picks|length }})</a>
+        <a href="#picks">Picks ({{ pick_count }})</a>
         <a data-count="saved" href="#saved">Saved ({{ saved|length }})</a>
         <a href="#rate">To rate ({{ to_rate|length }})</a>
       </nav>
 
       <form id="more" method="post" action="/newsletter/more" data-making></form>
       <section id="picks" aria-label="Your picks">
-      {% if picks %}
+      {% if groups %}
       {% for title, cards in groups %}
       <h2 class="when-group">{{ title }}</h2>
       <div class="grid">
@@ -106,7 +106,7 @@
           <p class="where">{{ item.when }} · {{ item.venue }}</p>
           {% if item.reason %}<p class="why">{{ item.reason }}</p>{% endif %}
           <div class="tools">
-            <form method="post" action="/events/{{ item.id }}/{{ 'unsave' if saved_now else 'save' }}" data-inplace data-toggle data-id="{{ item.id }}" data-name="{{ item.name }}"><button class="plain toggle" type="submit" aria-label="Save for later" aria-pressed="{{ 'true' if saved_now else 'false' }}">{{ 'Saved' if saved_now else 'Save for later' }}</button></form>
+            <form method="post" action="/events/{{ item.id }}/{{ 'unsave' if saved_now else 'save' }}" data-inplace data-toggle data-id="{{ item.id }}" data-name="{{ item.name }}"><button class="plain toggle" type="submit" aria-pressed="{{ 'true' if saved_now else 'false' }}">Save for later</button></form>
             <a class="share" href="/e/{{ item.id }}" data-share-url="{{ share_base }}/e/{{ item.id }}" data-share-title="{{ item.name }}">Share</a>
           </div>
           <label class="pick"><input type="checkbox" name="event_ids" value="{{ item.id }}" form="more"> More like this</label>
@@ -119,13 +119,13 @@
       <p class="empty">Nothing new to suggest today. Come back tomorrow, or <a href="/preferences">change what you're looking for</a>.</p>
       {% endif %}
       </section>
-      <div class="more-bar" id="more-bar"{% if picks %} hidden{% endif %}>
-        {% if picks %}<button type="submit" form="more" id="more-button">More like these</button>
+      <div class="more-bar" id="more-bar"{% if groups %} hidden{% endif %}>
+        {% if groups %}<button type="submit" form="more" id="more-button">More like these</button>
         <p class="more-note">Makes a new list from what you ticked. Those events are saved for later, so you keep them.</p>{% endif %}
       </div>
 
       <section id="saved" aria-labelledby="saved-title">
-        <h2 id="saved-title">Saved for later</h2>
+        <h2 id="saved-title" tabindex="-1">Saved for later</h2>
         <div class="grid" id="saved-grid"{% if not saved %} hidden{% endif %}>
           {% for item in saved %}{% include "partials/saved_card.html" %}{% endfor %}
         </div>
@@ -182,21 +182,48 @@
         });
       }
       // A short message at the bottom, read out by screen readers; Undo when there's something to undo.
-      var announce = document.getElementById("announce"), toastTimer;
-      function say(text, undo) {
+      // The timer pauses while the pointer or keyboard focus is on the message.
+      var announce = document.getElementById("announce"), toastTimer = null, pending = null;
+      function finishToast() {
         clearTimeout(toastTimer);
+        var hadFocus = announce.contains(document.activeElement);
         announce.textContent = "";
+        if (pending) { var last = pending; pending = null; last.expire(); }
+        if (hadFocus) document.getElementById("saved-title").focus();
+      }
+      function startTimer() {
+        clearTimeout(toastTimer);
+        if (announce.querySelector(":focus-visible")) return;  // a keyboard user is on it: wait for them
+        toastTimer = setTimeout(finishToast, pending ? 8000 : 3500);
+      }
+      announce.addEventListener("mouseenter", function () { clearTimeout(toastTimer); });
+      announce.addEventListener("focusin", function (event) {
+        // Keyboard focus (not focus moved there after a mouse click) holds the message until it leaves.
+        if (event.target.matches(":focus-visible")) clearTimeout(toastTimer);
+      });
+      ["mouseleave", "focusout"].forEach(function (type) {
+        announce.addEventListener(type, function () { if (announce.textContent) startTimer(); });
+      });
+      function say(text, undo) {
+        finishToast();  // an earlier Undo that wasn't used is settled first
         var words = document.createElement("span");
         words.textContent = text;
         announce.appendChild(words);
         if (undo) {
+          pending = undo;
           var again = document.createElement("button");
           again.type = "button";
           again.textContent = "Undo";
-          again.addEventListener("click", function () { clearTimeout(toastTimer); announce.textContent = ""; undo.run(); });
+          again.addEventListener("click", function () {
+            pending = null;
+            clearTimeout(toastTimer);
+            announce.textContent = "";
+            undo.run();
+          });
           announce.appendChild(again);
+          again.focus();  // the button that was pressed is gone, so keyboard users land on Undo
         }
-        toastTimer = setTimeout(function () { announce.textContent = ""; if (undo) undo.expire(); }, undo ? 6000 : 3500);
+        startTimer();
       }
       function post(url) {
         return fetch(url, { method: "POST", credentials: "same-origin", headers: { "X-Requested-With": "fetch" } })
@@ -216,13 +243,12 @@
         var form = document.querySelector('form[data-toggle][data-id="' + id + '"]');
         if (!form) return;
         form.action = "/events/" + id + (on ? "/unsave" : "/save");
-        var button = form.querySelector("button");
-        button.setAttribute("aria-pressed", String(on));
-        button.textContent = on ? "Saved" : "Save for later";
+        form.querySelector("button").setAttribute("aria-pressed", String(on));
       }
       function showSaved(id) {
-        var template = document.getElementById("saved-card-" + id);
-        if (!document.getElementById("saved-" + id) && template) savedGrid.prepend(template.content.cloneNode(true));
+        var old = document.getElementById("saved-" + id), template = document.getElementById("saved-card-" + id);
+        if (old && old.hidden) { old.remove(); old = null; }  // removed a moment ago: a fresh copy goes on top
+        if (!old && template) savedGrid.prepend(template.content.cloneNode(true));
         refreshSaved();
       }
       function dropSaved(id) {
@@ -257,12 +283,14 @@
             say("Removed " + name + ".", {
               run: function () {
                 post("/events/" + id + "/save").then(function (ok) {
-                  if (!ok) return;
+                  if (!ok) { card.remove(); refreshSaved(); say("Couldn't undo. Save " + name + " again from your list."); return; }
                   card.hidden = false;
                   refreshSaved();
                   setToggle(id, true);
                   say("Saved " + name + " again.");
-                });
+                  var removeButton = card.querySelector("button");
+                  if (removeButton) removeButton.focus();
+                }).catch(function () { card.remove(); refreshSaved(); say("Couldn't undo. Save " + name + " again from your list."); });
               },
               expire: function () { if (card.hidden) card.remove(); }
             });
