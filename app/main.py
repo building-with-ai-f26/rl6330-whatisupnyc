@@ -375,6 +375,10 @@ def create_app(deps: AppDeps | None = None) -> FastAPI:
             return None
         return db.events_by_ids(d.conn, [event_id]).get(event_id)
 
+    def from_page_script(request: Request) -> bool:
+        """Sent by the dashboard's own buttons, which update the page in place instead of reloading it."""
+        return request.headers.get("x-requested-with") == "fetch"
+
     def not_on_your_lists(reader: Reader) -> HTMLResponse:
         return finish(notice("Not found", "That event isn't on your lists.", [("/newsletter", "Back to my list")], 404), reader)
 
@@ -385,9 +389,13 @@ def create_app(deps: AppDeps | None = None) -> FastAPI:
             return reader
         if over_limit(request, "event_actions"):
             return too_many(request)
-        if event_on_readers_lists(reader, event_id) is None:
+        d = get_deps()
+        # The list history alone answers this (the events table guards that the event exists).
+        if event_id not in db.history_event_ids(d.conn, reader.profile.id):
             return not_on_your_lists(reader)
-        db.save_for_later(get_deps().conn, reader.profile.id, event_id, get_deps().clock())
+        db.save_for_later(d.conn, reader.profile.id, event_id, d.clock())
+        if from_page_script(request):
+            return finish(JSONResponse({"saved": True}), reader)
         return finish(RedirectResponse(f"/newsletter#event-{event_id}", status_code=303), reader)
 
     @app.post("/events/{event_id}/unsave")
@@ -398,6 +406,8 @@ def create_app(deps: AppDeps | None = None) -> FastAPI:
         if over_limit(request, "event_actions"):
             return too_many(request)
         db.unsave(get_deps().conn, reader.profile.id, event_id)
+        if from_page_script(request):
+            return finish(JSONResponse({"saved": False}), reader)
         return finish(RedirectResponse(f"/newsletter#event-{event_id}", status_code=303), reader)
 
     @app.post("/events/{event_id}/rate")
@@ -416,6 +426,8 @@ def create_app(deps: AppDeps | None = None) -> FastAPI:
             text = "Ratings go from 1 to 5, for events that have already happened."
             return finish(notice("Can't rate that", text, [("/newsletter", "Back to my list")], 400), reader)
         db.rate_event(d.conn, reader.profile.id, event_id, stars, d.clock())
+        if from_page_script(request):
+            return finish(JSONResponse({"rating": stars}), reader)
         return finish(RedirectResponse(f"/newsletter#rate-{event_id}", status_code=303), reader)
 
     def listed_reader(request: Request) -> Reader | Response:
@@ -451,6 +463,9 @@ def create_app(deps: AppDeps | None = None) -> FastAPI:
             saved_lists.make_list(d.conn, d.ai, reader.profile, d.clock(), more_like_ids=chosen)
         except AIUnavailable:
             return finish(notice("Please try again", AI_BUSY, [("/newsletter", "Back to my list")], 503), reader)
+        if from_page_script(request):
+            # The page then says "Opening your list…" instead of still "Making your list…".
+            return finish(JSONResponse({"next": "/newsletter"}), reader)
         return finish(RedirectResponse("/newsletter", status_code=303), reader)
 
     def signed_in_reader(request: Request) -> Reader | Response:

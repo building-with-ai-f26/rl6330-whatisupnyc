@@ -86,9 +86,9 @@
           {% if item.reason %}<p class="why">{{ item.reason }}</p>{% endif %}
           <div class="tools">
             {% if item.id in saved_ids %}
-            <form method="post" action="/events/{{ item.id }}/unsave"><button class="plain" type="submit">Saved</button></form>
+            <form method="post" action="/events/{{ item.id }}/unsave" data-inplace><button class="plain" type="submit">Saved</button></form>
             {% else %}
-            <form method="post" action="/events/{{ item.id }}/save"><button class="plain" type="submit">Save for later</button></form>
+            <form method="post" action="/events/{{ item.id }}/save" data-inplace><button class="plain" type="submit">Save for later</button></form>
             {% endif %}
             <a class="share" href="/e/{{ item.id }}" data-share-url="{{ share_base }}/e/{{ item.id }}" data-share-title="{{ item.name }}">Share</a>
             <label class="pick"><input type="checkbox" name="event_ids" value="{{ item.id }}" form="more"> More like this</label>
@@ -117,7 +117,7 @@
             <h3>{% if item.url %}<a href="{{ item.url }}" rel="noopener" target="_blank">{{ item.name }}</a>{% else %}{{ item.name }}{% endif %}</h3>
             <p class="where">{{ item.when }} · {{ item.venue }}</p>
             <div class="tools">
-              <form method="post" action="/events/{{ item.id }}/unsave"><button class="plain" type="submit">Remove</button></form>
+              <form method="post" action="/events/{{ item.id }}/unsave" data-inplace data-remove><button class="plain" type="submit">Remove</button></form>
               <a class="share" href="/e/{{ item.id }}" data-share-url="{{ share_base }}/e/{{ item.id }}" data-share-title="{{ item.name }}">Share</a>
             </div>
           </article>
@@ -135,7 +135,7 @@
           {% for item in to_rate %}
           <li id="rate-{{ item.id }}">
             <div><div class="name">{{ item.name }}</div><div class="when">{{ item.when }} · {{ item.venue }}</div></div>
-            <form class="stars" method="post" action="/events/{{ item.id }}/rate">
+            <form class="stars" method="post" action="/events/{{ item.id }}/rate" data-inplace>
               {% for n in range(1, 6) %}
               <button type="submit" name="rating" value="{{ n }}" aria-label="Rate {{ n }} out of 5" aria-pressed="{{ 'true' if ratings.get(item.id) == n else 'false' }}">{{ n }}</button>
               {% endfor %}
@@ -163,6 +163,54 @@
         button.textContent = count > 1 ? "More like these " + count : "More like this";
       }
       boxes.forEach(function (box) { box.addEventListener("change", update); });
+
+      // Save, Remove and ratings update the page in place, instead of reloading the whole list.
+      // Anything refused shows the server's page, which says why.
+      function send(form, submitter) {
+        var body = new FormData(form);
+        if (submitter && submitter.name) body.append(submitter.name, submitter.value);
+        return fetch(form.action, { method: "POST", body: body, credentials: "same-origin",
+                                    headers: { "X-Requested-With": "fetch" } }).then(function (response) {
+          if (response.ok) return response.json();
+          return response.text().then(function (html) { document.open(); document.write(html); document.close(); });
+        });
+      }
+      document.querySelectorAll("form[data-inplace]").forEach(function (form) {
+        form.addEventListener("submit", function (event) {
+          if (!window.fetch) return;
+          event.preventDefault();
+          var submitter = event.submitter || form.querySelector("button");
+          var buttons = form.querySelectorAll("button");
+          buttons.forEach(function (b) { b.disabled = true; });
+          send(form, submitter).then(function (answer) {
+            buttons.forEach(function (b) { b.disabled = false; });
+            if (!answer) return;
+            if ("rating" in answer) {
+              buttons.forEach(function (b) { b.setAttribute("aria-pressed", String(b.value === String(answer.rating))); });
+            } else if (form.hasAttribute("data-remove")) {
+              form.closest(".flyer").remove();
+            } else {
+              form.action = form.action.replace(/\/(save|unsave)$/, answer.saved ? "/unsave" : "/save");
+              submitter.textContent = answer.saved ? "Saved" : "Save for later";
+            }
+          }).catch(function () { buttons.forEach(function (b) { b.disabled = false; }); form.submit(); });
+        });
+      });
+
+      // More like these: once the new list is made, say so while it opens.
+      var more = document.getElementById("more");
+      if (more && window.fetch) {
+        more.addEventListener("submit", function (event) {
+          event.preventDefault();
+          send(more, null).then(function (answer) {
+            if (!answer) return;
+            var making = document.getElementById("making");
+            making.querySelector("strong").textContent = "Opening your list…";
+            making.querySelector("p").textContent = "Your new list is ready.";
+            window.location.href = answer.next;
+          }).catch(function () { more.submit(); });
+        });
+      }
 
       // Share with the phone's share sheet, or copy the link.
       document.querySelectorAll("[data-share-url]").forEach(function (link) {

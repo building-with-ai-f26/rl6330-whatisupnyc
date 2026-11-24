@@ -151,11 +151,12 @@ def test_waiting_pastes_listed_without_limit_by_default(conn):
 
 
 def test_pool_recovers_after_connection_is_killed(conn):
-    # Supabase can close an idle connection; the next request must still work.
+    # Supabase can close a connection, even one used moments ago; the next request must still work.
     db.save_waiting_paste(conn, "https://www.tiktok.com/@a/1", "")
     with psycopg.connect(TEST_URL, autocommit=True) as killer:
+        # Waits until each connection is really closed, as one closed overnight would be.
         killer.execute(
-            "select pg_terminate_backend(pid) from pg_stat_activity"
+            "select pg_terminate_backend(pid, 5000) from pg_stat_activity"
             " where datname = current_database() and pid <> pg_backend_pid()"
         )
     assert db.count_waiting_pastes(conn) == 1
