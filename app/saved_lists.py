@@ -21,7 +21,7 @@ PICKS_SHOWN = 8
 def _carried(conn: db.Database, reader: Subscriber, now: datetime) -> list[Pick]:
     """The picks "More like these" keeps: today's list for the reader's current preferences, without
     events that are over. An older list (left open overnight, or from before new preferences) isn't kept."""
-    latest = db.latest_issue(conn, reader.id)
+    latest = db.latest_issue(conn, reader.id, reader.list_id)
     if latest is None or needs_new_list(latest, reader, now):
         return []
     return [Pick(p.event, p.reason, False, p.extra) for p in saved_picks(conn, latest) if not p.event.event.is_over(now)]
@@ -88,5 +88,5 @@ def make_list(
         current = [Pick(p.event, p.reason, False, p.extra and p.event.id not in seen)
                    for p in _carried(conn, reader, now) if p.event.id not in new_ids]
     picks = new + current
-    db.save_issue(conn, reader.id, picks, now)
+    db.save_issue(conn, reader.id, picks, now, reader.list_id)
     return picks

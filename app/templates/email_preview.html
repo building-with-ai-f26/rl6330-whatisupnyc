@@ -1,16 +1,16 @@
 {% extends "partials/account_page.html" %}
 {% block title %}Email version{% endblock %}
-{% block header_link %}<a href="/newsletter">Back to my list</a>{% endblock %}
+{% block header_link %}<a href="/newsletter{{ list_query }}">Back to my list</a>{% endblock %}
 {% block content %}
 <h2>Your list, email version</h2>
 {% if body %}
 <p>This is the compact version of your list, sized for an inbox.</p>
 {% if can_send %}
-<form method="post" action="/newsletter/email"><button type="submit">Send it to my email</button></form>
+<form method="post" action="/newsletter/email{{ list_query }}"><button type="submit">Send it to my email</button></form>
 {% endif %}
 <div style="margin-top: 28px; border: 1px solid #d6d6d2; padding: 16px 0;">{{ body|safe }}</div>
 {% else %}
-<p>You have no list yet. <a href="/newsletter">Make today's list</a> first, then come back for the email version.</p>
+<p>You have no list yet. <a href="/newsletter{{ list_query }}">Make today's list</a> first, then come back for the email version.</p>
 {% endif %}
-<p class="links"><a href="/newsletter">Back to my list</a></p>
+<p class="links"><a href="/newsletter{{ list_query }}">Back to my list</a></p>
 {% endblock %}

@@ -129,11 +129,11 @@ def test_one_reader_failing_does_not_stop_the_others(conn, sites, monkeypatch):
     real = db.latest_issue
     calls = {"n": 0}
 
-    def first_breaks(c, user_id):
+    def first_breaks(c, user_id, *rest):
         calls["n"] += 1
         if calls["n"] == 1:
             raise RuntimeError("connection dropped")
-        return real(c, user_id)
+        return real(c, user_id, *rest)
 
     monkeypatch.setattr(db, "latest_issue", first_breaks)
     resend, result = run(conn)
@@ -158,7 +158,8 @@ def test_resend_is_told_to_drop_a_repeat(conn, sites):
 
     http = httpx.Client(transport=httpx.MockTransport(resend))
     send_due_lists(conn, ChoosingAI(), http, "re_key", "https://whatisupnyc.com", NOW)
-    assert seen == [f"daily-{ana_id(client)}-2026-11-02"]
+    (list_id, _), = db.reader_lists(conn, ana_id(client))
+    assert seen == [f"daily-{ana_id(client)}-{list_id}-2026-11-02"]  # one key per list and day
 
 
 def test_the_ai_limit_stops_the_run(conn, sites):

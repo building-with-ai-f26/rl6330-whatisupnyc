@@ -16,6 +16,14 @@
     form button { margin-top: 24px; }
     .links { display: flex; flex-wrap: wrap; gap: 8px 20px; margin-top: 24px; }
     select { display: block; min-width: 200px; font: inherit; padding: 12px 14px; border: 1px solid var(--black); border-radius: 4px; background: var(--white); color: var(--black); }
+    .note { margin: 6px 0 0; color: #555; font-size: 15px; }
+    .chips { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+    .chips button { margin: 0; background: var(--white); color: var(--black); border: 1px solid var(--black); border-radius: 999px; padding: 7px 14px; font-size: 15px; font-weight: 500; }
+    .chips button[aria-pressed="true"] { background: var(--black); color: var(--white); }
+    .every { margin: 0 0 10px; background: var(--white); color: var(--black); border: 1px solid var(--black); border-radius: 4px; padding: 8px 16px; font-weight: 600; }
+    .every[aria-pressed="true"] { background: var(--taxi); border-color: var(--taxi); }
+    .delete-list { margin-top: 32px; }
+    .delete-list button { color: #a00; text-decoration: underline; }
     label.check { display: flex; align-items: center; gap: 10px; font-weight: 600; margin: 24px 0 0; }
     label.check input { width: 22px; height: 22px; margin: 0; accent-color: var(--black); }
     input[type=text], textarea { width: 100%; font: inherit; padding: 12px 14px; border: 1px solid var(--black); border-radius: 4px; }

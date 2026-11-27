@@ -49,12 +49,15 @@ def signed_in_ana(client):
     return client.post("/signin", data={"email": GOOD["email"], "password": GOOD["password"]})
 
 
-def open_list(client):
-    """Opens /newsletter as a browser would: when it answers with the quick "Making your list…"
+def open_list(client, path="/newsletter"):
+    """Opens a list as a browser would: when it answers with the quick "Making your list…"
     page, goes on to the request that makes the list, and returns that answer."""
-    response = client.get("/newsletter")
-    if f'location.replace("{main.MAKE_LIST}")' in response.text:
-        return client.get(main.MAKE_LIST)
+    import re
+
+    response = client.get(path)
+    making = re.search(r'location\.replace\("(/newsletter\?[^"]*make=1[^"]*)"\)', response.text)
+    if making:
+        return client.get(making.group(1).replace("&amp;", "&").replace("\\u0026", "&"))
     return response
 
 

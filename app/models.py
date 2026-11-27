@@ -74,6 +74,10 @@ class Subscriber:
     days: list[str]
     # When the reader last saved preferences; a list made before this is out of date.
     changed_at: datetime | None = None
+    # Which of the reader's lists these preferences are ("Music", "Sport"), and all their lists as (id, title).
+    list_id: int | None = None
+    title: str = ""
+    lists: list[tuple[int, str]] = field(default_factory=list)
 
 
 @dataclass

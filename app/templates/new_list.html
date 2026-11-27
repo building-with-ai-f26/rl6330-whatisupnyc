@@ -1,0 +1,60 @@
+{% extends "partials/account_page.html" %}
+{% block title %}Add a list{% endblock %}
+{% block header_link %}<a href="/newsletter">Back to my list</a>{% endblock %}
+{% block content %}
+<h2>Add a list</h2>
+<p>A separate list for something else you like, such as music or sport, with its own days and email time. Events never repeat between your lists.</p>
+{% if message %}<p class="notice" role="status">{{ message }}</p>{% endif %}
+<form method="post" action="/lists/new" data-busy="Adding…">
+  <label for="title">Name of the list</label>
+  <input id="title" name="title" type="text" required maxlength="40" placeholder="Music, Sport, Weekends" value="{{ form.title }}">
+  <label for="interests">What kind of events should it have?</label>
+  <textarea id="interests" name="interests" rows="3" required aria-describedby="picks-note">{{ form.interests }}</textarea>
+  <p class="note" id="picks-note">Tap any that fit to add them, or write your own.</p>
+  <div class="chips" role="group" aria-label="Quick picks">
+    {% for label, text in templates.items() %}<button type="button" data-text="{{ text }}" aria-pressed="false">{{ label }}</button>{% endfor %}
+  </div>
+  <fieldset>
+    <legend>Which days do you want it?</legend>
+    <button type="button" id="every-day" class="every" aria-pressed="false">Every day</button>
+    <div class="days">
+      {% for day in days %}<label><input type="checkbox" name="days" value="{{ day }}" aria-label="{{ day }}"{% if day in form.days %} checked{% endif %}><span aria-hidden="true">{{ day[:3] }}</span></label>{% endfor %}
+    </div>
+  </fieldset>
+  <label for="send_hour">What time should we email it? (New York time)</label>
+  <select id="send_hour" name="send_hour">
+    {% for hour, label in send_hours %}<option value="{{ hour }}"{% if hour == form.send_hour %} selected{% endif %}>{{ label }}</option>{% endfor %}
+  </select>
+  <button type="submit">Add this list</button>
+</form>
+<p class="links"><a href="/newsletter">Cancel and go back to my list</a></p>
+<script>
+  (function () {
+    var box = document.getElementById("interests");
+    var chips = document.querySelectorAll(".chips button");
+    function mark() {
+      chips.forEach(function (chip) { chip.setAttribute("aria-pressed", box.value.indexOf(chip.dataset.text) >= 0 ? "true" : "false"); });
+    }
+    chips.forEach(function (chip) {
+      chip.addEventListener("click", function () {
+        var text = chip.dataset.text, value = box.value;
+        value = value.indexOf(text) >= 0 ? value.replace(text, "") : (value.trim() ? value.trim() + " " + text : text);
+        box.value = value.replace(/\s{2,}/g, " ").trim();
+        mark();
+      });
+    });
+    box.addEventListener("input", mark);
+    var every = document.getElementById("every-day"), days = document.querySelectorAll("input[name=days]");
+    function markDays() {
+      every.setAttribute("aria-pressed", Array.prototype.every.call(days, function (d) { return d.checked; }) ? "true" : "false");
+    }
+    every.addEventListener("click", function () {
+      var all = every.getAttribute("aria-pressed") === "true";
+      days.forEach(function (d) { d.checked = !all; });
+      markDays();
+    });
+    days.forEach(function (d) { d.addEventListener("change", markDays); });
+    mark(); markDays();
+  })();
+</script>
+{% endblock %}

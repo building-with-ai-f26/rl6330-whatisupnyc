@@ -49,6 +49,10 @@
     .no-js .more-bar { position: static; background: none; justify-content: flex-start; padding: 24px 0 0; }
     .copied { color: var(--steel); font-size: 14px; }
     .show-more-row { margin: 32px 0 0; }
+    .lists { display: flex; flex-wrap: wrap; gap: 8px; margin: 0 0 20px; }
+    .lists a { padding: 8px 16px; border: 1px solid var(--black); border-radius: 999px; font-weight: 600; text-decoration: none; color: var(--black); }
+    .lists a[aria-current="page"] { background: var(--black); color: var(--white); }
+    .lists a.add { border-style: dashed; font-weight: 500; }
     .jump { display: flex; flex-wrap: wrap; gap: 8px 22px; margin: 0 0 8px; font-size: 15px; font-weight: 600; }
     .when-group { margin: 40px 0 16px; }
     #picks > .when-group:first-child { margin-top: 24px; }
@@ -71,14 +75,20 @@
     <div class="inner row">
       <div class="logo">{% include "partials/logo.svg" %}</div>
       <nav aria-label="Your account">
-        <a href="/preferences">Edit my preferences</a>
-        <a href="/newsletter/email">Email version</a>
+        <a href="/preferences{{ list_query }}">Edit my preferences</a>
+        <a href="/newsletter/email{{ list_query }}">Email version</a>
         <form method="post" action="/signout"><button class="plain" type="submit">Sign out</button></form>
       </nav>
     </div>
   </header>
   <main>
     <div class="wide">
+      {% if lists|length > 1 or can_add_list %}
+      <nav class="lists" aria-label="Your lists">
+        {% for id, title in lists %}<a href="/newsletter{% if not loop.first %}?list={{ id }}{% endif %}"{% if id == list_id %} aria-current="page"{% endif %}>{{ title }}</a>{% endfor %}
+        {% if can_add_list %}<a class="add" href="/lists/new">+ Add a list</a>{% endif %}
+      </nav>
+      {% endif %}
       <h1>Your list for {{ list_day }}</h1>
       <p class="for">For {{ subscriber.name }}. Save what you like, share it with friends, or tick a few and ask for more like them.</p>
       {% if banner %}<p class="notice" role="status">{{ banner }}</p>{% endif %}
@@ -90,7 +100,7 @@
         <a href="#rate">To rate ({{ to_rate|length }})</a>
       </nav>
 
-      <form id="more" method="post" action="/newsletter/more" data-making></form>
+      <form id="more" method="post" action="/newsletter/more{{ list_query }}" data-making></form>
       <section id="picks" aria-label="Your picks">
       {% if groups %}
       {% for title, cards in groups %}
@@ -120,7 +130,7 @@
       {% endfor %}
       {% if extra_count %}<p class="show-more-row"><button type="button" class="plain" id="show-more">Show {{ extra_count }} more</button></p>{% endif %}
       {% else %}
-      <p class="empty">Nothing new to suggest today. Come back tomorrow, or <a href="/preferences">change what you're looking for</a>.</p>
+      <p class="empty">Nothing new to suggest today. Come back tomorrow, or <a href="/preferences{{ list_query }}">change what you're looking for</a>.</p>
       {% endif %}
       </section>
       <div class="more-bar" id="more-bar"{% if groups %} hidden{% endif %}>
@@ -335,7 +345,7 @@
           if (first) { var link = first.querySelector("h3 a, button"); if (link) link.focus(); }
           var body = new FormData();
           ids.forEach(function (id) { body.append("event_ids", id); });
-          if (window.fetch) fetch("/newsletter/shown", { method: "POST", body: body, credentials: "same-origin",
+          if (window.fetch) fetch("/newsletter/shown{{ list_query }}", { method: "POST", body: body, credentials: "same-origin",
                                                          headers: { "X-Requested-With": "fetch" } }).catch(function () {});
         });
       }
@@ -354,7 +364,7 @@
             making.querySelector("p").textContent = "Your new picks are at the top.";
             window.location.href = answer.next;
           // No answer: the list may already be made, so open it rather than asking for another.
-          }).catch(function () { window.location.href = "/newsletter"; });
+          }).catch(function () { window.location.href = "/newsletter{{ list_query }}"; });
         });
       }
 

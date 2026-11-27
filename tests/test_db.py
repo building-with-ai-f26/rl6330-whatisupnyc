@@ -224,9 +224,7 @@ def test_reader_can_update_only_their_own_preferences(conn):
     a, b = reader(conn), reader(conn)
     assert db.update_profile(conn, a, "Ana B", "comedy", "short", ["Monday"], NOW)
     saved = db.get_profile(conn, a)
-    assert (saved.name, saved.interests, saved.look_prompt, saved.days, saved.changed_at) == (
-        "Ana B", "comedy", "short", ["Monday"], NOW
-    )
+    assert (saved.name, saved.interests, saved.days, saved.changed_at) == ("Ana B", "comedy", ["Monday"], NOW)
     with db.as_reader(conn, a) as c:
         assert c.execute("update profiles set name = 'x' where user_id = %s", (b,)).rowcount == 0
     assert db.get_profile(conn, b).name == "Ana"

@@ -69,6 +69,8 @@ CHECK_EMAIL = (
 )
 SIGNED_UP_BANNER = "Confirm your email to come back and edit your picks."
 MIN_PASSWORD = 8
+# Longest name a list can have ("Music", "Weekend sport").
+MAX_TITLE = 40
 
 # The login lives in cookies that page scripts can't read, sent only over https, and not sent
 # when another site posts a form here.
@@ -201,6 +203,11 @@ def create_app(deps: AppDeps | None = None) -> FastAPI:
         )
         return HTMLResponse(html, status_code=status_code)
 
+    def chosen_list(request: Request) -> int | None:
+        """The list the reader is on (?list=ID). A list that isn't theirs falls back to their first one."""
+        text = request.query_params.get("list", "")
+        return int(text) if text.isdigit() and len(text) < 19 else None
+
     def current_reader(request: Request) -> Reader:
         """The signed-in reader, renewing an expired login, or a brand-new reader's first look."""
         d = get_deps()
@@ -214,12 +221,28 @@ def create_app(deps: AppDeps | None = None) -> FastAPI:
             except AuthRefused:
                 pass  # The login has ended; treat them as signed out.
         if user is not None:
-            return Reader(
-                db.get_profile(d.conn, user.id), signed_in=True, user_id=user.id, email=user.email, renewed=renewed
-            )
+            profile = db.get_profile(d.conn, user.id, chosen_list(request))
+            return Reader(profile, signed_in=True, user_id=user.id, email=user.email, renewed=renewed)
         token = request.cookies.get(FIRST_LOOK_COOKIE)
         profile = db.profile_for_first_look(d.conn, token, d.clock()) if token else None
         return Reader(profile, first_look=profile is not None)
+
+    def list_gone(request: Request, reader: Reader) -> bool:
+        """The page named a list (?list=ID) that isn't the reader's any more, such as one just deleted.
+        Reading then shows their first list, but nothing may be changed on its behalf."""
+        asked = chosen_list(request)
+        return asked is not None and (reader.profile is None or reader.profile.list_id != asked)
+
+    def list_deleted(reader: Reader) -> HTMLResponse:
+        text = "That list was deleted, so nothing was changed."
+        return finish(notice("List not found", text, [("/newsletter", "Back to my list")], 404), reader)
+
+    def list_query(reader: Reader) -> str:
+        """"?list=ID" for any list but the reader's first, so their first keeps the plain address."""
+        p = reader.profile
+        if p is None or p.list_id is None or not p.lists or p.list_id == p.lists[0][0]:
+            return ""
+        return f"?list={p.list_id}"
 
     def finish(response, reader: Reader):
         if reader.renewed:
@@ -327,30 +350,31 @@ def create_app(deps: AppDeps | None = None) -> FastAPI:
     @app.get("/newsletter", response_class=HTMLResponse)
     def newsletter(request: Request, make: str = ""):
         # make=1 is the request that may make a new list; plain /newsletter answers quickly either way.
-        here = MAKE_LIST if make else "/newsletter"
         if over_limit(request, "newsletter"):
             return too_many(request)
         try:
             reader = current_reader(request)
         except AuthUnavailable:
             return notice("Please try again", AUTH_DOWN, [("/", "Back to the start")], 503)
+        q = list_query(reader)
+        make_url = f"/newsletter{q}{'&' if q else '?'}make=1"
         if reader.renewed:
             # Supabase refresh tokens work once, so store the new ones before the slow AI call.
-            return finish(RedirectResponse(here, status_code=303), reader)
+            return finish(RedirectResponse(make_url if make else f"/newsletter{q}", status_code=303), reader)
         if reader.profile is None:
             # Signed in but no preferences saved yet: ask for them.
             return finish(RedirectResponse("/preferences" if reader.signed_in else "/signin", status_code=303), reader)
         d = get_deps()
         subscriber = reader.profile
         now = d.clock()
-        latest = db.latest_issue(d.conn, subscriber.id)
+        latest = db.latest_issue(d.conn, subscriber.id, subscriber.list_id)
         if not saved_lists.needs_new_list(latest, subscriber, now):
             return finish(dashboard(request, reader, saved_lists.saved_picks(d.conn, latest), latest.made_at), reader)
         if not make:
             # Show "Making your list…" right away, and only now that a list really is being made.
             # The page goes straight on to MAKE_LIST, which does the slow AI work below.
             # It sends nothing to PostHog, so each list visit still counts as one page view.
-            return finish(HTMLResponse(_page("making_page.html", next_url=MAKE_LIST)), reader)
+            return finish(HTMLResponse(_page("making_page.html", next_url=make_url)), reader)
         # Only making a new list calls the AI, so only that counts toward the reader's limit.
         if over_account_limit("newsletter_account", subscriber.id):
             return too_many(request)
@@ -389,6 +413,10 @@ def create_app(deps: AppDeps | None = None) -> FastAPI:
             saved_ids=set(saved_ids),
             ratings=rated,
             share_base=base,
+            list_query=list_query(reader),
+            lists=reader.profile.lists,
+            list_id=reader.profile.list_id,
+            can_add_list=reader.signed_in and len(reader.profile.lists) < db.MAX_LISTS,
         )
         return HTMLResponse(html)
 
@@ -475,13 +503,15 @@ def create_app(deps: AppDeps | None = None) -> FastAPI:
             return reader
         if over_limit(request, "event_actions"):
             return finish(too_many(request), reader)
+        if list_gone(request, reader):
+            return list_deleted(reader)
         d = get_deps()
-        latest = db.latest_issue(d.conn, reader.profile.id)
+        latest = db.latest_issue(d.conn, reader.profile.id, reader.profile.list_id)
         on_list = {saved.event_id for saved in latest.picks} if latest else set()
         chosen = list(dict.fromkeys(event_ids))[:50]
         if not chosen or not set(chosen) <= on_list:
             return not_on_your_lists(reader)
-        db.reveal_picks(d.conn, reader.profile.id, chosen)
+        db.reveal_picks(d.conn, reader.profile.id, chosen, reader.profile.list_id)
         return finish(JSONResponse({"ok": True}), reader)
 
     @app.post("/newsletter/more")
@@ -491,6 +521,8 @@ def create_app(deps: AppDeps | None = None) -> FastAPI:
         reader = listed_reader(request)
         if not isinstance(reader, Reader):
             return reader
+        if list_gone(request, reader):
+            return list_deleted(reader)
         d = get_deps()
         chosen = list(dict.fromkeys(event_ids))[:10]
         if not chosen:
@@ -504,10 +536,11 @@ def create_app(deps: AppDeps | None = None) -> FastAPI:
             saved_lists.make_list(d.conn, d.ai, reader.profile, d.clock(), more_like_ids=chosen)
         except AIUnavailable:
             return finish(notice("Please try again", AI_BUSY, [("/newsletter", "Back to my list")], 503), reader)
+        back = f"/newsletter{list_query(reader)}"
         if from_page_script(request):
             # The page then says "Opening your list…" instead of still "Making your list…".
-            return finish(JSONResponse({"next": "/newsletter"}), reader)
-        return finish(RedirectResponse("/newsletter", status_code=303), reader)
+            return finish(JSONResponse({"next": back}), reader)
+        return finish(RedirectResponse(back, status_code=303), reader)
 
     def signed_in_reader(request: Request) -> Reader | Response:
         """The signed-in reader, or the response that sends anyone else to sign in."""
@@ -521,7 +554,9 @@ def create_app(deps: AppDeps | None = None) -> FastAPI:
         return reader
 
     def preferences_page(reader: Reader, form: dict, message: str = "", status_code: int = 200) -> HTMLResponse:
-        html = page("preferences.html", days=DAYS, form=form, message=message, send_hours=SEND_TIMES)
+        p = reader.profile
+        html = page("preferences.html", days=DAYS, form=form, message=message, send_hours=SEND_TIMES,
+                    list_query=list_query(reader), several=bool(p and len(p.lists) > 1))
         return finish(HTMLResponse(html, status_code=status_code), reader)
 
     @app.get("/preferences", response_class=HTMLResponse)
@@ -530,16 +565,18 @@ def create_app(deps: AppDeps | None = None) -> FastAPI:
         if not isinstance(reader, Reader):
             return reader
         p = reader.profile
-        form = {"name": "", "interests": "", "days": [], "send_hour": 8, "email_on": True}
+        form = {"name": "", "title": "", "interests": "", "days": [], "send_hour": 8, "email_on": True}
         if p:
-            hour, on = db.email_settings(get_deps().conn, p.id)
-            form = {"name": p.name, "interests": p.interests, "days": p.days, "send_hour": hour, "email_on": on}
+            hour, on = db.email_settings(get_deps().conn, p.id, p.list_id)
+            form = {"name": p.name, "title": p.title, "interests": p.interests, "days": p.days, "send_hour": hour,
+                    "email_on": on}
         return preferences_page(reader, form)
 
     @app.post("/preferences")
     def save_preferences(
         request: Request,
         name: str = Form(""),
+        title: str = Form(""),
         interests: str = Form(""),
         days: list[str] = Form([]),
         send_hour: str = Form(""),
@@ -548,25 +585,83 @@ def create_app(deps: AppDeps | None = None) -> FastAPI:
         reader = signed_in_reader(request)
         if not isinstance(reader, Reader):
             return reader
+        if list_gone(request, reader):
+            return list_deleted(reader)
         chosen = [day for day in days if day in DAYS]
         hour, wants_email = send_hour_from(send_hour), bool(email_on)
-        form = {"name": name, "interests": interests, "days": chosen, "send_hour": hour, "email_on": wants_email}
+        form = {"name": name, "title": title, "interests": interests, "days": chosen, "send_hour": hour,
+                "email_on": wants_email}
         if not name.strip() or not interests.strip() or not chosen:
             message = "Please fill in a name, what kind of event, and at least one day."
             return preferences_page(reader, form, message, 400)
         d = get_deps()
         values = (name.strip(), interests.strip(), "", chosen, d.clock())
+        list_id = reader.profile.list_id if reader.profile else None
         if reader.profile is not None:
-            db.update_profile(d.conn, reader.profile.id, *values)
+            if not db.update_profile(d.conn, reader.profile.id, *values, list_id=list_id,
+                                     title=title.strip()[:MAX_TITLE] or None):
+                return list_deleted(reader)
         else:
-            db.create_profile(d.conn, reader.user_id, *values)
-        db.set_email_settings(d.conn, reader.user_id, hour, wants_email)
+            # New, or left without a list: this saves the profile if needed and gives them a list.
+            db.create_profile(d.conn, reader.user_id, *values, send_hour=hour)
+        db.set_email_settings(d.conn, reader.user_id, hour, wants_email, list_id)
+        return finish(RedirectResponse(f"/newsletter{list_query(reader)}", status_code=303), reader)
+
+    def new_list_page(reader: Reader, form: dict, message: str = "", status_code: int = 200) -> HTMLResponse:
+        html = page("new_list.html", days=DAYS, form=form, message=message, send_hours=SEND_TIMES,
+                    templates=TEMPLATES)
+        return finish(HTMLResponse(html, status_code=status_code), reader)
+
+    @app.get("/lists/new", response_class=HTMLResponse)
+    def new_list(request: Request):
+        reader = signed_in_reader(request)
+        if not isinstance(reader, Reader):
+            return reader
+        if reader.profile is None:
+            return finish(RedirectResponse("/preferences", status_code=303), reader)
+        return new_list_page(reader, {"title": "", "interests": "", "days": [], "send_hour": 8})
+
+    @app.post("/lists/new")
+    def add_list(
+        request: Request,
+        title: str = Form(""),
+        interests: str = Form(""),
+        days: list[str] = Form([]),
+        send_hour: str = Form(""),
+    ):
+        reader = signed_in_reader(request)
+        if not isinstance(reader, Reader):
+            return reader
+        if reader.profile is None:
+            return finish(RedirectResponse("/preferences", status_code=303), reader)
+        chosen = [day for day in days if day in DAYS]
+        hour = send_hour_from(send_hour)
+        form = {"title": title, "interests": interests, "days": chosen, "send_hour": hour}
+        if not title.strip() or not interests.strip() or not chosen:
+            message = "Please give the list a name, say what kind of events, and pick at least one day."
+            return new_list_page(reader, form, message, 400)
+        d = get_deps()
+        new_id = db.add_list(d.conn, reader.user_id, title.strip()[:MAX_TITLE], interests.strip(), chosen, hour,
+                             d.clock())
+        if new_id is None:
+            message = f"You can keep up to {db.MAX_LISTS} lists. Delete one on its preferences page to add another."
+            return new_list_page(reader, form, message, 400)
+        return finish(RedirectResponse(f"/newsletter?list={new_id}", status_code=303), reader)
+
+    @app.post("/lists/delete")
+    def remove_list(request: Request):
+        reader = signed_in_reader(request)
+        if not isinstance(reader, Reader):
+            return reader
+        # Only the list the page named, and only if it's still theirs: a second click never deletes another.
+        if chosen_list(request) is not None and not list_gone(request, reader):
+            db.delete_list(get_deps().conn, reader.user_id, reader.profile.list_id)
         return finish(RedirectResponse("/newsletter", status_code=303), reader)
 
     def email_version(request: Request, reader: Reader) -> tuple[str | None, str]:
         """The reader's latest list as the compact email, and its date. None when they have no list yet."""
         d = get_deps()
-        latest = db.latest_issue(d.conn, reader.profile.id)
+        latest = db.latest_issue(d.conn, reader.profile.id, reader.profile.list_id)
         if latest is None:
             return None, ""
         site = str(request.base_url).rstrip("/")
@@ -580,7 +675,8 @@ def create_app(deps: AppDeps | None = None) -> FastAPI:
             return reader
         body, _ = email_version(request, reader)
         can_send = bool(get_deps().resend_key) and reader.signed_in
-        return finish(HTMLResponse(page("email_preview.html", body=body, can_send=can_send)), reader)
+        html = page("email_preview.html", body=body, can_send=can_send, list_query=list_query(reader))
+        return finish(HTMLResponse(html), reader)
 
     @app.post("/newsletter/email")
     def email_me(request: Request):
@@ -598,7 +694,9 @@ def create_app(deps: AppDeps | None = None) -> FastAPI:
         if body is None:
             return finish(RedirectResponse("/newsletter/email", status_code=303), reader)
         # Always the signed-in reader's own address, never one from the form.
-        if not emailer.send_list(d.http, d.resend_key, reader.email, f"Your whatisupnyc list for {day}", body):
+        title = reader.profile.title
+        named = "whatisupnyc" if title in ("", db.FIRST_LIST_TITLE) else title
+        if not emailer.send_list(d.http, d.resend_key, reader.email, f"Your {named} list for {day}", body):
             text = "We couldn't send the email just now. Please try again in a little while."
             return finish(notice("Couldn't send", text, [("/newsletter", "Back to my list")], 502), reader)
         text = f"Sent to {reader.email}. It can take a minute to arrive."

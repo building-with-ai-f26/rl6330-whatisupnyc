@@ -22,7 +22,7 @@ NY = ZoneInfo("America/New_York")
 # The schema lives in supabase/migrations/. Every table in it, so tests can empty them.
 TABLES = (
     "events", "dropped_events", "profiles", "sent_events", "newsletter_issues", "saved_for_later",
-    "event_ratings", "pastes", "ai_requests", "waiting_pastes", "intake_events",
+    "event_ratings", "pastes", "ai_requests", "waiting_pastes", "intake_events", "reader_lists",
 )
 # How long a brand-new reader can see their list before confirming their email.
 FIRST_LOOK = timedelta(hours=24)
@@ -331,30 +331,99 @@ def create_profile(
     conn: Database, user_id: str, name: str, interests: str, look_prompt: str, days: list[str], now: datetime,
     send_hour: int = 8,
 ) -> str | None:
-    """Saves a new reader's preferences. Returns their first-look token, or None if they already have a profile."""
+    """Saves a new reader and their first list. Returns their first-look token, or None if they already have
+    a profile."""
     token = _new_token()
-    with conn.connection() as c:
+    with conn.connection() as c, c.transaction():
         row = c.execute(
             "INSERT INTO profiles (user_id, name, interests, look_prompt, days, send_hour, first_look_token,"
             " first_look_until) VALUES (%s, %s, %s, %s, %s, %s, %s, %s) ON CONFLICT (user_id) DO NOTHING"
             " RETURNING user_id",
             (user_id, name, interests, look_prompt, days, send_hour, token, now + FIRST_LOOK),
         ).fetchone()
+        # Also gives back a list to a reader left with none.
+        c.execute(
+            "INSERT INTO reader_lists (user_id, title, interests, days, send_hour)"
+            " SELECT %(u)s, %(t)s, %(i)s, %(d)s, %(h)s"
+            " WHERE NOT EXISTS (SELECT 1 FROM reader_lists WHERE user_id = %(u)s)",
+            {"u": user_id, "t": FIRST_LIST_TITLE, "i": interests, "d": days, "h": send_hour},
+        )
     return token if row else None
 
 
-def get_profile(conn: Database, user_id: str) -> Subscriber | None:
+# Each reader can keep this many lists.
+MAX_LISTS = 3
+FIRST_LIST_TITLE = "My list"
+# The reader's list with ID %(l)s, or their first list when %(l)s is missing or isn't theirs.
+_CHOSEN_LIST = (
+    "(SELECT id FROM reader_lists WHERE user_id = %(u)s ORDER BY (id = %(l)s) DESC NULLS LAST, id LIMIT 1)"
+)
+# For writes: exactly the list with ID %(l)s (their first when %(l)s is missing), or nothing at all, so a change
+# meant for a deleted list never lands on another one.
+_EXACT_LIST = (
+    "(SELECT id FROM reader_lists WHERE user_id = %(u)s"
+    " AND id = coalesce(%(l)s, (SELECT min(id) FROM reader_lists WHERE user_id = %(u)s)))"
+)
+# One reader's preferences for one list, with the titles of all their lists, in one query.
+_PROFILE = (
+    "SELECT p.user_id, p.name, p.look_prompt, l.id AS list_id, l.title, l.interests, l.days, l.changed_at,"
+    " (SELECT json_agg(json_build_array(o.id, o.title) ORDER BY o.id) FROM reader_lists o"
+    "   WHERE o.user_id = p.user_id) AS lists"
+    " FROM profiles p JOIN reader_lists l ON l.user_id = p.user_id"
+)
+
+
+def get_profile(conn: Database, user_id: str, list_id: int | None = None) -> Subscriber | None:
+    """The reader's preferences for one of their lists (their first when list_id is missing or not theirs)."""
     with as_reader(conn, user_id) as c:
-        row = c.execute("SELECT * FROM profiles WHERE user_id = %s", (user_id,)).fetchone()
+        row = c.execute(
+            _PROFILE + " WHERE p.user_id = %(u)s ORDER BY (l.id = %(l)s) DESC NULLS LAST, l.id LIMIT 1",
+            {"u": user_id, "l": list_id},
+        ).fetchone()
     return _row_to_subscriber(row) if row else None
 
 
 def profile_for_first_look(conn: Database, token: str, now: datetime) -> Subscriber | None:
     with conn.connection() as c:
         row = c.execute(
-            "SELECT * FROM profiles WHERE first_look_token = %s AND first_look_until > %s", (token, now)
+            _PROFILE + " WHERE p.first_look_token = %(t)s AND p.first_look_until > %(n)s ORDER BY l.id LIMIT 1",
+            {"t": token, "n": now},
         ).fetchone()
     return _row_to_subscriber(row) if row else None
+
+
+def reader_lists(conn: Database, user_id: str) -> list[tuple[int, str]]:
+    with as_reader(conn, user_id) as c:
+        rows = c.execute("SELECT id, title FROM reader_lists WHERE user_id = %s ORDER BY id", (user_id,)).fetchall()
+    return [(row["id"], row["title"]) for row in rows]
+
+
+def add_list(conn: Database, user_id: str, title: str, interests: str, days: list[str], send_hour: int,
+             now: datetime) -> int | None:
+    """A new list for the reader. None when they already have MAX_LISTS. Written as the server's role, for the
+    signed-in reader Supabase verified."""
+    with conn.connection() as c, c.transaction():
+        # Locks the reader's row first, so two requests at once can't both count 2 and add a fourth list.
+        c.execute("SELECT 1 FROM profiles WHERE user_id = %s FOR UPDATE", (user_id,))
+        row = c.execute(
+            "INSERT INTO reader_lists (user_id, title, interests, days, send_hour, changed_at)"
+            " SELECT %(u)s, %(t)s, %(i)s, %(d)s, %(h)s, %(n)s"
+            " WHERE (SELECT count(*) FROM reader_lists WHERE user_id = %(u)s) < %(max)s RETURNING id",
+            {"u": user_id, "t": title, "i": interests, "d": days, "h": send_hour, "n": now, "max": MAX_LISTS},
+        ).fetchone()
+    return row["id"] if row else None
+
+
+def delete_list(conn: Database, user_id: str, list_id: int) -> bool:
+    """Deletes one of the reader's lists and its saved daily lists, never their last one."""
+    with conn.connection() as c, c.transaction():
+        # The same lock, so two deletes at once can't remove the reader's last list.
+        c.execute("SELECT 1 FROM profiles WHERE user_id = %s FOR UPDATE", (user_id,))
+        return c.execute(
+            "DELETE FROM reader_lists WHERE id = %(l)s AND user_id = %(u)s"
+            " AND (SELECT count(*) FROM reader_lists WHERE user_id = %(u)s) > 1",
+            {"l": list_id, "u": user_id},
+        ).rowcount == 1
 
 
 def end_first_look(conn: Database, user_id: str) -> None:
@@ -368,32 +437,43 @@ def end_first_look(conn: Database, user_id: str) -> None:
 def _row_to_subscriber(row: dict) -> Subscriber:
     return Subscriber(
         str(row["user_id"]), row["name"], row["interests"], row["look_prompt"], row["days"],
-        row.get("preferences_changed_at"),
+        row.get("changed_at"), row.get("list_id"), row.get("title") or "",
+        [(item[0], item[1]) for item in row.get("lists") or []],
     )
 
 
 def update_profile(
-    conn: Database, user_id: str, name: str, interests: str, look_prompt: str, days: list[str], now: datetime
+    conn: Database, user_id: str, name: str, interests: str, look_prompt: str, days: list[str], now: datetime,
+    list_id: int | None = None, title: str | None = None,
 ) -> bool:
-    """Saves a reader's edited preferences, as that reader. Returns False if they have no profile."""
+    """Saves a reader's name and one list's edited preferences, as that reader. False if that list is gone."""
+    values = {"u": user_id, "l": list_id, "name": name, "i": interests, "d": days, "n": now, "t": title}
     with as_reader(conn, user_id) as c:
-        return c.execute(
-            "UPDATE profiles SET name = %s, interests = %s, look_prompt = %s, days = %s, preferences_changed_at = %s"
-            " WHERE user_id = %s",
-            (name, interests, look_prompt, days, now, user_id),
+        changed = c.execute(
+            "UPDATE reader_lists SET interests = %(i)s, days = %(d)s, changed_at = %(n)s,"
+            " title = coalesce(%(t)s, title) WHERE id = " + _EXACT_LIST, values,
         ).rowcount == 1
+        if changed:
+            c.execute("UPDATE profiles SET name = %(name)s WHERE user_id = %(u)s", values)
+    return changed
 
 
-def email_settings(conn: Database, user_id: str) -> tuple[int, bool] | None:
-    """(send_hour, email_on) for a reader."""
+def email_settings(conn: Database, user_id: str, list_id: int | None = None) -> tuple[int, bool] | None:
+    """(send_hour, email_on) for one of the reader's lists."""
     with as_reader(conn, user_id) as c:
-        row = c.execute("SELECT send_hour, email_on FROM profiles WHERE user_id = %s", (user_id,)).fetchone()
+        row = c.execute(
+            "SELECT send_hour, email_on FROM reader_lists WHERE id = " + _CHOSEN_LIST, {"u": user_id, "l": list_id}
+        ).fetchone()
     return (row["send_hour"], row["email_on"]) if row else None
 
 
-def set_email_settings(conn: Database, user_id: str, send_hour: int, email_on: bool) -> None:
+def set_email_settings(conn: Database, user_id: str, send_hour: int, email_on: bool,
+                       list_id: int | None = None) -> None:
     with as_reader(conn, user_id) as c:
-        c.execute("UPDATE profiles SET send_hour = %s, email_on = %s WHERE user_id = %s", (send_hour, email_on, user_id))
+        c.execute(
+            "UPDATE reader_lists SET send_hour = %(h)s, email_on = %(on)s WHERE id = " + _EXACT_LIST,
+            {"u": user_id, "l": list_id, "h": send_hour, "on": email_on},
+        )
 
 
 # Hourly tries a day for each reader: their hour and the next three. After that, not until their next day.
@@ -401,40 +481,41 @@ CATCH_UP_HOURS = 4
 
 
 def readers_due_an_email(conn: Database, now: datetime) -> list[tuple[Subscriber, str]]:
-    """Readers whose list should be emailed now: email on, a confirmed address, today one of their days,
-    their hour reached in the last CATCH_UP_HOURS hours, and not yet emailed today."""
+    """Lists whose email should go out now, each with its reader's address: email on, a confirmed address,
+    today one of the list's days, its hour reached in the last CATCH_UP_HOURS hours, not yet emailed today."""
     local = now.astimezone(NY)
     with conn.connection() as c:
         rows = c.execute(
-            "SELECT p.*, u.email FROM profiles p JOIN auth.users u ON u.id = p.user_id"
-            " WHERE p.email_on AND u.email_confirmed_at IS NOT NULL AND u.email IS NOT NULL"
+            "SELECT p.user_id, p.name, p.look_prompt, l.id AS list_id, l.title, l.interests, l.days, l.changed_at,"
+            " u.email FROM reader_lists l JOIN profiles p ON p.user_id = l.user_id JOIN auth.users u ON u.id = l.user_id"
+            " WHERE l.email_on AND u.email_confirmed_at IS NOT NULL AND u.email IS NOT NULL"
             " AND u.deleted_at IS NULL AND (u.banned_until IS NULL OR u.banned_until < %s)"
-            " AND %s = ANY(p.days) AND p.send_hour <= %s AND p.send_hour > %s - %s"
-            " AND (p.emailed_on IS NULL OR p.emailed_on < %s)"
-            " ORDER BY p.send_hour, p.user_id",
+            " AND %s = ANY(l.days) AND l.send_hour <= %s AND l.send_hour > %s - %s"
+            " AND (l.emailed_on IS NULL OR l.emailed_on < %s)"
+            " ORDER BY l.send_hour, l.id",
             (now, local.strftime("%A"), local.hour, local.hour, CATCH_UP_HOURS, local.date()),
         ).fetchall()
     return [(_row_to_subscriber(row), row["email"]) for row in rows]
 
 
-def claim_daily_email(conn: Database, user_id: str, now: datetime) -> bool:
-    """Marks today's email as sent before sending it, so a crash or a second run never sends it twice.
-    False if another run already claimed it."""
+def claim_daily_email(conn: Database, list_id: int, now: datetime) -> bool:
+    """Marks a list's email for today as sent before sending it, so a crash or a second run never sends it
+    twice. False if another run already claimed it."""
     today = now.astimezone(NY).date()
     with conn.connection() as c:
         return c.execute(
-            "UPDATE profiles SET emailed_on = %s WHERE user_id = %s AND (emailed_on IS NULL OR emailed_on < %s)"
-            " RETURNING user_id", (today, user_id, today),
+            "UPDATE reader_lists SET emailed_on = %s WHERE id = %s AND (emailed_on IS NULL OR emailed_on < %s)"
+            " RETURNING id", (today, list_id, today),
         ).fetchone() is not None
 
 
-def release_daily_email(conn: Database, user_id: str) -> None:
+def release_daily_email(conn: Database, list_id: int) -> None:
     """Undoes a claim when the email clearly wasn't sent, so the next hour tries again."""
     with conn.connection() as c:
-        c.execute("UPDATE profiles SET emailed_on = NULL WHERE user_id = %s", (user_id,))
+        c.execute("UPDATE reader_lists SET emailed_on = NULL WHERE id = %s", (list_id,))
 
 
-def save_issue(conn: Database, user_id: str, picks: list[Pick], now: datetime) -> None:
+def save_issue(conn: Database, user_id: str, picks: list[Pick], now: datetime, list_id: int | None = None) -> None:
     """Saves a list the AI just made, and marks the events shown at once as sent, together.
     Picks behind "Show more" count as sent only when the reader reveals them (reveal_picks).
 
@@ -445,8 +526,9 @@ def save_issue(conn: Database, user_id: str, picks: list[Pick], now: datetime) -
              for pick in picks]
     with conn.connection() as c, c.transaction():
         c.execute(
-            "INSERT INTO newsletter_issues (user_id, made_on, made_at, picks) VALUES (%s, %s, %s, %s)",
-            (user_id, now.astimezone(NY).date(), now, Jsonb(saved)),
+            "INSERT INTO newsletter_issues (user_id, list_id, made_on, made_at, picks)"
+            " VALUES (%(u)s, " + _EXACT_LIST + ", %(day)s, %(at)s, %(picks)s)",
+            {"u": user_id, "l": list_id, "day": now.astimezone(NY).date(), "at": now, "picks": Jsonb(saved)},
         )
         c.cursor().executemany(
             "INSERT INTO sent_events (user_id, event_id) VALUES (%s, %s) ON CONFLICT DO NOTHING",
@@ -454,11 +536,13 @@ def save_issue(conn: Database, user_id: str, picks: list[Pick], now: datetime) -
         )
 
 
-def latest_issue(conn: Database, user_id: str) -> SavedIssue | None:
+def latest_issue(conn: Database, user_id: str, list_id: int | None = None) -> SavedIssue | None:
+    """The newest daily list saved for one of the reader's lists (their first when list_id is missing)."""
     with as_reader(conn, user_id) as c:
         row = c.execute(
-            "SELECT made_on, made_at, picks FROM newsletter_issues WHERE user_id = %s ORDER BY made_at DESC, id DESC LIMIT 1",
-            (user_id,),
+            "SELECT made_on, made_at, picks FROM newsletter_issues WHERE list_id = " + _CHOSEN_LIST
+            + " ORDER BY made_at DESC, id DESC LIMIT 1",
+            {"u": user_id, "l": list_id},
         ).fetchone()
     if row is None:
         return None
@@ -553,7 +637,7 @@ def mark_sent(conn: Database, user_id: str, event_ids: list[int]) -> None:
         )
 
 
-def reveal_picks(conn: Database, user_id: str, event_ids: list[int]) -> None:
+def reveal_picks(conn: Database, user_id: str, event_ids: list[int], list_id: int | None = None) -> None:
     """The reader tapped Show more: those picks stay shown on their latest list, and count as seen.
     Written as the server's role (readers can't write lists), after the route checked the IDs are
     on that list."""
@@ -563,8 +647,9 @@ def reveal_picks(conn: Database, user_id: str, event_ids: list[int]) -> None:
             "  SELECT jsonb_agg(CASE WHEN (p ->> 'event_id')::bigint = ANY(%(ids)s)"
             "                   THEN p || '{\"extra\": false}'::jsonb ELSE p END ORDER BY n)"
             "  FROM jsonb_array_elements(picks) WITH ORDINALITY AS t(p, n))"
-            " WHERE id = (SELECT id FROM newsletter_issues WHERE user_id = %(u)s ORDER BY made_at DESC, id DESC LIMIT 1)",
-            {"ids": event_ids, "u": user_id},
+            " WHERE id = (SELECT id FROM newsletter_issues WHERE list_id = " + _EXACT_LIST
+            + " ORDER BY made_at DESC, id DESC LIMIT 1)",
+            {"ids": event_ids, "u": user_id, "l": list_id},
         )
         c.cursor().executemany(
             "INSERT INTO sent_events (user_id, event_id) VALUES (%s, %s) ON CONFLICT DO NOTHING",
