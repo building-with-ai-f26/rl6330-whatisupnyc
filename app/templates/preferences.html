@@ -27,7 +27,8 @@
 </form>
 <p class="links"><a href="/newsletter{{ list_query }}">Cancel and go back to my list</a></p>
 {% if several %}
-<form method="post" action="/lists/delete{{ list_query }}" class="delete-list">
+<form method="post" action="/lists/delete{{ list_query }}" class="delete-list" data-busy="Deleting…"
+      onsubmit="return confirm('Delete this list and its saved picks? This can\'t be undone.')">
   <button class="plain" type="submit">Delete this list</button>
 </form>
 {% endif %}

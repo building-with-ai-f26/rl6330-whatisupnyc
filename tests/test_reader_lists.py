@@ -186,3 +186,73 @@ def test_two_adds_at_once_cannot_pass_the_limit(conn, sites):
         [t.start() for t in threads]
         [t.join() for t in threads]
         assert len(db.reader_lists(conn, user)) <= db.MAX_LISTS
+
+
+# From the review (2026-11-28).
+def test_saving_a_deleted_list_never_changes_another_list(conn, sites):
+    client, ai = ready(conn, sites)
+    add_sport(client)
+    (first, _), (sport, _) = lists(conn, client)
+    client.post(f"/lists/delete?list={sport}")
+    response = client.post(f"/preferences?list={sport}", data={"name": "Ana", "title": "Sport", "interests": "x",
+                                                               "days": ["Monday"], "send_hour": "7"})
+    assert response.status_code == 404
+    assert db.get_profile(conn, ana_id(client), first).interests == GOOD["interests"]
+    assert lists(conn, client) == [(first, "My list")]
+
+
+def test_deleting_twice_never_deletes_another_list(conn, sites):
+    client, ai = ready(conn, sites)
+    add_sport(client)
+    client.post("/lists/new", data={**SPORT, "title": "Music"})
+    (first, _), (sport, _), (music, _) = lists(conn, client)
+    client.post(f"/lists/delete?list={sport}")
+    client.post(f"/lists/delete?list={sport}")  # a double click, or Back and submit again
+    assert [i for i, _ in lists(conn, client)] == [first, music]
+
+
+def test_delete_needs_the_list_named(conn, sites):
+    client, ai = ready(conn, sites)
+    add_sport(client)
+    client.post("/lists/delete")
+    assert len(lists(conn, client)) == 2
+
+
+def test_a_reader_left_without_a_list_gets_one_back(conn, sites):
+    client, ai = ready(conn, sites)
+    with conn.connection() as c:
+        c.execute("delete from reader_lists")
+    assert client.get("/newsletter").headers["location"] == "/preferences"
+    client.post("/preferences", data={"name": "Ana", "interests": "jazz", "days": ["Friday"], "send_hour": "8",
+                                      "email_on": "on"})
+    assert [t for _, t in lists(conn, client)] == ["My list"]
+    assert open_list(client).status_code == 200
+
+
+def test_readers_can_change_only_their_lists_settings(conn, sites):
+    import psycopg
+    import pytest
+
+    client, ai = ready(conn, sites)
+    with pytest.raises(psycopg.errors.InsufficientPrivilege):
+        with db.as_reader(conn, ana_id(client)) as c:
+            c.execute("update reader_lists set emailed_on = now() where user_id = %s", (ana_id(client),))
+
+
+def test_two_lists_with_the_same_name_each_get_their_email(conn, sites):
+    add_events(conn, *[f"Event {n}" for n in range(12)])
+    client = client_for(conn, sites, ChoosingAI())
+    sign_up_ana(client, days=[MONDAY], send_hour="9")
+    client.supabase.confirm(GOOD["email"])
+    client.cookies.clear()
+    client.post("/signin", data={"email": GOOD["email"], "password": GOOD["password"]})
+    client.post("/lists/new", data={**SPORT, "title": "My list", "days": [MONDAY], "send_hour": "9"})
+    keys = []
+
+    def resend(request):
+        keys.append(request.headers.get("idempotency-key"))
+        return httpx.Response(200, json={})
+
+    from app.daily_email import send_due_lists
+    send_due_lists(conn, ChoosingAI(), httpx.Client(transport=httpx.MockTransport(resend)), "k", "https://x", NOW)
+    assert len(keys) == 2 and len(set(keys)) == 2

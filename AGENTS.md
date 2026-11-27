@@ -54,7 +54,7 @@ The agent ships a change in this order, and stops at anything on the "Ask me fir
 - **Update after merging a PR:**
   1. Back up: on the server, `B=/root/backups/whatisupnyc-$(date +%F) && mkdir -p $B && cp -a /opt/whatisupnyc/app /etc/whatisupnyc/env $B/`. On the Mac, dump the production database (Supabase's free plan has no automatic backups): `pg_dump "$PROD_DATABASE_URL" > ~/backups/whatisupnyc-$(date +%F).sql` (Homebrew's `/opt/homebrew/opt/postgresql@17/bin/pg_dump`).
   2. `cd /opt/whatisupnyc/app && git pull --ff-only`
-  2b. Only if the PR added a file in `supabase/migrations/`: from the Mac, `supabase db push --db-url "$PROD_DATABASE_URL"`. If the migration renames or drops anything the running code reads, first `systemctl stop whatisupnyc whatisupnyc-pipeline.timer` (the old code breaks the moment it runs), and start both again in step 5.
+  2b. Only if the PR added a file in `supabase/migrations/`: from the Mac, `supabase db push --db-url "$PROD_DATABASE_URL"`. If the migration renames or drops anything the running code reads, or adds a table or NOT NULL column the old code doesn't write, first `systemctl stop whatisupnyc whatisupnyc-pipeline.timer whatisupnyc-email.timer` (the old code breaks the moment it runs), and start all three again in step 5.
   2c. Only if the PR changed `supabase/config.toml` or `supabase/templates/`: `SITE_URL=https://whatisupnyc.com supabase config diff --remote=<production ref>`, then the same with `config push`.
   3. Only if `pyproject.toml` or `uv.lock` changed: `UV_CACHE_DIR=/opt/whatisupnyc/.uv-cache UV_PROJECT_ENVIRONMENT=/opt/whatisupnyc/venv /opt/whatisupnyc/bin/uv sync --frozen --no-dev`
   4. If the PR added an environment variable, add it to `/etc/whatisupnyc/env` as well as `.env.example`.

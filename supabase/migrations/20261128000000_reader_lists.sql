@@ -28,6 +28,8 @@ create index newsletter_issues_list_latest on newsletter_issues (list_id, made_a
 
 -- Readers read and edit their own lists; adding and deleting go through the server, which checks the limit.
 alter table reader_lists enable row level security;
+-- Supabase grants new tables in full to these roles; take that back, then allow only what readers need.
+revoke all on reader_lists from anon, authenticated;
 grant select on reader_lists to authenticated;
 grant update (title, interests, days, send_hour, email_on, changed_at) on reader_lists to authenticated;
 create policy "Readers see their own lists of preferences" on reader_lists

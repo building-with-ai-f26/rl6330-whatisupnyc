@@ -70,8 +70,7 @@ def _send_one(conn, ai, http, resend_key, site_url, now, reader, email, limit) -
     local = now.astimezone(NY)
     name = "whatisupnyc" if reader.title in ("", db.FIRST_LIST_TITLE) else reader.title
     subject = f"Your {name} list for {local.strftime('%A, %B %-d')}"
-    once = f"daily-{reader.id}-{local.date().isoformat()}" if name == "whatisupnyc" else \
-        f"daily-{reader.id}-{reader.list_id}-{local.date().isoformat()}"
+    once = f"daily-{reader.id}-{reader.list_id}-{local.date().isoformat()}"
     return send_list(http, resend_key, email, subject, html, once_key=once)
 
 

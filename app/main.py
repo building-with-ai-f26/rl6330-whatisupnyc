@@ -227,6 +227,16 @@ def create_app(deps: AppDeps | None = None) -> FastAPI:
         profile = db.profile_for_first_look(d.conn, token, d.clock()) if token else None
         return Reader(profile, first_look=profile is not None)
 
+    def list_gone(request: Request, reader: Reader) -> bool:
+        """The page named a list (?list=ID) that isn't the reader's any more, such as one just deleted.
+        Reading then shows their first list, but nothing may be changed on its behalf."""
+        asked = chosen_list(request)
+        return asked is not None and (reader.profile is None or reader.profile.list_id != asked)
+
+    def list_deleted(reader: Reader) -> HTMLResponse:
+        text = "That list was deleted, so nothing was changed."
+        return finish(notice("List not found", text, [("/newsletter", "Back to my list")], 404), reader)
+
     def list_query(reader: Reader) -> str:
         """"?list=ID" for any list but the reader's first, so their first keeps the plain address."""
         p = reader.profile
@@ -493,6 +503,8 @@ def create_app(deps: AppDeps | None = None) -> FastAPI:
             return reader
         if over_limit(request, "event_actions"):
             return finish(too_many(request), reader)
+        if list_gone(request, reader):
+            return list_deleted(reader)
         d = get_deps()
         latest = db.latest_issue(d.conn, reader.profile.id, reader.profile.list_id)
         on_list = {saved.event_id for saved in latest.picks} if latest else set()
@@ -509,6 +521,8 @@ def create_app(deps: AppDeps | None = None) -> FastAPI:
         reader = listed_reader(request)
         if not isinstance(reader, Reader):
             return reader
+        if list_gone(request, reader):
+            return list_deleted(reader)
         d = get_deps()
         chosen = list(dict.fromkeys(event_ids))[:10]
         if not chosen:
@@ -571,6 +585,8 @@ def create_app(deps: AppDeps | None = None) -> FastAPI:
         reader = signed_in_reader(request)
         if not isinstance(reader, Reader):
             return reader
+        if list_gone(request, reader):
+            return list_deleted(reader)
         chosen = [day for day in days if day in DAYS]
         hour, wants_email = send_hour_from(send_hour), bool(email_on)
         form = {"name": name, "title": title, "interests": interests, "days": chosen, "send_hour": hour,
@@ -582,10 +598,12 @@ def create_app(deps: AppDeps | None = None) -> FastAPI:
         values = (name.strip(), interests.strip(), "", chosen, d.clock())
         list_id = reader.profile.list_id if reader.profile else None
         if reader.profile is not None:
-            db.update_profile(d.conn, reader.profile.id, *values, list_id=list_id,
-                              title=title.strip()[:MAX_TITLE] or None)
+            if not db.update_profile(d.conn, reader.profile.id, *values, list_id=list_id,
+                                     title=title.strip()[:MAX_TITLE] or None):
+                return list_deleted(reader)
         else:
-            db.create_profile(d.conn, reader.user_id, *values)
+            # New, or left without a list: this saves the profile if needed and gives them a list.
+            db.create_profile(d.conn, reader.user_id, *values, send_hour=hour)
         db.set_email_settings(d.conn, reader.user_id, hour, wants_email, list_id)
         return finish(RedirectResponse(f"/newsletter{list_query(reader)}", status_code=303), reader)
 
@@ -635,7 +653,8 @@ def create_app(deps: AppDeps | None = None) -> FastAPI:
         reader = signed_in_reader(request)
         if not isinstance(reader, Reader):
             return reader
-        if reader.profile is not None and reader.profile.list_id is not None:
+        # Only the list the page named, and only if it's still theirs: a second click never deletes another.
+        if chosen_list(request) is not None and not list_gone(request, reader):
             db.delete_list(get_deps().conn, reader.user_id, reader.profile.list_id)
         return finish(RedirectResponse("/newsletter", status_code=303), reader)
 

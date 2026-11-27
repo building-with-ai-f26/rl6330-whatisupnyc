@@ -28,3 +28,5 @@ $$;
 grant usage on schema auth to anon, authenticated;
 grant execute on function auth.uid() to anon, authenticated;
 grant usage on schema public to anon, authenticated;
+-- Supabase also grants every new public table in full to these roles, so each migration revokes first.
+alter default privileges in schema public grant all on tables to anon, authenticated;

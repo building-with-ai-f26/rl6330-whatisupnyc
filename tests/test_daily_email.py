@@ -158,7 +158,8 @@ def test_resend_is_told_to_drop_a_repeat(conn, sites):
 
     http = httpx.Client(transport=httpx.MockTransport(resend))
     send_due_lists(conn, ChoosingAI(), http, "re_key", "https://whatisupnyc.com", NOW)
-    assert seen == [f"daily-{ana_id(client)}-2026-11-02"]
+    (list_id, _), = db.reader_lists(conn, ana_id(client))
+    assert seen == [f"daily-{ana_id(client)}-{list_id}-2026-11-02"]  # one key per list and day
 
 
 def test_the_ai_limit_stops_the_run(conn, sites):

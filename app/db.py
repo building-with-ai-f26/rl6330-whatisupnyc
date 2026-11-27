@@ -341,11 +341,13 @@ def create_profile(
             " RETURNING user_id",
             (user_id, name, interests, look_prompt, days, send_hour, token, now + FIRST_LOOK),
         ).fetchone()
-        if row:
-            c.execute(
-                "INSERT INTO reader_lists (user_id, title, interests, days, send_hour) VALUES (%s, %s, %s, %s, %s)",
-                (user_id, FIRST_LIST_TITLE, interests, days, send_hour),
-            )
+        # Also gives back a list to a reader left with none.
+        c.execute(
+            "INSERT INTO reader_lists (user_id, title, interests, days, send_hour)"
+            " SELECT %(u)s, %(t)s, %(i)s, %(d)s, %(h)s"
+            " WHERE NOT EXISTS (SELECT 1 FROM reader_lists WHERE user_id = %(u)s)",
+            {"u": user_id, "t": FIRST_LIST_TITLE, "i": interests, "d": days, "h": send_hour},
+        )
     return token if row else None
 
 
@@ -355,6 +357,12 @@ FIRST_LIST_TITLE = "My list"
 # The reader's list with ID %(l)s, or their first list when %(l)s is missing or isn't theirs.
 _CHOSEN_LIST = (
     "(SELECT id FROM reader_lists WHERE user_id = %(u)s ORDER BY (id = %(l)s) DESC NULLS LAST, id LIMIT 1)"
+)
+# For writes: exactly the list with ID %(l)s (their first when %(l)s is missing), or nothing at all, so a change
+# meant for a deleted list never lands on another one.
+_EXACT_LIST = (
+    "(SELECT id FROM reader_lists WHERE user_id = %(u)s"
+    " AND id = coalesce(%(l)s, (SELECT min(id) FROM reader_lists WHERE user_id = %(u)s)))"
 )
 # One reader's preferences for one list, with the titles of all their lists, in one query.
 _PROFILE = (
@@ -438,15 +446,16 @@ def update_profile(
     conn: Database, user_id: str, name: str, interests: str, look_prompt: str, days: list[str], now: datetime,
     list_id: int | None = None, title: str | None = None,
 ) -> bool:
-    """Saves a reader's name and one list's edited preferences, as that reader. False if they have no profile."""
+    """Saves a reader's name and one list's edited preferences, as that reader. False if that list is gone."""
     values = {"u": user_id, "l": list_id, "name": name, "i": interests, "d": days, "n": now, "t": title}
     with as_reader(conn, user_id) as c:
-        found = c.execute("UPDATE profiles SET name = %(name)s WHERE user_id = %(u)s", values).rowcount == 1
-        c.execute(
+        changed = c.execute(
             "UPDATE reader_lists SET interests = %(i)s, days = %(d)s, changed_at = %(n)s,"
-            " title = coalesce(%(t)s, title) WHERE id = " + _CHOSEN_LIST, values,
-        )
-    return found
+            " title = coalesce(%(t)s, title) WHERE id = " + _EXACT_LIST, values,
+        ).rowcount == 1
+        if changed:
+            c.execute("UPDATE profiles SET name = %(name)s WHERE user_id = %(u)s", values)
+    return changed
 
 
 def email_settings(conn: Database, user_id: str, list_id: int | None = None) -> tuple[int, bool] | None:
@@ -462,7 +471,7 @@ def set_email_settings(conn: Database, user_id: str, send_hour: int, email_on: b
                        list_id: int | None = None) -> None:
     with as_reader(conn, user_id) as c:
         c.execute(
-            "UPDATE reader_lists SET send_hour = %(h)s, email_on = %(on)s WHERE id = " + _CHOSEN_LIST,
+            "UPDATE reader_lists SET send_hour = %(h)s, email_on = %(on)s WHERE id = " + _EXACT_LIST,
             {"u": user_id, "l": list_id, "h": send_hour, "on": email_on},
         )
 
@@ -518,7 +527,7 @@ def save_issue(conn: Database, user_id: str, picks: list[Pick], now: datetime, l
     with conn.connection() as c, c.transaction():
         c.execute(
             "INSERT INTO newsletter_issues (user_id, list_id, made_on, made_at, picks)"
-            " VALUES (%(u)s, " + _CHOSEN_LIST + ", %(day)s, %(at)s, %(picks)s)",
+            " VALUES (%(u)s, " + _EXACT_LIST + ", %(day)s, %(at)s, %(picks)s)",
             {"u": user_id, "l": list_id, "day": now.astimezone(NY).date(), "at": now, "picks": Jsonb(saved)},
         )
         c.cursor().executemany(
@@ -638,7 +647,7 @@ def reveal_picks(conn: Database, user_id: str, event_ids: list[int], list_id: in
             "  SELECT jsonb_agg(CASE WHEN (p ->> 'event_id')::bigint = ANY(%(ids)s)"
             "                   THEN p || '{\"extra\": false}'::jsonb ELSE p END ORDER BY n)"
             "  FROM jsonb_array_elements(picks) WITH ORDINALITY AS t(p, n))"
-            " WHERE id = (SELECT id FROM newsletter_issues WHERE list_id = " + _CHOSEN_LIST
+            " WHERE id = (SELECT id FROM newsletter_issues WHERE list_id = " + _EXACT_LIST
             + " ORDER BY made_at DESC, id DESC LIMIT 1)",
             {"ids": event_ids, "u": user_id, "l": list_id},
         )
