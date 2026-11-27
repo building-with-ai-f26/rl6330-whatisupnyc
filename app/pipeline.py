@@ -11,7 +11,7 @@ from app.ai import AIClient, client_from_env
 from app.checks import check_event, dedupe_key, same_event
 from app.models import CandidateEvent, Signals
 from app.pages import PageResult, fetch_page, page_image
-from app.pictures import find_picture, is_copy
+from app.pictures import find_picture
 from app.scoring import Reputable, brand_confirmed, domain_of, load_reputable, normalize, reliable_domains, score
 from app.sentiment import Opinion, gather_opinions, rate_sentiment
 from app.sites import Sites, load as load_sites
@@ -111,29 +111,21 @@ def run_pipeline(conn, deps: PipelineDeps, now: datetime) -> PipelineSummary:
         new.append((db.save_event(conn, event, outcome), event))
         eligible += outcome.eligible
     intake = _save_intake(conn, now, new)
-    merge_muse_copies(conn, now)
-    add_search_pictures(conn, deps, new, now)
+    try:
+        add_search_pictures(conn, deps, new, now)
+    except Exception:
+        # Everything is saved by now; a picture problem must not fail the run.
+        log.exception("Picture search step failed")
     return PipelineSummary(
         len(candidates) + len(pastes) + intake.collected, passed + intake.passed, dropped + intake.dropped,
         eligible + intake.eligible,
     )
 
 
-def merge_muse_copies(conn, now: datetime) -> None:
-    """One card for an event Muse and another source both list: the other source's copy stays, with Muse's
-    picture if it has none, and Muse's copy comes off lists."""
-    events = db.eligible_events(conn, now)
-    others = [e for e in events if e.event.source != "intake"]
-    for muse in (e for e in events if e.event.source == "intake"):
-        twin = next((o for o in others if is_copy(muse.event, o.event)), None)
-        if twin:
-            if muse.event.image_url:
-                db.fill_event_image_by_id(conn, twin.id, muse.event.image_url)
-            db.retire_event(conn, muse.id)
-
-
 def add_search_pictures(conn, deps: "PipelineDeps", new: list[tuple[int, CandidateEvent]], now: datetime) -> None:
     """A picture from an image search for new, well-known events that came without one."""
+    if hasattr(deps.tavily, "remaining"):
+        deps.tavily.remaining = MAX_PICTURE_SEARCHES  # their own allowance, after coverage and reviews used theirs
     listed = {e.id: e.event for e in db.eligible_events(conn, now)}
     waiting = [(i, listed[i]) for i, _ in new if i in listed and not listed[i].image_url]
     for event_id, event in waiting[:MAX_PICTURE_SEARCHES]:
@@ -318,7 +310,7 @@ def _default_deps(conn) -> PipelineDeps:
     http = httpx.Client()
     return PipelineDeps(
         http=http,
-        tavily=TavilyClient(http, os.environ["TAVILY_API_KEY"], run_budget=20 + MAX_PICTURE_SEARCHES),
+        tavily=TavilyClient(http, os.environ["TAVILY_API_KEY"]),
         ai=client_from_env(http, conn),
         sites=load_sites(),
         reputable=load_reputable(),

@@ -182,12 +182,6 @@ def retire_muse_event(conn: Database, intake_id: int) -> None:
         c.execute("UPDATE intake_events SET event_id = NULL WHERE id = %s", (intake_id,))
 
 
-def retire_event(conn: Database, event_id: int) -> None:
-    """Takes an event off future lists. Readers' saves and ratings stay."""
-    with conn.connection() as c:
-        c.execute("UPDATE events SET eligible = false WHERE id = %s", (event_id,))
-
-
 def link_intake(conn: Database, intake_id: int, event_id: int) -> None:
     with conn.connection() as c:
         c.execute("UPDATE intake_events SET event_id = %s WHERE id = %s", (event_id, intake_id))

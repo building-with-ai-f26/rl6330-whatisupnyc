@@ -103,32 +103,68 @@ def test_a_new_muse_event_without_a_picture_is_searched_too(conn, sites):
     assert pictures(conn)[BALLOONS] == PHOTO.url
 
 
-# One card when Muse and a feed list the same event under slightly different names.
-def test_a_muse_copy_of_a_feed_event_is_merged_into_it(conn, sites):
+# Muse and a feed listing the same event: both stay (readers' saves and links keep working), but a list
+# never shows both.
+def copies(conn, sites):
     muse = _intake("Macy's Thanksgiving Day Parade Balloon Inflation", START, image="https://cdn.example/m.jpg",
                    venue="W 72nd Street & Columbus Avenue")
     db.save_intake(conn, [("https://www.instagram.com/p/M/", muse, "")], NOW)
     run_with(conn, sites, FakeTavily(), feed_event())
-    assert pictures(conn) == {BALLOONS: "https://cdn.example/m.jpg"}
 
 
-def test_a_feed_event_found_after_the_muse_copy_still_merges(conn, sites):
-    muse = _intake("Macy's Thanksgiving Day Parade Balloon Inflation", START, venue="W 72nd Street")
-    db.save_intake(conn, [("https://www.instagram.com/p/M/", muse, "")], NOW)
-    run_pipeline(conn, deps(sites, ticketmaster=EMPTY_TM), NOW)
-    new_event_run(conn, sites, FakeTavily(), feed_event())
-    assert list(pictures(conn)) == [BALLOONS]
-
-
-def test_similar_but_different_events_stay_apart(conn, sites):
-    muse = _intake("Rogue Black Friday Blowout Sale", START, venue="Rogue Flagship")
-    db.save_intake(conn, [("https://www.instagram.com/p/R/", muse, "")], NOW)
-    run_with(conn, sites, FakeTavily(), feed_event(name="Black Friday Sale At The Shop", venue="Scandinavia House"))
-    assert set(pictures(conn)) == {"Rogue Black Friday Blowout Sale", "Black Friday Sale At The Shop"}
-
-
-def test_same_name_on_another_day_is_not_merged(conn, sites):
-    muse = _intake("Macy's Thanksgiving Day Parade Balloon Inflation", START + timedelta(days=1))
-    db.save_intake(conn, [("https://www.instagram.com/p/M/", muse, "")], NOW)
-    run_with(conn, sites, FakeTavily(), feed_event())
+def test_both_copies_stay_listed(conn, sites):
+    copies(conn, sites)
     assert len(pictures(conn)) == 2
+
+
+def test_a_list_never_shows_both_copies(conn, sites):
+    from markupsafe import escape
+
+    from tests.fakes import ChoosingAI
+    from tests.test_main import client_for, open_list, signed_in_ana
+
+    copies(conn, sites)
+    client = client_for(conn, sites, ChoosingAI(how_many=5))
+    signed_in_ana(client)
+    html = open_list(client).text
+    cards = sum(html.count(f'data-name="{escape(name)}"><button class="plain toggle"') for name in pictures(conn))
+    assert cards == 1
+
+
+def test_more_like_these_never_adds_a_copy_of_a_listed_event(conn, sites):
+    from app import saved_lists
+    from tests.fakes import ChoosingAI
+    from tests.test_main import client_for, ana_id, signed_in_ana
+
+    copies(conn, sites)
+    client = client_for(conn, sites)
+    signed_in_ana(client)
+    reader = db.get_profile(conn, ana_id(client))
+    feed = next(e for e in db.eligible_events(conn, NOW) if e.event.source == "nyc_calendar")
+    first = saved_lists.make_list(conn, ChoosingAI(how_many=1), reader, NOW)
+    assert [p.event.id for p in first] in ([feed.id], [next(e.id for e in db.eligible_events(conn, NOW) if e.id != feed.id)])
+    after = saved_lists.make_list(conn, ChoosingAI(how_many=5), reader, NOW, more_like_ids=[first[0].event.id])
+    names = [p.event.event.name for p in after]
+    assert sum("Balloon Inflation" in n for n in names) == 1
+
+
+def test_similar_but_different_events_are_both_allowed_on_a_list(conn, sites):
+    from app.pictures import is_copy
+    rogue = _intake("Rogue Black Friday Blowout Sale", START, venue="Rogue Flagship")
+    shop = feed_event(name="Black Friday Sale At The Shop", venue="Scandinavia House")
+    yoga = feed_event(name="Free Yoga Class", venue="Flushing Meadows")
+    sunset = _intake("Free Sunset Yoga Class at Domino Park", START, venue="Domino Park")
+    assert not is_copy(rogue, shop) and not is_copy(yoga, sunset)
+
+
+# Tighter picture rules.
+def test_short_generic_names_are_not_searched(conn, sites):
+    tavily = FakeTavily(hits=[NEWS], images=[PHOTO])
+    new_event_run(conn, sites, tavily, feed_event(name="Comedy Night"))
+    assert tavily.image_queries == []
+
+
+def test_a_picture_from_a_site_that_did_not_write_about_it_is_not_used(conn, sites):
+    elsewhere = ImageHit("https://listing.example/img/b.jpg", "Macy's parade balloon inflation at night")
+    new_event_run(conn, sites, FakeTavily(hits=[NEWS], images=[elsewhere]), feed_event())
+    assert pictures(conn)[BALLOONS] is None
