@@ -129,11 +129,11 @@ def test_one_reader_failing_does_not_stop_the_others(conn, sites, monkeypatch):
     real = db.latest_issue
     calls = {"n": 0}
 
-    def first_breaks(c, user_id):
+    def first_breaks(c, user_id, *rest):
         calls["n"] += 1
         if calls["n"] == 1:
             raise RuntimeError("connection dropped")
-        return real(c, user_id)
+        return real(c, user_id, *rest)
 
     monkeypatch.setattr(db, "latest_issue", first_breaks)
     resend, result = run(conn)

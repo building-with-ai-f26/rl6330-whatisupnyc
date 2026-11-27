@@ -5,9 +5,11 @@
 <h2>Your preferences</h2>
 <p>Change anything, and your next list is picked fresh from it.</p>
 {% if message %}<p class="notice" role="status">{{ message }}</p>{% endif %}
-<form method="post" action="/preferences" data-busy="Saving…">
+<form method="post" action="/preferences{{ list_query }}" data-busy="Saving…">
   <label for="name">What should we call you?</label>
   <input id="name" name="name" type="text" required value="{{ form.name }}">
+  <label for="title">Name of this list</label>
+  <input id="title" name="title" type="text" maxlength="40" value="{{ form.title }}">
   <label for="interests">What kind of events do you like?</label>
   <textarea id="interests" name="interests" rows="3" required>{{ form.interests }}</textarea>
   <fieldset>
@@ -23,5 +25,10 @@
   </select>
   <button type="submit">Save and see my list</button>
 </form>
-<p class="links"><a href="/newsletter">Cancel and go back to my list</a></p>
+<p class="links"><a href="/newsletter{{ list_query }}">Cancel and go back to my list</a></p>
+{% if several %}
+<form method="post" action="/lists/delete{{ list_query }}" class="delete-list">
+  <button class="plain" type="submit">Delete this list</button>
+</form>
+{% endif %}
 {% endblock %}
