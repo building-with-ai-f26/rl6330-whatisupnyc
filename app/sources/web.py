@@ -51,6 +51,12 @@ class SearchHit:
     content: str
 
 
+@dataclass
+class ImageHit:
+    url: str
+    description: str
+
+
 class TavilyClient:
     def __init__(self, http: httpx.Client, api_key: str, run_budget: int = 20):
         self.http = http
@@ -58,26 +64,39 @@ class TavilyClient:
         self.remaining = run_budget
 
     def search(self, query: str, include_domains: list[str]) -> list[SearchHit]:
+        return self._search(query, include_domains)[0]
+
+    def search_images(self, query: str, include_domains: list[str]) -> tuple[list[SearchHit], list[ImageHit]]:
+        """Pages and pictures for a query, each picture with Tavily's description of what it shows."""
+        return self._search(query, include_domains, include_images=True, include_image_descriptions=True)
+
+    def _search(self, query: str, include_domains: list[str], **extra) -> tuple[list[SearchHit], list[ImageHit]]:
         if self.remaining <= 0:
-            return []
+            return [], []
         self.remaining -= 1
         try:
             response = self.http.post(
                 SEARCH_URL,
                 headers={"Authorization": f"Bearer {self.api_key}"},
-                json={"query": query, "include_domains": include_domains, "max_results": 10},
+                json={"query": query, "include_domains": include_domains, "max_results": 10, **extra},
                 timeout=30,
             )
         except httpx.HTTPError as exc:
             log.warning("Tavily request failed: %s", type(exc).__name__)
-            return []
+            return [], []
         if response.status_code != 200:
             log.warning("Tavily returned HTTP %s", response.status_code)
-            return []
-        return [
+            return [], []
+        body = response.json()
+        hits = [
             SearchHit(result.get("url", ""), result.get("title", ""), result.get("content", ""))
-            for result in response.json().get("results", [])
+            for result in body.get("results", [])
         ]
+        images = [
+            ImageHit(image.get("url", ""), image.get("description") or "")
+            for image in body.get("images", []) if isinstance(image, dict)
+        ]
+        return hits, images
 
 
 def read_schema_events(html: str, url: str, source: str) -> list[CandidateEvent]:

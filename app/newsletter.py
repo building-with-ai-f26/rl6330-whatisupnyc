@@ -9,6 +9,7 @@ from zoneinfo import ZoneInfo
 
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 
+from app.pictures import is_copy
 from app.ai import AIClient
 from app.models import Pick, ScoredEvent, Subscriber
 from app.sources.web import NO_TIME
@@ -130,6 +131,8 @@ def confirm_picks(raw: list, events: list[ScoredEvent]) -> list[Pick]:
         if not isinstance(event_id, int) or event_id not in by_id or event_id in used:
             continue
         used.add(event_id)
+        if any(is_copy(by_id[event_id].event, pick.event.event) for pick in picks):
+            continue  # the same event under another name, from another source
         picks.append(Pick(by_id[event_id], _clean_reason(item.get("reason"))))
     return _earliest_night_only(picks)
 

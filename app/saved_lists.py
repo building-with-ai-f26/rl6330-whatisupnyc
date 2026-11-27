@@ -7,6 +7,7 @@ saved one is instant.
 from datetime import datetime
 
 from app import db
+from app.pictures import is_copy
 from app.ai import AIClient, AIUnavailable
 from app.models import Pick, SavedIssue, Subscriber
 from app.newsletter import NY, Taste, choose_picks
@@ -71,7 +72,8 @@ def make_list(
     # show already on it.
     skip = sent | {pick.event.id for pick in current}
     names = {pick.event.event.name.casefold() for pick in current}
-    offer = [event for event in events if event.event.name.casefold() not in names]
+    offer = [event for event in events if event.event.name.casefold() not in names
+             and not any(is_copy(event.event, pick.event.event) for pick in current)]
     taste = taste_for(conn, reader, more_like_ids)
     chosen = choose_picks(reader, offer, ai, now=now, max_picks=PICKS_MADE, sent_ids=skip, taste=taste)
     if not chosen and any(event.id not in skip for event in offer):
