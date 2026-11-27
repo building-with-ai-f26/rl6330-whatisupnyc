@@ -32,11 +32,31 @@ from app.supabase_auth import AuthRefused, AuthUnavailable, Session, SupabaseAut
 MAX_WAITING_PASTES = 200
 
 DAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
+# When readers can have their list emailed, New York time: (hour, label). Lists are made after the 6:30 collection.
+SEND_TIMES = [(7, "7 AM"), (8, "8 AM"), (9, "9 AM"), (12, "Noon"), (17, "5 PM")]
+
+
+def send_hour_from(text: str) -> int:
+    """The chosen hour, or 8 AM for anything that isn't one of the choices."""
+    hours = [hour for hour, _ in SEND_TIMES]
+    return int(text) if text.strip().isdigit() and int(text) in hours else 8
 TEMPLATES = {
-    "New to NYC": "I'm new to New York and want to explore classic spots, neighborhoods, and things locals love.",
+    "New to NYC": "Classic NYC spots, neighborhoods, and things locals love.",
     "Free and cheap": "Free or low-cost events: outdoor shows, museum free nights, talks, and markets.",
-    "Live music and comedy": "Live music and stand-up comedy at good venues, from small rooms to big shows.",
-    "Art and culture": "Art openings, museum programs, film screenings, theater, and talks.",
+    "Live music": "Live music at good venues, from small jazz rooms to big concerts.",
+    "Comedy": "Stand-up and improv comedy shows.",
+    "Art and museums": "Art openings, gallery shows, and museum programs.",
+    "Theater and dance": "Theater, Broadway and off-Broadway shows, and dance performances.",
+    "Film": "Film screenings, premieres, and movie nights.",
+    "Sports": "Live sports games, races, and watch parties.",
+    "Food and drink": "Food festivals, tastings, food markets, and pop-up dinners.",
+    "Markets and shopping": "Holiday markets, flea markets, sample sales, and pop-up shops.",
+    "Outdoors": "Parks, walks, tours, and outdoor activities.",
+    "Fitness": "Group runs, yoga, and free fitness classes.",
+    "Talks and books": "Talks, author readings, book events, and lectures.",
+    "Nightlife": "Parties, DJ nights, and late-night events.",
+    "Family and kids": "Family-friendly events and things to do with kids.",
+    "Meet people": "Social events, meetups, and ways to meet new people.",
 }
 AI_BUSY = "The AI model is busy right now. Your events are saved, so please try again in a little while."
 AUTH_DOWN = "Sign-in is down right now, please try again in a little while."
@@ -172,12 +192,12 @@ def create_app(deps: AppDeps | None = None) -> FastAPI:
     ) -> HTMLResponse:
         # message belongs to the sign-up form; paste_message shows beside the "add an event" form.
         # form holds what the reader already typed (never the password), so a rejected form doesn't make them start over.
-        form = {"interests": "", "name": "", "email": "", "look_prompt": "", "days": [], **(form or {})}
+        form = {"interests": "", "name": "", "email": "", "days": [], "send_hour": 8, **(form or {})}
         # Only a cookie check, so the start page never waits on Supabase.
         has_login = any(request.cookies.get(name) for name in (ACCESS_COOKIE, REFRESH_COOKIE, FIRST_LOOK_COOKIE))
         html = page(
             "index.html", days=DAYS, templates=TEMPLATES, message=message, paste_message=paste_message, form=form,
-            has_login=has_login,
+            has_login=has_login, send_hours=SEND_TIMES,
         )
         return HTMLResponse(html, status_code=status_code)
 
@@ -217,11 +237,12 @@ def create_app(deps: AppDeps | None = None) -> FastAPI:
         email: str = Form(""),
         password: str = Form(""),
         interests: str = Form(""),
-        look_prompt: str = Form(""),
         days: list[str] = Form([]),
+        send_hour: str = Form(""),
     ):
         chosen = [day for day in days if day in DAYS]
-        typed = {"interests": interests, "name": name, "email": email, "look_prompt": look_prompt, "days": chosen}
+        hour = send_hour_from(send_hour)
+        typed = {"interests": interests, "name": name, "email": email, "days": chosen, "send_hour": hour}
         if not name.strip() or not email.strip() or not interests.strip() or not chosen or not password:
             missing = "Please fill in a name, an email, a password, what kind of event, and at least one day."
             return start_page(request, missing, 400, form=typed)
@@ -242,7 +263,7 @@ def create_app(deps: AppDeps | None = None) -> FastAPI:
         except AuthUnavailable:
             return start_page(request, AUTH_DOWN, 503, form=typed)
         token = user and db.create_profile(
-            d.conn, user.id, name.strip(), interests.strip(), look_prompt.strip(), chosen, d.clock()
+            d.conn, user.id, name.strip(), interests.strip(), "", chosen, d.clock(), send_hour=hour
         )
         if not token:
             # The email already has an account. Say the same thing either way, and change nothing.
@@ -500,7 +521,7 @@ def create_app(deps: AppDeps | None = None) -> FastAPI:
         return reader
 
     def preferences_page(reader: Reader, form: dict, message: str = "", status_code: int = 200) -> HTMLResponse:
-        html = page("preferences.html", days=DAYS, form=form, message=message)
+        html = page("preferences.html", days=DAYS, form=form, message=message, send_hours=SEND_TIMES)
         return finish(HTMLResponse(html, status_code=status_code), reader)
 
     @app.get("/preferences", response_class=HTMLResponse)
@@ -509,9 +530,10 @@ def create_app(deps: AppDeps | None = None) -> FastAPI:
         if not isinstance(reader, Reader):
             return reader
         p = reader.profile
-        form = {"name": p.name, "interests": p.interests, "look_prompt": p.look_prompt, "days": p.days} if p else {
-            "name": "", "interests": "", "look_prompt": "", "days": []
-        }
+        form = {"name": "", "interests": "", "days": [], "send_hour": 8, "email_on": True}
+        if p:
+            hour, on = db.email_settings(get_deps().conn, p.id)
+            form = {"name": p.name, "interests": p.interests, "days": p.days, "send_hour": hour, "email_on": on}
         return preferences_page(reader, form)
 
     @app.post("/preferences")
@@ -519,23 +541,26 @@ def create_app(deps: AppDeps | None = None) -> FastAPI:
         request: Request,
         name: str = Form(""),
         interests: str = Form(""),
-        look_prompt: str = Form(""),
         days: list[str] = Form([]),
+        send_hour: str = Form(""),
+        email_on: str = Form(""),
     ):
         reader = signed_in_reader(request)
         if not isinstance(reader, Reader):
             return reader
         chosen = [day for day in days if day in DAYS]
-        form = {"name": name, "interests": interests, "look_prompt": look_prompt, "days": chosen}
+        hour, wants_email = send_hour_from(send_hour), bool(email_on)
+        form = {"name": name, "interests": interests, "days": chosen, "send_hour": hour, "email_on": wants_email}
         if not name.strip() or not interests.strip() or not chosen:
             message = "Please fill in a name, what kind of event, and at least one day."
             return preferences_page(reader, form, message, 400)
         d = get_deps()
-        values = (name.strip(), interests.strip(), look_prompt.strip(), chosen, d.clock())
+        values = (name.strip(), interests.strip(), "", chosen, d.clock())
         if reader.profile is not None:
             db.update_profile(d.conn, reader.profile.id, *values)
         else:
             db.create_profile(d.conn, reader.user_id, *values)
+        db.set_email_settings(d.conn, reader.user_id, hour, wants_email)
         return finish(RedirectResponse("/newsletter", status_code=303), reader)
 
     def email_version(request: Request, reader: Reader) -> tuple[str | None, str]:

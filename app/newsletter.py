@@ -99,7 +99,6 @@ def choose_picks(
     ]
     user = (
         f"Reader's interests: {subscriber.interests}\n"
-        f"Reader's style request: {subscriber.look_prompt or 'none'}\n"
         f"{_taste_lines(taste)}"
         f"Choose at most {max_picks}.\n"
         f"Events: {json.dumps(listing, ensure_ascii=False)}"

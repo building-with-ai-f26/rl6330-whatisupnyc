@@ -14,7 +14,7 @@ from tests.fakes import FakeAI, FakeAuth, FakeTavily
 
 NOW = datetime(2026, 11, 2, 12, tzinfo=NY)
 GOOD = {
-    "name": "Ana", "email": "ana@x.test", "password": "long-enough-1", "interests": "jazz", "look_prompt": "",
+    "name": "Ana", "email": "ana@x.test", "password": "long-enough-1", "interests": "jazz",
     "days": ["Friday"],
 }
 
@@ -65,7 +65,7 @@ def ana_id(client) -> str:
 def test_start_page_has_bar_templates_days(conn, sites):
     html = client_for(conn, sites).get("/").text
     assert "what kind of events do you like?" in html.lower()
-    for text in ["New to NYC", "Free and cheap", "Live music and comedy", "Art and culture"]:
+    for text in ["New to NYC", "Free and cheap", "Live music", "Sports", "Food and drink", "Meet people"]:
         assert text in html
     for day in ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]:
         assert day in html
@@ -91,7 +91,7 @@ def test_start_page_has_every_field_in_one_form_so_it_works_without_javascript(c
     html = client_for(conn, sites).get("/").text
     form = start_form(html)
     assert 'action="/subscribers"' in html and 'method="post"' in html
-    for field in ['name="interests"', 'name="name"', 'name="email"', 'name="look_prompt"', 'name="days"']:
+    for field in ['name="interests"', 'name="name"', 'name="email"', 'name="password"', 'name="send_hour"', 'name="days"']:
         assert field in form
     assert form.count('type="checkbox" name="days"') == 7
     assert 'type="submit"' in form
@@ -211,11 +211,11 @@ def test_posthog_loads_on_every_page_when_key_set(conn, sites):
 
 
 def test_rejected_form_keeps_what_the_reader_typed(conn, sites):
-    data = {**GOOD, "interests": "late jazz <and> rooftop films", "look_prompt": "short", "email": "", "days": ["Friday", "Sunday"]}
+    data = {**GOOD, "interests": "late jazz <and> rooftop films", "send_hour": "17", "email": "", "days": ["Friday", "Sunday"]}
     html = client_for(conn, sites).post("/subscribers", data=data).text
     assert GOOD["password"] not in html
     assert "late jazz &lt;and&gt; rooftop films</textarea>" in html
-    assert 'value="Ana"' in html and 'value="short"' in html
+    assert 'value="Ana"' in html and '<option value="17" selected>' in html
     assert 'value="Friday" aria-label="Friday" checked' in html
     assert 'value="Sunday" aria-label="Sunday" checked' in html
     assert 'value="Monday" aria-label="Monday" checked' not in html
