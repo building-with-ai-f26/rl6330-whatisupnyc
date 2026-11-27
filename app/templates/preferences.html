@@ -10,14 +10,17 @@
   <input id="name" name="name" type="text" required value="{{ form.name }}">
   <label for="interests">What kind of events do you like?</label>
   <textarea id="interests" name="interests" rows="3" required>{{ form.interests }}</textarea>
-  <label for="look_prompt">How should your list read? (optional)</label>
-  <input id="look_prompt" name="look_prompt" type="text" value="{{ form.look_prompt }}">
   <fieldset>
     <legend>Which days do you want your list?</legend>
     <div class="days">
       {% for day in days %}<label><input type="checkbox" name="days" value="{{ day }}" aria-label="{{ day }}"{% if day in form.days %} checked{% endif %}><span aria-hidden="true">{{ day[:3] }}</span></label>{% endfor %}
     </div>
   </fieldset>
+  <label class="check"><input type="checkbox" name="email_on"{% if form.email_on %} checked{% endif %}> Email me my list on these days</label>
+  <label for="send_hour">What time should we email it? (New York time)</label>
+  <select id="send_hour" name="send_hour">
+    {% for hour, label in send_hours %}<option value="{{ hour }}"{% if hour == form.send_hour %} selected{% endif %}>{{ label }}</option>{% endfor %}
+  </select>
   <button type="submit">Save and see my list</button>
 </form>
 <p class="links"><a href="/newsletter">Cancel and go back to my list</a></p>

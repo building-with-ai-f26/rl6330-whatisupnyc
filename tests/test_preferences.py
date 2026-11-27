@@ -5,17 +5,17 @@ from tests.fakes import ChoosingAI
 from tests.test_main import GOOD, ana_id, client_for, open_list, sign_up_ana, signed_in_ana
 from tests.test_saved_lists import Clock, add_events
 
-NEW = {"name": "Ana B", "interests": "stand-up comedy", "look_prompt": "keep it short", "days": ["Saturday", "Sunday"]}
+NEW = {"name": "Ana B", "interests": "stand-up comedy", "days": ["Saturday", "Sunday"], "send_hour": "9", "email_on": "on"}
 
 
 def test_preferences_form_is_prefilled(conn, sites):
     client = client_for(conn, sites)
-    sign_up_ana(client, interests="late jazz", look_prompt="casual", days=["Friday", "Sunday"])
+    sign_up_ana(client, interests="late jazz", send_hour="12", days=["Friday", "Sunday"])
     client.supabase.confirm(GOOD["email"])
     client.cookies.clear()
     client.post("/signin", data={"email": GOOD["email"], "password": GOOD["password"]})
     html = client.get("/preferences").text
-    assert 'value="Ana"' in html and "late jazz</textarea>" in html and 'value="casual"' in html
+    assert 'value="Ana"' in html and "late jazz</textarea>" in html and '<option value="12" selected>' in html
     assert 'value="Friday" aria-label="Friday" checked' in html and 'value="Sunday" aria-label="Sunday" checked' in html
     assert 'value="Monday" aria-label="Monday" checked' not in html
 
@@ -31,9 +31,8 @@ def test_saving_preferences_makes_a_new_list(conn, sites):
     response = client.post("/preferences", data=NEW)
     assert (response.status_code, response.headers["location"]) == (303, "/newsletter")
     saved = db.get_profile(conn, ana_id(client))
-    assert (saved.name, saved.interests, saved.look_prompt, saved.days) == (
-        "Ana B", "stand-up comedy", "keep it short", ["Saturday", "Sunday"]
-    )
+    assert (saved.name, saved.interests, saved.days) == ("Ana B", "stand-up comedy", ["Saturday", "Sunday"])
+    assert db.email_settings(conn, ana_id(client)) == (9, True)
     open_list(client)
     open_list(client)
     assert ai.calls == 2
@@ -45,7 +44,7 @@ def test_incomplete_preferences_are_rejected_and_kept(conn, sites):
     for bad in ({**NEW, "days": []}, {**NEW, "interests": "   "}, {**NEW, "name": ""}):
         response = client.post("/preferences", data=bad)
         assert response.status_code == 400
-        assert 'value="keep it short"' in response.text
+        assert '<option value="9" selected>' in response.text
     assert db.get_profile(conn, ana_id(client)).interests == GOOD["interests"]
 
 

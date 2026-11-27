@@ -61,11 +61,11 @@ def test_prompt_has_no_name_or_email():
     assert "ana@x.test" not in ai.prompts[0]
 
 
-def test_prompt_includes_interests_and_look():
+def test_prompt_includes_interests_but_no_style_request():
     ai = FakeAI({"picks": []})
     choose(SUB, EVENTS, ai)
     assert "jazz and free things" in ai.prompts[0]
-    assert "keep it short" in ai.prompts[0]
+    assert "keep it short" not in ai.prompts[0]
 
 
 def test_prompt_lists_higher_scores_first():

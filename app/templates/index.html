@@ -19,7 +19,7 @@
     .intro { margin: clamp(20px, 3.5vw, 36px) 0 0; max-width: 40ch; font-size: clamp(18px, 2vw, 22px); line-height: 1.4; color: var(--white); }
     .message { background: var(--taxi); color: var(--black); border-radius: 4px; padding: 12px 16px; margin: 28px 0 0; max-width: 60ch; }
 
-    /* Progress: five blocks, one per question. Only drawn when JavaScript runs the steps. */
+    /* Progress: three blocks, one per step. Only drawn when JavaScript runs the steps. */
     .progress { display: none; align-items: center; gap: 14px; margin: clamp(24px, 4vw, 40px) 0 0; color: var(--fog); font-size: 15px; }
     .js .stepping .progress { display: flex; }
     .progress ol { display: flex; gap: 4px; margin: 0; padding: 0; list-style: none; }
@@ -49,6 +49,14 @@
     .chips button[aria-pressed="true"] { background: var(--white); color: var(--black); border-color: var(--white); }
     html:not(.js) .chips { display: none; }
 
+    .field { display: block; margin: 22px 0 8px; font-weight: 500; }
+    .step[data-name="account"] .ask { margin-bottom: 4px; }
+    .plate.time { max-width: 260px; }
+    .plate + .note { margin: 10px 0 0; }
+    .every { display: inline-block; margin: 0 0 12px; background: transparent; color: var(--white); border: 1px solid var(--white); border-radius: 4px; padding: 10px 18px; font-weight: 500; }
+    .every[aria-pressed="true"] { background: var(--taxi); border-color: var(--taxi); color: var(--black); }
+    .chips-note { margin: 12px 0 0; }
+    html:not(.js) .chips-note, html:not(.js) .every { display: none; }
     .days { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 6px; max-width: 640px; }
     .days label { position: relative; }
     .days input { position: absolute; inset: 0; opacity: 0; width: 100%; height: 100%; margin: 0; cursor: pointer; }
@@ -105,15 +113,16 @@
       <form id="make" class="flow{% if stepping %} stepping{% endif %}" method="post" action="/subscribers">
         {% if message %}<p class="message" role="status">{{ message }}</p>{% endif %}
         <div class="progress" aria-hidden="true">
-          <ol>{% for _ in range(6) %}<li></li>{% endfor %}</ol>
-          <span class="count">Step 1 of 6</span>
+          <ol>{% for _ in range(3) %}<li></li>{% endfor %}</ol>
+          <span class="count">Step 1 of 3</span>
         </div>
         <p id="announce" class="sr-only" aria-live="polite"></p>
 
         <div class="step current" data-name="interests">
           <p class="intro">whatisupnyc sends you a short list of NYC events picked for what you like, on the days you choose. Every event is checked first, so each one has a real date, venue and link.</p>
           <label class="ask" for="interests">What kind of events do you like?</label>
-          <textarea id="interests" class="plate" name="interests" rows="3" required aria-describedby="interests-oops" placeholder="Late jazz, free museum nights, weird comedy">{{ form.interests }}</textarea>
+          <textarea id="interests" class="plate" name="interests" rows="3" required aria-describedby="interests-note interests-oops" placeholder="Late jazz, free museum nights, weird comedy">{{ form.interests }}</textarea>
+          <p class="note chips-note" id="interests-note">Tap any that fit to add them, or write your own.</p>
           <div class="chips" role="group" aria-label="Quick picks">
             {% for label, text in templates.items() %}
             <button type="button" data-text="{{ text }}" aria-pressed="false">{{ label }}</button>
@@ -126,61 +135,40 @@
           </div>
         </div>
 
-        <fieldset class="step" data-name="days" aria-describedby="days-oops">
+        <fieldset class="step" data-name="when" aria-describedby="days-oops">
           <legend class="ask">Which days do you want your list?</legend>
+          <button type="button" id="every-day" class="every" aria-pressed="false">Every day</button>
           <div class="days">
             {% for day in days %}
             <label><input type="checkbox" name="days" value="{{ day }}" aria-label="{{ day }}"{% if day in form.days %} checked{% endif %}><span aria-hidden="true">{{ day[:3] }}</span></label>
             {% endfor %}
           </div>
           <p class="oops" id="days-oops" role="alert"></p>
+          <label class="field" for="send_hour">What time should we email it?</label>
+          <select id="send_hour" class="plate time" name="send_hour" aria-describedby="time-note">
+            {% for hour, label in send_hours %}<option value="{{ hour }}"{% if hour == form.send_hour %} selected{% endif %}>{{ label }}</option>{% endfor %}
+          </select>
+          <p class="note" id="time-note">New York time. You can change it, or stop the email, any time.</p>
           <div class="nav">
             <button type="button" class="next">Continue</button>
             <button type="button" class="back">Back</button>
           </div>
         </fieldset>
 
-        <div class="step" data-name="name">
-          <label class="ask" for="name">What should we call you?</label>
+        <div class="step" data-name="account">
+          <p class="ask">Last step: your account</p>
+          <label class="field" for="name">What should we call you?</label>
           <input id="name" class="plate" name="name" type="text" required autocomplete="off" aria-describedby="name-oops" value="{{ form.name }}">
-          <p class="oops" id="name-oops" role="alert"></p>
-          <div class="nav">
-            <button type="button" class="next">Continue</button>
-            <button type="button" class="back">Back</button>
-            <span class="enter">or press Enter</span>
-          </div>
-        </div>
-
-        <div class="step" data-name="email">
-          <label class="ask" for="email">What's your email?</label>
+          <p class="oops" id="name-oops"></p>
+          <label class="field" for="email">Email</label>
           <input id="email" class="plate" name="email" type="email" required autocomplete="email" inputmode="email" aria-describedby="email-oops" value="{{ form.email }}">
-          <p class="oops" id="email-oops" role="alert"></p>
-          <div class="nav">
-            <button type="button" class="next">Continue</button>
-            <button type="button" class="back">Back</button>
-            <span class="enter">or press Enter</span>
-          </div>
-        </div>
-
-        <div class="step" data-name="password">
-          <label class="ask" for="password">Choose a password</label>
-          <p class="note" id="password-note">At least 8 characters. You'll use it with your email to come back and see your list.</p>
+          <p class="oops" id="email-oops"></p>
+          <label class="field" for="password">Password</label>
           <input id="password" class="plate" name="password" type="password" required minlength="8" autocomplete="new-password" aria-describedby="password-note password-oops">
-          <p class="oops" id="password-oops" role="alert"></p>
-          <div class="nav">
-            <button type="button" class="next">Continue</button>
-            <button type="button" class="back">Back</button>
-            <span class="enter">or press Enter</span>
-          </div>
-        </div>
-
-        <div class="step" data-name="style">
-          <label class="ask" for="look_prompt">How should your list read?</label>
-          <p class="note" id="look-note">Optional. Say it in your own words, or skip it.</p>
-          <input id="look_prompt" class="plate" name="look_prompt" type="text" aria-describedby="look-note" placeholder="Keep it short and casual" value="{{ form.look_prompt }}">
+          <p class="note" id="password-note">At least 8 characters. You'll use it with your email to come back to your list.</p>
+          <p class="oops" id="password-oops"></p>
           <div class="nav">
             <button type="submit" class="make">Make my list</button>
-            <button type="button" class="skip">Skip and make my list</button>
             <button type="button" class="back">Back</button>
           </div>
         </div>
@@ -225,29 +213,36 @@
       {% endif %}
 
       var checks = {
-        interests: function () { return box.value.trim() ? "" : "Tell us a little about what you like, even a few words."; },
-        days: function () { return form.querySelector("input[name=days]:checked") ? "" : "Pick at least one day."; },
-        name: function () { return form.elements.name.value.trim() ? "" : "Add a name, so we know what to call you."; },
-        email: function () {
-          var email = form.elements.email;
-          if (!email.value.trim()) return "Add your email.";
-          return email.checkValidity() ? "" : "That email doesn't look complete yet.";
+        interests: function () {
+          return box.value.trim() ? [] : [[box, "Tell us a little about what you like, even a few words."]];
         },
-        password: function () {
-          return form.elements.password.value.length >= 8 ? "" : "Use at least 8 characters.";
+        when: function () {
+          return form.querySelector("input[name=days]:checked") ? [] : [[null, "Pick at least one day."]];
         },
-        style: function () { return ""; },
+        account: function () {
+          var found = [], name = form.elements.name, email = form.elements.email, password = form.elements.password;
+          if (!name.value.trim()) found.push([name, "Add a name, so we know what to call you."]);
+          if (!email.value.trim()) found.push([email, "Add your email."]);
+          else if (!email.checkValidity()) found.push([email, "That email doesn't look complete yet."]);
+          if (password.value.length < 8) found.push([password, "Use a password of at least 8 characters."]);
+          return found;
+        },
       };
 
-      function fieldOf(step) { return step.querySelector("textarea, input"); }
+      function fieldOf(step) { return step.querySelector("textarea, input, select, button.every"); }
 
+      // Shows each problem under its own field (the days' under the days), marks those fields, and returns
+      // the first one's field. The field's own description reads its message out when it gets focus.
       function problem(step) {
-        var text = checks[step.dataset.name]();
-        var oops = step.querySelector(".oops");
-        if (oops) oops.textContent = text;
-        var field = fieldOf(step);
-        if (step.dataset.name !== "days") field.setAttribute("aria-invalid", text ? "true" : "false");
-        return text;
+        var found = checks[step.dataset.name]();
+        step.querySelectorAll(".oops").forEach(function (oops) { oops.textContent = ""; });
+        step.querySelectorAll("textarea, input.plate").forEach(function (field) { field.setAttribute("aria-invalid", "false"); });
+        found.forEach(function (f) {
+          var oops = document.getElementById((f[0] ? f[0].id : "days") + "-oops");
+          if (oops) oops.textContent = f[1];
+          if (f[0]) f[0].setAttribute("aria-invalid", "true");
+        });
+        return found.length ? (found[0][0] || fieldOf(step)) : null;
       }
 
       function show(index) {
@@ -264,26 +259,48 @@
       }
 
       function next() {
-        if (problem(steps[at])) { fieldOf(steps[at]).focus(); return; }
+        var wrong = problem(steps[at]);
+        if (wrong) { wrong.focus(); return; }
         if (at < steps.length - 1) show(at + 1);
         else form.requestSubmit();
       }
 
-      document.querySelectorAll(".chips button").forEach(function (chip) {
+      // Each quick pick adds its words to the box, and taking it off removes them, so several can be combined.
+      var chips = document.querySelectorAll(".chips button");
+      function markChips() {
+        chips.forEach(function (chip) {
+          chip.setAttribute("aria-pressed", box.value.indexOf(chip.dataset.text) >= 0 ? "true" : "false");
+        });
+      }
+      chips.forEach(function (chip) {
         chip.addEventListener("click", function () {
-          box.value = chip.dataset.text;
-          document.querySelectorAll(".chips button").forEach(function (other) {
-            other.setAttribute("aria-pressed", other === chip ? "true" : "false");
-          });
+          var text = chip.dataset.text, value = box.value;
+          if (value.indexOf(text) >= 0) value = value.replace(text, "");
+          else value = value.trim() ? value.trim() + " " + text : text;
+          box.value = value.replace(/\s{2,}/g, " ").trim();
+          markChips();
           problem(steps[0]);
           box.focus();
         });
       });
-      box.addEventListener("input", function () {
-        document.querySelectorAll(".chips button").forEach(function (chip) {
-          chip.setAttribute("aria-pressed", chip.dataset.text === box.value ? "true" : "false");
-        });
+      box.addEventListener("input", markChips);
+      markChips();
+
+      // "Every day" ticks all seven days, or clears them when they are all ticked.
+      var everyDay = document.getElementById("every-day");
+      var dayBoxes = form.querySelectorAll("input[name=days]");
+      function markEveryDay() {
+        var all = Array.prototype.every.call(dayBoxes, function (day) { return day.checked; });
+        everyDay.setAttribute("aria-pressed", all ? "true" : "false");
+      }
+      everyDay.addEventListener("click", function () {
+        var all = everyDay.getAttribute("aria-pressed") === "true";
+        dayBoxes.forEach(function (day) { day.checked = !all; });
+        markEveryDay();
+        problem(steps[1]);
       });
+      dayBoxes.forEach(function (day) { day.addEventListener("change", markEveryDay); });
+      markEveryDay();
 
       // Clear a step's message as soon as the reader fixes it.
       form.addEventListener("input", function (event) {
@@ -293,9 +310,11 @@
 
       form.addEventListener("submit", function (event) {
         for (var i = 0; i < steps.length; i++) {
-          if (problem(steps[i])) {
+          var wrong = problem(steps[i]);
+          if (wrong) {
             event.preventDefault();
-            if (stepping) show(i); else fieldOf(steps[i]).focus();
+            if (stepping) show(i);
+            wrong.focus();
             return;
           }
         }
@@ -337,10 +356,6 @@
       form.querySelectorAll(".next").forEach(function (button) { button.addEventListener("click", next); });
       form.querySelectorAll(".back").forEach(function (button) {
         button.addEventListener("click", function () { if (at > 0) show(at - 1); });
-      });
-      form.querySelector(".skip").addEventListener("click", function () {
-        form.elements.look_prompt.value = "";
-        form.requestSubmit();
       });
 
       // Enter moves on; Shift+Enter still adds a new line in the big box. Buttons keep their own Enter.

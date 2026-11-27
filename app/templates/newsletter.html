@@ -68,7 +68,7 @@
   {% endif %}
   <tr>
     <td bgcolor="#000000" style="background-color: #000000; color: #ffffff; padding: 18px 24px; font-size: 14px; line-height: 1.45;">
-      {% if site_url %}<a href="{{ site_url }}/newsletter" style="color: #ffffff;">Open your list on whatisupnyc</a> to save events, share them with friends, or rate the ones you went to.{% else %}Something not for you? Edit your preferences on whatisupnyc, and we'll adjust your next issue.{% endif %}
+      {% if site_url %}<a href="{{ site_url }}/newsletter" style="color: #ffffff;">Open your list on whatisupnyc</a> to save events, share them with friends, or rate the ones you went to.<br><a href="{{ site_url }}/preferences" style="color: #ffffff;">Change when this email arrives, or stop it</a>{% else %}Something not for you? Edit your preferences on whatisupnyc, and we'll adjust your next issue.{% endif %}
       {% if parks_credit %}<br><span style="color: #bdbdbd; font-size: 12px;">Includes NYC Parks events from NYC Open Data.</span>{% endif %}
     </td>
   </tr>

@@ -66,6 +66,8 @@ class FakeAuth:
     # Test helpers
     def confirm(self, email):
         self.accounts[email.lower()]["confirmed"] = True
+        with self.conn.connection() as c:
+            c.execute("update auth.users set email_confirmed_at = now() where email = %s", (email.lower(),))
 
     def expire(self, access_token):
         self.access.pop(access_token, None)

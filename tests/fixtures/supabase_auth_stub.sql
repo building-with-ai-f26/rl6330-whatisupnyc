@@ -5,7 +5,10 @@ create schema auth;
 
 create table auth.users (
     id uuid primary key default gen_random_uuid(),
-    email text
+    email text,
+    email_confirmed_at timestamptz,
+    banned_until timestamptz,
+    deleted_at timestamptz
 );
 
 -- Supabase's auth.uid(): the signed-in user's ID, from the request's verified login claims.

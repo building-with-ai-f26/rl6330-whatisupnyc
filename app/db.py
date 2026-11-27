@@ -328,15 +328,17 @@ def as_reader(conn: Database, user_id: str) -> Iterator[Connection]:
 
 
 def create_profile(
-    conn: Database, user_id: str, name: str, interests: str, look_prompt: str, days: list[str], now: datetime
+    conn: Database, user_id: str, name: str, interests: str, look_prompt: str, days: list[str], now: datetime,
+    send_hour: int = 8,
 ) -> str | None:
     """Saves a new reader's preferences. Returns their first-look token, or None if they already have a profile."""
     token = _new_token()
     with conn.connection() as c:
         row = c.execute(
-            "INSERT INTO profiles (user_id, name, interests, look_prompt, days, first_look_token, first_look_until)"
-            " VALUES (%s, %s, %s, %s, %s, %s, %s) ON CONFLICT (user_id) DO NOTHING RETURNING user_id",
-            (user_id, name, interests, look_prompt, days, token, now + FIRST_LOOK),
+            "INSERT INTO profiles (user_id, name, interests, look_prompt, days, send_hour, first_look_token,"
+            " first_look_until) VALUES (%s, %s, %s, %s, %s, %s, %s, %s) ON CONFLICT (user_id) DO NOTHING"
+            " RETURNING user_id",
+            (user_id, name, interests, look_prompt, days, send_hour, token, now + FIRST_LOOK),
         ).fetchone()
     return token if row else None
 
@@ -380,6 +382,56 @@ def update_profile(
             " WHERE user_id = %s",
             (name, interests, look_prompt, days, now, user_id),
         ).rowcount == 1
+
+
+def email_settings(conn: Database, user_id: str) -> tuple[int, bool] | None:
+    """(send_hour, email_on) for a reader."""
+    with as_reader(conn, user_id) as c:
+        row = c.execute("SELECT send_hour, email_on FROM profiles WHERE user_id = %s", (user_id,)).fetchone()
+    return (row["send_hour"], row["email_on"]) if row else None
+
+
+def set_email_settings(conn: Database, user_id: str, send_hour: int, email_on: bool) -> None:
+    with as_reader(conn, user_id) as c:
+        c.execute("UPDATE profiles SET send_hour = %s, email_on = %s WHERE user_id = %s", (send_hour, email_on, user_id))
+
+
+# Hourly tries a day for each reader: their hour and the next three. After that, not until their next day.
+CATCH_UP_HOURS = 4
+
+
+def readers_due_an_email(conn: Database, now: datetime) -> list[tuple[Subscriber, str]]:
+    """Readers whose list should be emailed now: email on, a confirmed address, today one of their days,
+    their hour reached in the last CATCH_UP_HOURS hours, and not yet emailed today."""
+    local = now.astimezone(NY)
+    with conn.connection() as c:
+        rows = c.execute(
+            "SELECT p.*, u.email FROM profiles p JOIN auth.users u ON u.id = p.user_id"
+            " WHERE p.email_on AND u.email_confirmed_at IS NOT NULL AND u.email IS NOT NULL"
+            " AND u.deleted_at IS NULL AND (u.banned_until IS NULL OR u.banned_until < %s)"
+            " AND %s = ANY(p.days) AND p.send_hour <= %s AND p.send_hour > %s - %s"
+            " AND (p.emailed_on IS NULL OR p.emailed_on < %s)"
+            " ORDER BY p.send_hour, p.user_id",
+            (now, local.strftime("%A"), local.hour, local.hour, CATCH_UP_HOURS, local.date()),
+        ).fetchall()
+    return [(_row_to_subscriber(row), row["email"]) for row in rows]
+
+
+def claim_daily_email(conn: Database, user_id: str, now: datetime) -> bool:
+    """Marks today's email as sent before sending it, so a crash or a second run never sends it twice.
+    False if another run already claimed it."""
+    today = now.astimezone(NY).date()
+    with conn.connection() as c:
+        return c.execute(
+            "UPDATE profiles SET emailed_on = %s WHERE user_id = %s AND (emailed_on IS NULL OR emailed_on < %s)"
+            " RETURNING user_id", (today, user_id, today),
+        ).fetchone() is not None
+
+
+def release_daily_email(conn: Database, user_id: str) -> None:
+    """Undoes a claim when the email clearly wasn't sent, so the next hour tries again."""
+    with conn.connection() as c:
+        c.execute("UPDATE profiles SET emailed_on = NULL WHERE user_id = %s", (user_id,))
 
 
 def save_issue(conn: Database, user_id: str, picks: list[Pick], now: datetime) -> None:
