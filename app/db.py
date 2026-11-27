@@ -396,24 +396,42 @@ def set_email_settings(conn: Database, user_id: str, send_hour: int, email_on: b
         c.execute("UPDATE profiles SET send_hour = %s, email_on = %s WHERE user_id = %s", (send_hour, email_on, user_id))
 
 
+# Hourly tries a day for each reader: their hour and the next three. After that, not until their next day.
+CATCH_UP_HOURS = 4
+
+
 def readers_due_an_email(conn: Database, now: datetime) -> list[tuple[Subscriber, str]]:
     """Readers whose list should be emailed now: email on, a confirmed address, today one of their days,
-    their hour reached (a missed hour is caught up later the same day), and not yet emailed today."""
+    their hour reached in the last CATCH_UP_HOURS hours, and not yet emailed today."""
     local = now.astimezone(NY)
     with conn.connection() as c:
         rows = c.execute(
             "SELECT p.*, u.email FROM profiles p JOIN auth.users u ON u.id = p.user_id"
             " WHERE p.email_on AND u.email_confirmed_at IS NOT NULL AND u.email IS NOT NULL"
-            " AND %s = ANY(p.days) AND p.send_hour <= %s AND (p.emailed_on IS NULL OR p.emailed_on < %s)"
+            " AND u.deleted_at IS NULL AND (u.banned_until IS NULL OR u.banned_until < %s)"
+            " AND %s = ANY(p.days) AND p.send_hour <= %s AND p.send_hour > %s - %s"
+            " AND (p.emailed_on IS NULL OR p.emailed_on < %s)"
             " ORDER BY p.send_hour, p.user_id",
-            (local.strftime("%A"), local.hour, local.date()),
+            (now, local.strftime("%A"), local.hour, local.hour, CATCH_UP_HOURS, local.date()),
         ).fetchall()
     return [(_row_to_subscriber(row), row["email"]) for row in rows]
 
 
-def mark_emailed(conn: Database, user_id: str, now: datetime) -> None:
+def claim_daily_email(conn: Database, user_id: str, now: datetime) -> bool:
+    """Marks today's email as sent before sending it, so a crash or a second run never sends it twice.
+    False if another run already claimed it."""
+    today = now.astimezone(NY).date()
     with conn.connection() as c:
-        c.execute("UPDATE profiles SET emailed_on = %s WHERE user_id = %s", (now.astimezone(NY).date(), user_id))
+        return c.execute(
+            "UPDATE profiles SET emailed_on = %s WHERE user_id = %s AND (emailed_on IS NULL OR emailed_on < %s)"
+            " RETURNING user_id", (today, user_id, today),
+        ).fetchone() is not None
+
+
+def release_daily_email(conn: Database, user_id: str) -> None:
+    """Undoes a claim when the email clearly wasn't sent, so the next hour tries again."""
+    with conn.connection() as c:
+        c.execute("UPDATE profiles SET emailed_on = NULL WHERE user_id = %s", (user_id,))
 
 
 def save_issue(conn: Database, user_id: str, picks: list[Pick], now: datetime) -> None:

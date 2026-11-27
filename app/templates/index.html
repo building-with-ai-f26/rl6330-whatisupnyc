@@ -19,7 +19,7 @@
     .intro { margin: clamp(20px, 3.5vw, 36px) 0 0; max-width: 40ch; font-size: clamp(18px, 2vw, 22px); line-height: 1.4; color: var(--white); }
     .message { background: var(--taxi); color: var(--black); border-radius: 4px; padding: 12px 16px; margin: 28px 0 0; max-width: 60ch; }
 
-    /* Progress: five blocks, one per question. Only drawn when JavaScript runs the steps. */
+    /* Progress: three blocks, one per step. Only drawn when JavaScript runs the steps. */
     .progress { display: none; align-items: center; gap: 14px; margin: clamp(24px, 4vw, 40px) 0 0; color: var(--fog); font-size: 15px; }
     .js .stepping .progress { display: flex; }
     .progress ol { display: flex; gap: 4px; margin: 0; padding: 0; list-style: none; }
@@ -158,13 +158,15 @@
         <div class="step" data-name="account">
           <p class="ask">Last step: your account</p>
           <label class="field" for="name">What should we call you?</label>
-          <input id="name" class="plate" name="name" type="text" required autocomplete="off" aria-describedby="account-oops" value="{{ form.name }}">
+          <input id="name" class="plate" name="name" type="text" required autocomplete="off" aria-describedby="name-oops" value="{{ form.name }}">
+          <p class="oops" id="name-oops"></p>
           <label class="field" for="email">Email</label>
-          <input id="email" class="plate" name="email" type="email" required autocomplete="email" inputmode="email" aria-describedby="account-oops" value="{{ form.email }}">
+          <input id="email" class="plate" name="email" type="email" required autocomplete="email" inputmode="email" aria-describedby="email-oops" value="{{ form.email }}">
+          <p class="oops" id="email-oops"></p>
           <label class="field" for="password">Password</label>
-          <input id="password" class="plate" name="password" type="password" required minlength="8" autocomplete="new-password" aria-describedby="password-note account-oops">
+          <input id="password" class="plate" name="password" type="password" required minlength="8" autocomplete="new-password" aria-describedby="password-note password-oops">
           <p class="note" id="password-note">At least 8 characters. You'll use it with your email to come back to your list.</p>
-          <p class="oops" id="account-oops" role="alert"></p>
+          <p class="oops" id="password-oops"></p>
           <div class="nav">
             <button type="submit" class="make">Make my list</button>
             <button type="button" class="back">Back</button>
@@ -229,14 +231,16 @@
 
       function fieldOf(step) { return step.querySelector("textarea, input, select, button.every"); }
 
-      // Shows the step's first problem, marks each field it found wrong, and returns that problem's field.
+      // Shows each problem under its own field (the days' under the days), marks those fields, and returns
+      // the first one's field. The field's own description reads its message out when it gets focus.
       function problem(step) {
         var found = checks[step.dataset.name]();
-        var oops = step.querySelector(".oops");
-        if (oops) oops.textContent = found.length ? found[0][1] : "";
-        step.querySelectorAll("textarea, input.plate").forEach(function (field) {
-          var wrong = found.some(function (f) { return f[0] === field; });
-          field.setAttribute("aria-invalid", wrong ? "true" : "false");
+        step.querySelectorAll(".oops").forEach(function (oops) { oops.textContent = ""; });
+        step.querySelectorAll("textarea, input.plate").forEach(function (field) { field.setAttribute("aria-invalid", "false"); });
+        found.forEach(function (f) {
+          var oops = document.getElementById((f[0] ? f[0].id : "days") + "-oops");
+          if (oops) oops.textContent = f[1];
+          if (f[0]) f[0].setAttribute("aria-invalid", "true");
         });
         return found.length ? (found[0][0] || fieldOf(step)) : null;
       }
