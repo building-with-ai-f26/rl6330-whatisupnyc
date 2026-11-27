@@ -162,3 +162,27 @@ def test_each_list_has_its_own_daily_email(conn, sites):
     assert (sent, failed) == (2, 0)
     assert subjects == ["Your Sport list for Monday, November 2", "Your whatisupnyc list for Monday, November 2"]
     assert json.dumps(resend.sent).count(GOOD["email"]) == 2
+
+
+def test_two_adds_at_once_cannot_pass_the_limit(conn, sites):
+    # Found by the automatic security review: both requests could count 2 lists and both add one.
+    import threading
+
+    client, ai = ready(conn, sites)
+    add_sport(client)
+    user, barrier, results = ana_id(client), threading.Barrier(2), []
+
+    def add(title):
+        barrier.wait()
+        results.append(db.add_list(conn, user, title, "x", ["Monday"], 8, NOW))
+
+    threads = [threading.Thread(target=add, args=(t,)) for t in ("Music", "Food")]
+    for _ in range(20):
+        for t in list(db.reader_lists(conn, user))[2:]:
+            db.delete_list(conn, user, t[0])
+        results.clear()
+        threads = [threading.Thread(target=add, args=(t,)) for t in ("Music", "Food")]
+        barrier.reset()
+        [t.start() for t in threads]
+        [t.join() for t in threads]
+        assert len(db.reader_lists(conn, user)) <= db.MAX_LISTS

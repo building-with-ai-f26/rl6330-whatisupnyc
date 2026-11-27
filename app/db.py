@@ -394,7 +394,9 @@ def add_list(conn: Database, user_id: str, title: str, interests: str, days: lis
              now: datetime) -> int | None:
     """A new list for the reader. None when they already have MAX_LISTS. Written as the server's role, for the
     signed-in reader Supabase verified."""
-    with conn.connection() as c:
+    with conn.connection() as c, c.transaction():
+        # Locks the reader's row first, so two requests at once can't both count 2 and add a fourth list.
+        c.execute("SELECT 1 FROM profiles WHERE user_id = %s FOR UPDATE", (user_id,))
         row = c.execute(
             "INSERT INTO reader_lists (user_id, title, interests, days, send_hour, changed_at)"
             " SELECT %(u)s, %(t)s, %(i)s, %(d)s, %(h)s, %(n)s"
@@ -406,7 +408,9 @@ def add_list(conn: Database, user_id: str, title: str, interests: str, days: lis
 
 def delete_list(conn: Database, user_id: str, list_id: int) -> bool:
     """Deletes one of the reader's lists and its saved daily lists, never their last one."""
-    with conn.connection() as c:
+    with conn.connection() as c, c.transaction():
+        # The same lock, so two deletes at once can't remove the reader's last list.
+        c.execute("SELECT 1 FROM profiles WHERE user_id = %s FOR UPDATE", (user_id,))
         return c.execute(
             "DELETE FROM reader_lists WHERE id = %(l)s AND user_id = %(u)s"
             " AND (SELECT count(*) FROM reader_lists WHERE user_id = %(u)s) > 1",
